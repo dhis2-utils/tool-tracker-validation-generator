@@ -1,7 +1,7 @@
 {
-  "name": "tool-template",
-  "description": "Template for basic DHIS2 tools",
-  "version": "0.2.1",
+  "name": "tool-tracker-date-validation",
+  "description": "Tool to configure and manage date validation in tracker programmes",
+  "version": "0.1.0",
   "dependencies": {},
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
@@ -40,6 +40,7 @@
       "48": "img/icons/app_logo_48x48.png",
       "96": "img/icons/app_logo_96x96.png"
     },
+    "name": "Tracker date validation tool",
     "appType": "APP"
   }
 }

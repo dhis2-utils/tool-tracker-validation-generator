@@ -1,5 +1,5 @@
-# DHIS2 App Template for Dummies
-Basic DHIS2 app for simple tools.
+# Tracker Date Valiation Configuration Tool
+DHIS2 tool for admin that helps configure validation of dates in DHIS2 tracker programmes, using programme rules.
 
 > **WARNING**
 > This tool is intended to be used by system administrators to perform specific tasks, it is not intended for end users. It is available as a DHIS2 app, but has not been through the same rigorous testing as normal core apps. It should be used with care, and always tested in a development environment.
