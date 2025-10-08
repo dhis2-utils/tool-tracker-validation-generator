@@ -1,0 +1,45 @@
+{
+  "name": "tool-template",
+  "description": "Template for basic DHIS2 tools",
+  "version": "0.2.1",
+  "dependencies": {},
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.35.0",
+    "copy-webpack-plugin": "^12.0.2",
+    "css-loader": "^7.1.2",
+    "d2-manifest": "^1.0.0",
+    "eslint": "^9.35.0",
+    "file-loader": "^6.2.0",
+    "globals": "^15.15.0",
+    "html-loader": "^5.1.0",
+    "html-webpack-plugin": "^5.6.4",
+    "style-loader": "^4.0.0",
+    "url-loader": "^4.1.1",
+    "webpack": "^5.101.3",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.2.2"
+  },
+  "main": "./src/app.js",
+  "scripts": {
+    "build": "webpack --progress",
+    "lint": "eslint src",
+    "manifest": "d2-manifest package.json build/manifest.webapp",
+    "postbuild": "npm run manifest",
+    "prebuild": "rm -rf build && npm run lint",
+    "start": "d2-manifest package.json manifest.webapp && webpack-dev-server",
+    "zip": "rm -rf compiled && npm run build && mkdir compiled && cd build && zip -r ../compiled/$npm_package_name.zip *"
+  },
+  "manifest.webapp": {
+    "developer": {
+      "company": "HISP Centre - Univeristy of Oslo",
+      "email": "dev@dhis2.org",
+      "name": "HISP Centre"
+    },
+    "icons": {
+      "48": "img/icons/app_logo_48x48.png",
+      "96": "img/icons/app_logo_96x96.png"
+    },
+    "appType": "APP"
+  }
+}

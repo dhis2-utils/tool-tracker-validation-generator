@@ -1,0 +1,65 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+
+    - name: Install jq
+      run: sudo apt-get install -y jq
+
+    - name: Build
+      run: |
+        yarn install
+        yarn run zip
+
+    - name: Get version
+      id: version
+      run: echo "version=$(jq -r .version package.json)" >> $GITHUB_ENV
+
+    - name: Get app name
+      id: app_name
+      run: echo "app_name=$(jq -r .name package.json)" >> $GITHUB_ENV
+
+    - name: Create Release
+      uses: actions/create-release@v1
+      id: create_release
+      with:
+        draft: false
+        prerelease: false
+        release_name: ${{ env.version }}
+        tag_name: v${{ env.version }}
+        body_path: CHANGELOG.md
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: "./compiled/${{ env.app_name }}.zip"
+        asset_name: "${{ env.app_name }}.zip"
+        asset_content_type: application/zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
