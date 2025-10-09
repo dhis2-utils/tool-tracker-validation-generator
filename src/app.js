@@ -530,9 +530,17 @@ function setupValidationForm() {
     // Setup event listeners BEFORE initializing Materialize
     setupFormEventListeners();
     
-    // Initialize Materialize selects AFTER setting up listeners
-    const selects = document.querySelectorAll('#dateVariableDetails select');
-    M.FormSelect.init(selects);
+    // Destroy any existing Materialize select instances to prevent duplication
+    const allSelects = document.querySelectorAll('#dateVariableDetails select');
+    allSelects.forEach(select => {
+        const instance = M.FormSelect.getInstance(select);
+        if (instance) {
+            instance.destroy();
+        }
+    });
+    
+    // Initialize Materialize selects AFTER setting up listeners and destroying old instances
+    M.FormSelect.init(allSelects);
     
     console.log("Validation form setup complete"); // Debug log
 }
@@ -607,6 +615,8 @@ function updateValidationPreview() {
     const intervalUnit = document.getElementById("intervalUnit").value;
     
     let preview = "";
+    let suggestedRuleName = "";
+    let suggestedMessage = "";
     
     if (operator && comparisonDate) {
         const variableName = currentVariable.name;
@@ -616,30 +626,58 @@ function updateValidationPreview() {
         switch (operator) {
             case "before":
                 preview = `${variableName} should be before ${comparisonName}`;
+                suggestedRuleName = `${variableName} must be before ${comparisonName}`;
+                suggestedMessage = `${variableName} must be before ${comparisonName}`;
                 break;
             case "after":
                 preview = `${variableName} should be after ${comparisonName}`;
+                suggestedRuleName = `${variableName} must be after ${comparisonName}`;
+                suggestedMessage = `${variableName} must be after ${comparisonName}`;
                 break;
             case "on_or_after":
                 preview = `${variableName} should be on or after ${comparisonName}`;
+                suggestedRuleName = `${variableName} must be on or after ${comparisonName}`;
+                suggestedMessage = `${variableName} must be on or after ${comparisonName}`;
                 break;
             case "on_or_before":
                 preview = `${variableName} should be on or before ${comparisonName}`;
+                suggestedRuleName = `${variableName} must be on or before ${comparisonName}`;
+                suggestedMessage = `${variableName} must be on or before ${comparisonName}`;
                 break;
             case "within_before":
                 if (intervalAmount && intervalUnit) {
                     preview = `${variableName} should be within ${intervalAmount} ${intervalUnit} before ${comparisonName}`;
+                    suggestedRuleName = `${variableName} within ${intervalAmount} ${intervalUnit} before ${comparisonName}`;
+                    suggestedMessage = `${variableName} must be within ${intervalAmount} ${intervalUnit} before ${comparisonName}`;
                 }
                 break;
             case "within_after":
                 if (intervalAmount && intervalUnit) {
                     preview = `${variableName} should be within ${intervalAmount} ${intervalUnit} after ${comparisonName}`;
+                    suggestedRuleName = `${variableName} within ${intervalAmount} ${intervalUnit} after ${comparisonName}`;
+                    suggestedMessage = `${variableName} must be within ${intervalAmount} ${intervalUnit} after ${comparisonName}`;
                 }
                 break;
         }
     }
     
     document.getElementById("validationPreview").textContent = preview || "Configure the validation above to see preview";
+    
+    // Auto-fill rule name and message if they're empty
+    const ruleNameInput = document.getElementById("ruleName");
+    const ruleMessageInput = document.getElementById("ruleMessage");
+    
+    if (suggestedRuleName && !ruleNameInput.value) {
+        ruleNameInput.value = suggestedRuleName;
+        // Trigger Materialize label update
+        M.updateTextFields();
+    }
+    
+    if (suggestedMessage && !ruleMessageInput.value) {
+        ruleMessageInput.value = suggestedMessage;
+        // Trigger Materialize label update
+        M.updateTextFields();
+    }
 }
 
 function checkFormValidity() {
@@ -946,12 +984,18 @@ function populateComparisonDates() {
     const select = document.getElementById("comparisonDate");
     if (!select) return;
     
+    // Destroy existing Materialize select instance to avoid duplication
+    const instance = M.FormSelect.getInstance(select);
+    if (instance) {
+        instance.destroy();
+    }
+    
     // Clear existing options
     select.innerHTML = '<option value="" disabled selected>Choose date...</option>';
     
     if (!currentVariable || !dateVariables) return;
     
-    // Add date options (excluding the current variable and applying stage restrictions)
+    // Add date options with proper filtering based on DHIS2 validation rules
     dateVariables.forEach(variable => {
         // Don't compare a variable with itself
         if (variable.id === currentVariable.id && variable.type === currentVariable.type && 
@@ -959,46 +1003,64 @@ function populateComparisonDates() {
             return;
         }
         
-        // Apply stage restrictions for data elements
-        if (currentVariable.type === "dataElement") {
-            if (variable.type === "dataElement") {
-                // Data elements can only be compared with data elements from the same stage
-                if (currentVariable.stageId && variable.stageId && currentVariable.stageId !== variable.stageId) {
-                    return;
-                }
-            } else if (variable.type === "event_date") {
-                // Data elements can be compared with event dates from the same stage
-                if (currentVariable.stageId && variable.stageId && currentVariable.stageId !== variable.stageId) {
-                    return;
-                }
+        let shouldInclude = false;
+        
+        // All dates can be compared to current date
+        if (variable.type === "current_date") {
+            shouldInclude = true;
+        }
+        // Apply filtering rules based on what's being validated
+        else if (currentVariable.type === "enrollment") {
+            // Enrollment date can only be compared with: incident date, tracked entity attributes
+            shouldInclude = variable.type === "incident" || 
+                          variable.type === "trackedEntityAttribute";
+        } 
+        else if (currentVariable.type === "incident") {
+            // Incident date can only be compared with: enrollment date, tracked entity attributes
+            shouldInclude = variable.type === "enrollment" || 
+                          variable.type === "trackedEntityAttribute";
+        }
+        else if (currentVariable.type === "trackedEntityAttribute") {
+            // Tracked entity attributes can only be compared with: enrollment date, incident date
+            shouldInclude = variable.type === "enrollment" || 
+                          variable.type === "incident";
+        }
+        else if (currentVariable.type === "event_date") {
+            // Event/due dates cannot be compared to other event dates or data elements in other stages
+            // They can only be compared with: enrollment, incident, tracked entity attributes, data elements from same stage
+            if (variable.type === "enrollment" || variable.type === "incident" || variable.type === "trackedEntityAttribute") {
+                shouldInclude = true;
+            } else if (variable.type === "dataElement") {
+                // Only data elements from the same stage
+                shouldInclude = variable.stageId === currentVariable.stageId;
             }
-            // Data elements can always be compared with enrollment, incident, and current dates
+            // Cannot be compared with other event dates
+        }
+        else if (currentVariable.type === "dataElement") {
+            // Data elements cannot be compared to event/due dates or data element dates from other stages
+            // They can only be compared with: enrollment, incident, tracked entity attributes, data elements from same stage
+            if (variable.type === "enrollment" || variable.type === "incident" || variable.type === "trackedEntityAttribute") {
+                shouldInclude = true;
+            } else if (variable.type === "dataElement") {
+                // Only data elements from the same stage
+                shouldInclude = variable.stageId === currentVariable.stageId;
+            }
+            // Cannot be compared with event/due dates
+        }
+        else if (currentVariable.type === "current_date") {
+            // Current date can be compared with anything
+            shouldInclude = true;
         }
         
-        // Apply stage restrictions for event dates
-        if (currentVariable.type === "event_date") {
-            if (variable.type === "dataElement") {
-                // Event dates can be compared with data elements from the same stage
-                if (currentVariable.stageId && variable.stageId && currentVariable.stageId !== variable.stageId) {
-                    return;
-                }
-            } else if (variable.type === "event_date") {
-                // Event dates can be compared with other event dates from any stage
-                // (this is allowed as per DHIS2 program rules)
-            }
-            // Event dates can always be compared with enrollment, incident, and current dates
+        if (shouldInclude) {
+            const option = document.createElement("option");
+            option.value = `${variable.type}:${variable.id}${variable.stageId ? ':' + variable.stageId : ''}`;
+            option.textContent = variable.name;
+            select.appendChild(option);
         }
-        
-        // Enrollment, incident, current dates, and tracked entity attributes have no stage restrictions
-        
-        const option = document.createElement("option");
-        option.value = `${variable.type}:${variable.id}${variable.stageId ? ':' + variable.stageId : ''}`;
-        option.textContent = variable.name;
-        select.appendChild(option);
     });
     
-    // Re-initialize Materialize select
-    M.FormSelect.init(select);
+    // Note: Materialize select initialization is handled in setupValidationForm()
 }
 
 async function addValidation(config) {

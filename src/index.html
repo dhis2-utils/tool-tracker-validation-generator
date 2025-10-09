@@ -151,22 +151,25 @@
                             <!-- Rule Customization -->
                             <div class="row">
                                 <div class="input-field col s12">
-                                    <input id="ruleName" type="text" required>
+                                    <input id="ruleName" type="text" required placeholder="e.g. Birth Date must be before Enrollment Date">
                                     <label for="ruleName">Rule Name</label>
+                                    <span class="helper-text">A descriptive name for administrators to identify this rule</span>
                                 </div>
                             </div>
 
                             <div class="row">
                                 <div class="input-field col s12">
-                                    <textarea id="ruleDescription" class="materialize-textarea"></textarea>
+                                    <textarea id="ruleDescription" class="materialize-textarea" placeholder="Optional description for administrators explaining when and why this rule applies"></textarea>
                                     <label for="ruleDescription">Rule Description (optional)</label>
+                                    <span class="helper-text">Additional details about this validation rule for administrators</span>
                                 </div>
                             </div>
 
                             <div class="row">
                                 <div class="input-field col s12">
-                                    <textarea id="ruleMessage" class="materialize-textarea" required></textarea>
+                                    <textarea id="ruleMessage" class="materialize-textarea" required placeholder="e.g. Birth date cannot be after enrollment date"></textarea>
                                     <label for="ruleMessage">Validation Message</label>
+                                    <span class="helper-text">Error message shown to users when validation fails</span>
                                 </div>
                             </div>
 
@@ -175,111 +178,6 @@
                                     <button id="createValidationBtn" class="btn waves-effect waves-light" disabled>
                                         <i class="material-icons left">add</i>Create Validation Rule
                                     </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                            </div>
-            </div>
-        </div>
-    </main>
-
-                            <!-- Period-based Settings -->
-                            <div id="periodSettings" class="validation-category" style="display: none;">
-                                <div class="row">
-                                    <div class="col s12">
-                                        <h6 id="periodTitle">Period-based Validation</h6>
-                                        <p class="grey-text">Validate the time difference between two dates.</p>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col s12 m4">
-                                        <label for="periodType">Time difference:</label>
-                                        <select id="periodType" class="browser-default">
-                                            <option value="" disabled selected>Choose condition</option>
-                                            <option value="less_than">should be less than</option>
-                                            <option value="less_than_equal">should be less than or equal to</option>
-                                            <option value="more_than">should be more than</option>
-                                            <option value="more_than_equal">should be more than or equal to</option>
-                                        </select>
-                                    </div>
-                                    <div class="col s12 m3">
-                                        <label for="periodValue">Value:</label>
-                                        <input type="number" id="periodValue" min="0" />
-                                    </div>
-                                    <div class="col s12 m3">
-                                        <label for="periodUnit">Unit:</label>
-                                        <select id="periodUnit" class="browser-default">
-                                            <option value="days">Days</option>
-                                            <option value="months">Months</option>
-                                            <option value="years">Years</option>
-                                        </select>
-                                    </div>
-                                    <div class="col s12 m2">
-                                        <label for="periodDirection">Direction:</label>
-                                        <select id="periodDirection" class="browser-default">
-                                            <option value="between" selected>between dates</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col s12 m6">
-                                        <label for="periodTargetDate">And date:</label>
-                                        <select id="periodTargetDate" class="browser-default">
-                                            <option value="" disabled selected>Choose second date</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col s12">
-                                        <div class="card-panel blue-grey lighten-5">
-                                            <span id="periodPreview" class="grey-text text-darken-2">
-                                                Select all options to see preview
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Action Type (common for both) -->
-                            <div id="actionSettings" style="display: none;">
-                                <div class="row">
-                                    <div class="col s12 m6">
-                                        <label for="actionType">Action Type:</label>
-                                        <select id="actionType" class="browser-default">
-                                            <option value="SHOWWARNING">Show warning</option>
-                                            <option value="SHOWERROR">Show error</option>
-                                            <option value="WARNINGONCOMPLETE">Show warning on complete</option>
-                                            <option value="ERRORONCOMPLETE">Show error on complete</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                
-                                <!-- Rule customization fields -->
-                                <div class="row">
-                                    <div class="col s12">
-                                        <label for="ruleName">Rule Name (for administrators):</label>
-                                        <input type="text" id="ruleName" placeholder="Rule name will be generated automatically" />
-                                        <span class="helper-text">Leave empty to auto-generate</span>
-                                    </div>
-                                </div>
-                                
-                                <div class="row">
-                                    <div class="col s12">
-                                        <label for="ruleDescription">Rule Description (for administrators):</label>
-                                        <input type="text" id="ruleDescription" placeholder="Optional description for administrators" />
-                                        <span class="helper-text">Optional description visible to DHIS2 administrators</span>
-                                    </div>
-                                </div>
-                                
-                                <div class="row">
-                                    <div class="col s12">
-                                        <label for="validationMessage">Validation Message (shown to users):</label>
-                                        <input type="text" id="validationMessage" placeholder="Message will be generated automatically" />
-                                        <span class="helper-text">Leave empty to auto-generate user-friendly message</span>
-                                    </div>
                                 </div>
                             </div>
                         </div>
