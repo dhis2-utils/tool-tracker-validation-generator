@@ -2,7 +2,12 @@
   "name": "tool-tracker-date-validation",
   "description": "Tool to configure and manage date validation in tracker programmes",
   "version": "0.1.0",
-  "dependencies": {},
+  "dependencies": {
+    "materialize-css": "^1.0.0",
+    "datatables.net": "^2.1.8",
+    "datatables.net-dt": "^2.1.8",
+    "choices.js": "^10.2.0"
+  },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.35.0",

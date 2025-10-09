@@ -1,7 +1,7 @@
 # DHIS2 App Development Guide
 
 ## Project Overview
-This is a DHIS2 web app template for creating administrative tools. It's a vanilla JavaScript app using webpack that integrates with the DHIS2 API for tracker date validation management.
+This is a DHIS2 web app for setting up and managing date validation program rules in tracker programmes. It provides a user-friendly interface to create, edit, and manage date validation rules without requiring deep knowledge of DHIS2's program rule engine. The app works with any tracker programme - from disease surveillance to education tracking to logistics management.
 
 ## Architecture & Key Components
 
@@ -108,10 +108,11 @@ Make sure styling match, falling back to Material design. Make it simple and use
 Suggest existing libraries when useful to keep code simple, ideally modern ones. Use modern javascript capabilities (ES6 etc). Never use react. Code style: use double quotes.
 
 In index.html, only change code inside the mainView div.
-For styling, use materialize-css (including for tabs, buttons, text, headers and applied to any datatables components.)
-Use these libraries if needed:
-* For tables, use datatables
+For styling, use materialize-css imported as ES6 module (import M from "materialize-css" and import "materialize-css/dist/css/materialize.min.css"), including for tabs, buttons, text, headers and applied to any datatables components.
+Use these libraries if needed (add to package.json dependencies if missing):
+* For tables, use datatables.net
 * For dropdowns (except inside datatables), use choices.js
+* materialize-css for UI components
 
 Some DHIS2 Web API basics:
 * To get all owned/key fields, use fields=:owner

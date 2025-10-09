@@ -1,8 +1,260 @@
+/* Import Material Icons */
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+
 body {
     font-family: sans-serif;
     margin: 0px;
+    background-color: #fafafa;
 }
 
 #mainView {
     margin: 8px;
+}
+
+/* Validation category styling */
+.validation-category {
+    margin-top: 20px;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #fafafa;
+}
+
+.validation-category h6 {
+    margin-top: 0;
+    color: #1976d2;
+}
+
+/* Preview panel styling */
+.card-panel {
+    padding: 15px !important;
+    margin: 15px 0 !important;
+}
+
+.card-panel span {
+    font-size: 14px;
+    font-style: italic;
+}
+
+/* Radio button spacing */
+input[type="radio"] + span {
+    padding-left: 35px !important;
+}
+
+/* Form section spacing */
+.row {
+    margin-bottom: 10px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.section {
+    margin-bottom: 30px;
+}
+
+/* Date variable styling */
+.date-variable {
+    padding: 10px;
+    margin: 5px 0;
+    border-left: 4px solid #2196F3;
+    background-color: #f5f5f5;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.date-variable:hover {
+    background-color: #e0e0e0;
+}
+
+.date-variable.has-validation {
+    border-left-color: #4CAF50;
+}
+
+.date-variable.has-validation::after {
+    content: "✓";
+    float: right;
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+/* Program stage styling */
+.program-stage {
+    margin-bottom: 20px;
+}
+
+.stage-header {
+    background-color: #e3f2fd;
+    padding: 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid #bbdefb;
+}
+
+.stage-content {
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-top: none;
+    background-color: white;
+}
+
+.section-group {
+    margin-bottom: 15px;
+}
+
+.section-title {
+    font-weight: 500;
+    color: #1976d2;
+    margin-bottom: 8px;
+}
+
+/* Validation rule styling */
+.validation-rule {
+    background-color: #fff3e0;
+    border: 1px solid #ffcc02;
+    border-radius: 4px;
+    padding: 12px;
+    margin: 8px 0;
+}
+
+.validation-rule.warning {
+    background-color: #fff3e0;
+    border-color: #ff9800;
+}
+
+.validation-rule.error {
+    background-color: #ffebee;
+    border-color: #f44336;
+}
+
+.validation-actions {
+    margin-top: 10px;
+}
+
+.validation-actions button {
+    margin-right: 8px;
+}
+
+/* Loading indicator */
+.center-align {
+    text-align: center;
+}
+
+/* Form styling */
+.browser-default {
+    height: 3rem;
+    padding: 0 0.75rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: white;
+    margin-bottom: 10px;
+}
+
+label {
+    color: #424242;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.helper-text {
+    font-size: 0.8rem;
+    color: #757575;
+}
+
+/* Collapsible styling */
+.collapsible {
+    border: none;
+    box-shadow: none;
+}
+
+.collapsible-header {
+    background-color: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-bottom: none;
+}
+
+.collapsible-body {
+    border: 1px solid #bbdefb;
+    border-top: none;
+    background-color: white;
+}
+
+/* Modal styling */
+.modal {
+    max-width: 600px;
+}
+
+/* Responsive adjustments */
+@media only screen and (max-width: 600px) {
+    .container {
+        padding: 10px;
+    }
+    
+    #mainView {
+        margin: 4px;
+    }
+}
+
+/* Rule ID styling */
+code {
+    background-color: #f5f5f5;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+    color: #666;
+    border: 1px solid #e0e0e0;
+}
+
+.validation-rule code {
+    font-size: 0.85em;
+    word-break: break-all;
+}
+
+/* Validation sentence styling */
+.validation-sentence {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+}
+
+.validation-sentence .input-field.inline {
+    margin: 0 5px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.validation-sentence .input-field.inline input,
+.validation-sentence .input-field.inline select {
+    margin: 0;
+    height: 2rem;
+    line-height: 2rem;
+}
+
+.validation-sentence .input-field.inline select {
+    display: block;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 0 8px;
+    background: white;
+}
+
+.validation-date-name {
+    font-weight: bold;
+    color: #1976d2;
+}
+
+#intervalInputs {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background-color: #f0f8ff;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 2px dashed #1976d2;
 }
