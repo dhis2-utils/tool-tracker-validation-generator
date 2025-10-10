@@ -255,14 +255,15 @@ export async function addValidationCtx(ctx, config) {
         
         const duplicateRule = findDuplicateRule(getMeta(), currentVariable, config);
         if (duplicateRule) {
-            showMessage(`A similar validation rule "${duplicateRule.name}" already exists for this variable.`, "error");
+            showMessage(`A validation rule comparing these same date variables already exists: "${duplicateRule.name}". Please choose different variables or modify the existing rule.`, "error");
             return;
         }
         
-        // Check for existing rule with same name
-        const existingRule = getMeta().programRules.find(rule => rule.name === config.ruleName);
+        // Generate the final rule name to check for collisions
+        const finalRuleName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
+        const existingRule = getMeta().programRules.find(rule => rule.name === finalRuleName);
         if (existingRule) { 
-            showMessage(`A program rule with the name "${config.ruleName}" already exists. Please choose a different name.`, "error"); 
+            showMessage(`A program rule with the name "${finalRuleName}" already exists. Please choose a different name.`, "error"); 
             return; 
         }
         
@@ -311,14 +312,15 @@ export async function updateValidationCtx(ctx, config, ruleId) {
         // Check for duplicates (excluding the current rule)
         const duplicateRule = findDuplicateRule(getMeta(), currentVariable, config);
         if (duplicateRule && duplicateRule.id !== ruleId) {
-            showMessage(`A similar validation rule "${duplicateRule.name}" already exists for this variable.`, "error");
+            showMessage(`A validation rule comparing these same date variables already exists: "${duplicateRule.name}". Please choose different variables or modify the existing rule.`, "error");
             return;
         }
         
-        // Check for existing rule with same name (excluding current rule)
-        const duplicateName = getMeta().programRules.find(rule => rule.name === config.ruleName && rule.id !== ruleId);
+        // Generate the final rule name to check for collisions (excluding current rule)
+        const finalRuleName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
+        const duplicateName = getMeta().programRules.find(rule => rule.name === finalRuleName && rule.id !== ruleId);
         if (duplicateName) { 
-            showMessage(`A program rule with the name "${config.ruleName}" already exists. Please choose a different name.`, "error"); 
+            showMessage(`A program rule with the name "${finalRuleName}" already exists. Please choose a different name.`, "error"); 
             return; 
         }
         

@@ -34,10 +34,10 @@ export function generateNewRuleCondition(variable1, variable2, config) {
     const var1Ref = getVariableReference(variable1);
     const var2Ref = getVariableReference(variable2);
     switch (config.operator) {
-    case "before": return `${var1Ref} >= ${var2Ref}`;
-    case "after": return `${var1Ref} <= ${var2Ref}`;
-    case "on_or_after": return `${var1Ref} < ${var2Ref}`;
-    case "on_or_before": return `${var1Ref} > ${var2Ref}`;
+    case "before": return `d2:daysBetween(${var1Ref}, ${var2Ref}) < 0`;
+    case "after": return `d2:daysBetween(${var1Ref}, ${var2Ref}) > 0`;
+    case "on_or_after": return `d2:daysBetween(${var1Ref}, ${var2Ref}) >= 0`;
+    case "on_or_before": return `d2:daysBetween(${var1Ref}, ${var2Ref}) <= 0`;
     case "within_before": return generateIntervalCondition(var2Ref, var1Ref, config.intervalAmount, config.intervalUnit);
     case "within_after": return generateIntervalCondition(var1Ref, var2Ref, config.intervalAmount, config.intervalUnit);
     default: throw new Error(`Unknown operator: ${config.operator}`);

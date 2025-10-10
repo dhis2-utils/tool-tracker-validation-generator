@@ -66,24 +66,31 @@ export function findDuplicateRule(programMetadata, variable, config) {
         stageId: compareStageId
     };
     
-    const targetSignature = getConfigurationSignature(variable, compareVariable, config);
-    
-    // Look for existing rules with the same configuration signature
+    // Look for existing rules that target the same variables regardless of who created them
     const existingValidations = prGetExisting(programMetadata, variable);
     
     for (const validation of existingValidations) {
         const { rule } = validation;
         
-        // Skip if not app-generated (we only check duplicates among our own rules)
-        if (!isAppGenerated(rule)) continue;
-        
         // Try to extract configuration from the rule condition
         const ruleConfig = parseRuleCondition(rule.condition, programMetadata);
         if (!ruleConfig) continue;
         
-        const ruleSignature = getConfigurationSignature(ruleConfig.variable1, ruleConfig.variable2, ruleConfig.config);
+        // Check if this rule uses the same two variables
+        const sameVariables = (
+            (ruleConfig.variable1.type === variable.type && ruleConfig.variable1.id === variable.id && 
+             ruleConfig.variable1.stageId === variable.stageId) &&
+            (ruleConfig.variable2.type === compareVariable.type && ruleConfig.variable2.id === compareVariable.id && 
+             ruleConfig.variable2.stageId === compareVariable.stageId)
+        ) || (
+            // Also check reversed order
+            (ruleConfig.variable1.type === compareVariable.type && ruleConfig.variable1.id === compareVariable.id && 
+             ruleConfig.variable1.stageId === compareVariable.stageId) &&
+            (ruleConfig.variable2.type === variable.type && ruleConfig.variable2.id === variable.id && 
+             ruleConfig.variable2.stageId === variable.stageId)
+        );
         
-        if (ruleSignature === targetSignature) {
+        if (sameVariables) {
             return rule;
         }
     }
@@ -92,34 +99,74 @@ export function findDuplicateRule(programMetadata, variable, config) {
 }
 
 function parseRuleCondition(condition, programMetadata) {
-    // Parse basic date comparison conditions
-    const conditionMatch = condition.match(/V\{([^}]+)\}\s*(>=|<=|>|<)\s*V\{([^}]+)\}/);
-    if (!conditionMatch) return null;
+    // Parse d2:daysBetween date comparison conditions
+    const daysBetweenMatch = condition.match(/d2:daysBetween\(([^,]+),\s*([^)]+)\)\s*(>=|<=|>|<)\s*(-?\d+)/);
+    if (daysBetweenMatch) {
+        const [, ref1, ref2, op, value] = daysBetweenMatch;
+        
+        // Clean up variable references
+        const var1Ref = ref1.trim();
+        const var2Ref = ref2.trim();
+        
+        const variable1 = parseVariableReference(var1Ref, programMetadata);
+        const variable2 = parseVariableReference(var2Ref, programMetadata);
+        
+        if (!variable1 || !variable2) return null;
+        
+        // Map the daysBetween comparisons back to our operators
+        let operator;
+        const numValue = parseInt(value);
+        
+        if (op === "<" && numValue === 0) {
+            operator = "before"; // daysBetween(var1, var2) < 0 means var1 is before var2
+        } else if (op === ">" && numValue === 0) {
+            operator = "after"; // daysBetween(var1, var2) > 0 means var1 is after var2
+        } else if (op === ">=" && numValue === 0) {
+            operator = "on_or_after"; // daysBetween(var1, var2) >= 0 means var1 is on or after var2
+        } else if (op === "<=" && numValue === 0) {
+            operator = "on_or_before"; // daysBetween(var1, var2) <= 0 means var1 is on or before var2
+        } else {
+            return null; // Unknown pattern
+        }
+        
+        return {
+            variable1,
+            variable2,
+            config: { operator }
+        };
+    }
     
-    const [, var1Ref, op, var2Ref] = conditionMatch;
+    // Parse interval-based conditions (d2:*Between with amounts > 0)
+    const intervalMatch = condition.match(/d2:(days|weeks|months|years)Between\(([^,]+),\s*([^)]+)\)\s*>\s*(\d+)/);
+    if (intervalMatch) {
+        const [, unit, ref1, ref2, amount] = intervalMatch;
+        
+        // Clean up variable references
+        const var1Ref = ref1.trim();
+        const var2Ref = ref2.trim();
+        
+        const variable1 = parseVariableReference(var1Ref, programMetadata);
+        const variable2 = parseVariableReference(var2Ref, programMetadata);
+        
+        if (!variable1 || !variable2) return null;
+        
+        // Determine the operator based on the order of variables
+        // d2:*Between(var2, var1) > amount means var1 should be within amount units after var2
+        // d2:*Between(var1, var2) > amount means var2 should be within amount units after var1
+        const operator = "within_after"; // Both cases are "within" validations
+        
+        return {
+            variable1,
+            variable2,
+            config: { 
+                operator, 
+                intervalAmount: parseInt(amount), 
+                intervalUnit: unit 
+            }
+        };
+    }
     
-    // Map operators back
-    const operatorMap = {
-        "<": "before",
-        ">": "after", 
-        "<=": "on_or_before",
-        ">=": "on_or_after"
-    };
-    
-    const operator = operatorMap[op];
-    if (!operator) return null;
-    
-    // Parse variable references
-    const variable1 = parseVariableReference(var1Ref, programMetadata);
-    const variable2 = parseVariableReference(var2Ref, programMetadata);
-    
-    if (!variable1 || !variable2) return null;
-    
-    return {
-        variable1,
-        variable2,
-        config: { operator }
-    };
+    return null;
 }
 
 function parseVariableReference(varRef, programMetadata) {
