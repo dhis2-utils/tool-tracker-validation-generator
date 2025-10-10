@@ -99,40 +99,39 @@ export function findDuplicateRule(programMetadata, variable, config) {
 }
 
 export function parseRuleCondition(condition, programMetadata) {
-    // Parse d2:daysBetween date comparison conditions
+    // Parse d2:daysBetween date comparison conditions (robust)
     const daysBetweenMatch = condition.match(/d2:daysBetween\(([^,]+),\s*([^)]+)\)\s*(>=|<=|>|<)\s*(-?\d+)/);
     if (daysBetweenMatch) {
         const [, ref1, ref2, op, value] = daysBetweenMatch;
-        
         // Clean up variable references
-        const var1Ref = ref1.trim();
-        const var2Ref = ref2.trim();
-        
+        const var1Ref = ref1.trim().replace(/^V\{|\}$/g, "");
+        const var2Ref = ref2.trim().replace(/^V\{|\}$/g, "");
         const variable1 = parseVariableReference(var1Ref, programMetadata);
         const variable2 = parseVariableReference(var2Ref, programMetadata);
-        
         if (!variable1 || !variable2) return null;
-        
-        // Map the daysBetween comparisons back to our operators
         let operator;
         const numValue = parseInt(value);
-        
+        // Support all valid patterns
         if (op === "<" && numValue === 0) {
-            operator = "before"; // daysBetween(var1, var2) < 0 means var1 is before var2
+            operator = "before";
         } else if (op === ">" && numValue === 0) {
-            operator = "after"; // daysBetween(var1, var2) > 0 means var1 is after var2
+            operator = "after";
         } else if (op === ">=" && numValue === 0) {
-            operator = "on_or_after"; // daysBetween(var1, var2) >= 0 means var1 is on or after var2
+            operator = "on_or_after";
         } else if (op === "<=" && numValue === 0) {
-            operator = "on_or_before"; // daysBetween(var1, var2) <= 0 means var1 is on or before var2
+            operator = "on_or_before";
+        } else if (op === ">" && numValue > 0) {
+            operator = "after_interval";
+        } else if (op === "<" && numValue < 0) {
+            operator = "before_interval";
         } else {
-            return null; // Unknown pattern
+            // Accept any numeric comparison for editing, fallback to generic
+            operator = "custom";
         }
-        
         return {
             variable1,
             variable2,
-            config: { operator }
+            config: { operator, value: numValue }
         };
     }
     
