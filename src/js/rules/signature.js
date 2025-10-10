@@ -139,28 +139,24 @@ export function parseRuleCondition(condition, programMetadata) {
     const intervalMatch = condition.match(/d2:(days|weeks|months|years)Between\(([^,]+),\s*([^)]+)\)\s*>\s*(\d+)/);
     if (intervalMatch) {
         const [, unit, ref1, ref2, amount] = intervalMatch;
-        
         // Clean up variable references
-        const var1Ref = ref1.trim();
-        const var2Ref = ref2.trim();
-        
+        const var1Ref = ref1.trim().replace(/^V\{|\}$/g, "");
+        const var2Ref = ref2.trim().replace(/^V\{|\}$/g, "");
         const variable1 = parseVariableReference(var1Ref, programMetadata);
         const variable2 = parseVariableReference(var2Ref, programMetadata);
-        
         if (!variable1 || !variable2) return null;
-        
         // The pattern from builder:
         // within_before: d2:*Between(var2, var1) > amount (comparison date first, validated date second)
         // within_after:  d2:*Between(var1, var2) > amount (validated date first, comparison date second)
         // We return variables in the order [validated_date, comparison_date] for consistency
-        
+        // Detect which variable is the validated date (should be first argument)
         return {
-            variable1: variable2, // The validated date (second in within_before, first in within_after)
-            variable2: variable1, // The comparison date (first in within_before, second in within_after)
-            config: { 
-                operator: "within_before", // We'll assume before for now since we can't distinguish
-                intervalAmount: parseInt(amount), 
-                intervalUnit: unit 
+            variable1,
+            variable2,
+            config: {
+                operator: "within_after",
+                intervalAmount: parseInt(amount),
+                intervalUnit: unit
             }
         };
     }

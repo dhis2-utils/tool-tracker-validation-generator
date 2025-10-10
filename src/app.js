@@ -192,17 +192,17 @@ window.editValidation = async function(ruleId) {
         
         // Set the current variable being validated (variable1)
         currentVariable = variable1;
+                    // Declare comparisonValue at the top so it is always initialized
+                    let comparisonValue = "";
         setState({ currentVariable: variable1 });
-        
         // Show the variable details for the current variable (this will reset the form)
         detailsShow(buildDetailsCtx(), variable1);
-        
-        // Now populate the form AFTER detailsShow has reset everything
-        // Store the rule ID for updating instead of creating (this gets reset by detailsShow)
-        window.editingRuleId = ruleId;
-        
+        // Set validated variable name in UI
+        document.getElementById("validatedDateName").textContent = variable1.name || "";
+        // Change "Add New Validation" to "Edit program rule" when editing
+        document.querySelector("#dateVariableDetails .card-title:last-of-type").textContent = "Edit program rule";
         // Create comparison value for the form
-        let comparisonValue = "";
+        // Only declare comparisonValue once at the top of the function, then set its value here
         if (variable2.type === "enrollment") comparisonValue = "enrollment:enrollment_date";
         else if (variable2.type === "incident") comparisonValue = "incident:incident_date";
         else if (variable2.type === "event_date") comparisonValue = "event_date:event_date";
@@ -212,8 +212,7 @@ window.editValidation = async function(ruleId) {
         } else if (variable2.type === "trackedEntityAttribute") {
             comparisonValue = `trackedEntityAttribute:${variable2.id}`;
         }
-        
-        // Populate the form
+        // Set all form fields
         document.getElementById("validationOperator").value = config.operator;
         document.getElementById("comparisonDate").value = comparisonValue;
         if (config.intervalAmount && config.intervalUnit) {
@@ -223,9 +222,16 @@ window.editValidation = async function(ruleId) {
         document.getElementById("ruleName").value = rule.name;
         document.getElementById("ruleDescription").value = removeAppSignature(rule.description || "");
         document.getElementById("ruleMessage").value = action.content || "";
+        // Trigger relationship dropdown change to show interval fields if needed
+        const operatorEl = document.getElementById("validationOperator");
+        operatorEl.dispatchEvent(new Event("change"));
+        // Update preview and validity
+        updateValidationPreviewCtx(buildDetailsCtx());
+        checkFormValidityCtx(buildDetailsCtx());
         
-        // Reinitialize Materialize selects and repopulate comparison dropdown
-        M.FormSelect.init(document.querySelectorAll("#dateVariableDetails select"));
+        // Now populate the form AFTER detailsShow has reset everything
+        // Store the rule ID for updating instead of creating (this gets reset by detailsShow)
+        window.editingRuleId = ruleId;
         M.updateTextFields();
         
         // Repopulate comparison dates now that the current variable is set
