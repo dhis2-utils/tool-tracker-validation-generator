@@ -19,8 +19,8 @@ export function prGetExisting(programMetadata, variable) {
 
         let matches = false;
 
-        // Check if this variable is the PRIMARY target of the validation (first variable in condition)
-        matches = isVariablePrimaryTarget(rule.condition, variable, relatedPrvs);
+        // Pass rule to isVariablePrimaryTarget for event_date stage check
+        matches = isVariablePrimaryTarget(rule.condition, variable, relatedPrvs, rule);
 
         if (matches) result.push({ rule, actions });
     });
@@ -28,7 +28,7 @@ export function prGetExisting(programMetadata, variable) {
     return result;
 }
 
-function isVariablePrimaryTarget(condition, variable, relatedPrvs) {
+function isVariablePrimaryTarget(condition, variable, relatedPrvs, rule) {
     const { type } = variable;
     
     // Parse d2:daysBetween conditions to check if this variable is the first parameter
@@ -40,7 +40,14 @@ function isVariablePrimaryTarget(condition, variable, relatedPrvs) {
         // Check if first variable matches our target variable
         if (type === "enrollment" && (var1Ref === "enrollment_date" || var1Ref === "V{enrollment_date}")) return true;
         if (type === "incident" && (var1Ref === "incident_date" || var1Ref === "V{incident_date}")) return true;
-        if (type === "event_date" && (var1Ref === "event_date" || var1Ref === "V{event_date}")) return true;
+        if (type === "event_date" && (var1Ref === "event_date" || var1Ref === "V{event_date}")) {
+            // Only match if rule is limited to the same programStage
+            if (variable.stageId && rule && rule.programStage && rule.programStage.id === variable.stageId) {
+                return true;
+            }
+            // If no stageId or rule not limited to a stage, do not match
+            return false;
+        }
         if (type === "current_date" && (var1Ref === "current_date" || var1Ref === "V{current_date}")) return true;
         
         // For data elements and attributes, check if the PRV name matches (including underscores)

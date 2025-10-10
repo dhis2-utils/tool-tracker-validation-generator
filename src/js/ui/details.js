@@ -334,7 +334,13 @@ export async function addValidationCtx(ctx, config) {
     const { description } = addAppSignature(ruleName, desc);
 
     const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
-    if ((currentVariable.type === "dataElement" || currentVariable.type === "data_element") && currentVariable.stageId) programRule.programStage = { id: currentVariable.stageId };
+        if ((currentVariable.type === "dataElement" || currentVariable.type === "data_element") && currentVariable.stageId) {
+            programRule.programStage = { id: currentVariable.stageId };
+        }
+        // Always set programStage for event_date rules
+        if (currentVariable.type === "event_date" && currentVariable.stageId) {
+            programRule.programStage = { id: currentVariable.stageId };
+        }
     const programRuleAction = { programRuleActionType: "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
     if (currentVariable.type === "dataElement" || currentVariable.type === "data_element") programRuleAction.dataElement = { id: currentVariable.id };
     else if (currentVariable.type === "trackedEntityAttribute" || currentVariable.type === "attribute") programRuleAction.trackedEntityAttribute = { id: currentVariable.id };
