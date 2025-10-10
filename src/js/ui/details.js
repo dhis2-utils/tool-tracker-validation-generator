@@ -16,6 +16,16 @@ export function showVariableDetailsCtx(ctx, variable) {
 }
 
 export function setupValidationFormCtx(ctx) {
+    // Clean up any existing Materialize instances and event listeners on selects
+    const existingSelects = document.querySelectorAll("#dateVariableDetails select");
+    existingSelects.forEach(select => {
+        const inst = M.FormSelect.getInstance(select);
+        if (inst) inst.destroy();
+        // Replace node to drop any existing event listeners
+        const clone = select.cloneNode(true);
+        select.parentNode.replaceChild(clone, select);
+    });
+
     document.getElementById("validationOperator").value = "";
     document.getElementById("comparisonDate").value = "";
     document.getElementById("intervalInputs").style.display = "none";
@@ -27,15 +37,12 @@ export function setupValidationFormCtx(ctx) {
     document.getElementById("ruleMessage").value = "";
     populateComparisonDatesCtx(ctx);
     setupFormEventListenersCtx(ctx);
+    // Initialize Materialize selects once
     const allSelects = document.querySelectorAll("#dateVariableDetails select");
-    allSelects.forEach(select => { const instance = M.FormSelect.getInstance(select); if (instance) instance.destroy(); });
     M.FormSelect.init(allSelects);
 }
 
 export function setupFormEventListenersCtx(ctx) {
-    const operatorSelect = document.getElementById("validationOperator");
-    const newOperatorSelect = operatorSelect.cloneNode(true);
-    operatorSelect.parentNode.replaceChild(newOperatorSelect, operatorSelect);
     const handleOperatorChange = function() {
         const value = this.value;
         const intervalInputs = document.getElementById("intervalInputs");
@@ -49,8 +56,9 @@ export function setupFormEventListenersCtx(ctx) {
         updateValidationPreviewCtx(ctx);
         checkFormValidityCtx();
     };
-    document.getElementById("validationOperator").addEventListener("change", handleOperatorChange);
-    document.getElementById("validationOperator").addEventListener("click", function(){ setTimeout(handleOperatorChange.bind(this), 100); });
+    const operatorEl = document.getElementById("validationOperator");
+    operatorEl.addEventListener("change", handleOperatorChange);
+    operatorEl.addEventListener("click", function(){ setTimeout(handleOperatorChange.bind(this), 100); });
     ["comparisonDate", "intervalAmount", "intervalUnit", "ruleName", "ruleMessage"].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -140,7 +148,6 @@ export function loadCurrentValidationsCtx(ctx) {
 export function populateComparisonDatesCtx(ctx) {
     const { getCurrent, getDateVars } = ctx;
     const select = document.getElementById("comparisonDate"); if (!select) return;
-    const instance = M.FormSelect.getInstance(select); if (instance) instance.destroy();
     select.innerHTML = "<option value=\"\" disabled selected>Choose date...</option>";
     const currentVariable = getCurrent(); const dateVariables = getDateVars();
     if (!currentVariable || !dateVariables) return;
@@ -160,7 +167,6 @@ export function populateComparisonDatesCtx(ctx) {
         } else if (currentVariable.type === "current_date") { shouldInclude = true; }
         if (shouldInclude) { const option = document.createElement("option"); option.value = `${variable.type}:${variable.id}${variable.stageId ? ":" + variable.stageId : ""}`; option.textContent = variable.name; select.appendChild(option); }
     });
-    M.FormSelect.init(select);
 }
 
 export async function addValidationCtx(ctx, config) {
