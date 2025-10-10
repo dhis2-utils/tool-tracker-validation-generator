@@ -61,7 +61,7 @@ export function setupFormEventListenersCtx(ctx) {
             intervalInputs.style.display = "none";
         }
         updateValidationPreviewCtx(ctx);
-        checkFormValidityCtx();
+        checkFormValidityCtx(ctx);
     };
     const operatorEl = document.getElementById("validationOperator");
     operatorEl.addEventListener("change", handleOperatorChange);
@@ -69,12 +69,18 @@ export function setupFormEventListenersCtx(ctx) {
     ["comparisonDate", "intervalAmount", "intervalUnit", "ruleName", "ruleDescription", "ruleMessage"].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            el.addEventListener("change", () => { updateValidationPreviewCtx(ctx); checkFormValidityCtx(); });
-            el.addEventListener("input", () => { updateValidationPreviewCtx(ctx); checkFormValidityCtx(); });
+            el.addEventListener("change", () => { updateValidationPreviewCtx(ctx); checkFormValidityCtx(ctx); });
+            el.addEventListener("input", () => { updateValidationPreviewCtx(ctx); checkFormValidityCtx(ctx); });
         }
     });
     const createBtn = document.getElementById("createValidationBtn");
-    if (createBtn) createBtn.addEventListener("click", () => createValidationRuleCtx(ctx));
+    if (createBtn) {
+        // Remove any existing event listeners by cloning the node
+        const newCreateBtn = createBtn.cloneNode(true);
+        createBtn.parentNode.replaceChild(newCreateBtn, createBtn);
+        // Add the event listener to the new node
+        newCreateBtn.addEventListener("click", () => createValidationRuleCtx(ctx));
+    }
 }
 
 export function updateValidationPreviewCtx(ctx) {
@@ -140,7 +146,23 @@ export function updateValidationPreviewCtx(ctx) {
     if (suggestedMessage && !ruleMessageInput.value) { ruleMessageInput.value = suggestedMessage; M.updateTextFields(); }
 }
 
-export function checkFormValidityCtx() {
+export function checkFormValidityCtx(ctx) {
+    // First check if program settings are configured
+    const { getConfig } = ctx;
+    const config = getConfig();
+    
+    const settingsValid = config && config.programRuleVariablePrefix && config.programRuleVariablePrefix.trim().length > 0;
+    
+    if (!settingsValid) {
+        document.getElementById("createValidationBtn").disabled = true;
+        // Show settings requirement message
+        const validationPreview = document.getElementById("validationPreview");
+        if (validationPreview) {
+            validationPreview.innerHTML = "<div class=\"red-text\"><i class=\"material-icons tiny\">warning</i> Please configure program settings first by clicking the <strong>Settings</strong> button above.</div>";
+        }
+        return;
+    }
+    
     const operator = document.getElementById("validationOperator").value;
     const comparisonDate = document.getElementById("comparisonDate").value;
     const intervalAmount = document.getElementById("intervalAmount").value;
@@ -173,7 +195,14 @@ export function createValidationRuleCtx(ctx) {
 export function loadCurrentValidationsCtx(ctx) {
     const { getCurrent, getMeta } = ctx;
     const variable = getCurrent(); if (!variable) return;
+    
+    console.log("Debug loadValidations - Current variable:", variable);
+    console.log("Debug loadValidations - Metadata rules count:", getMeta().programRules?.length || 0);
+    
     const validations = detectExisting(getMeta(), variable);
+    
+    console.log("Debug loadValidations - Found validations:", validations.length);
+    
     const container = document.getElementById("currentValidations");
     if (validations.length === 0) { container.innerHTML = "<p class='grey-text'>No validations configured for this date variable.</p>"; return; }
     container.innerHTML = validations.map(validation => {
@@ -269,6 +298,11 @@ export async function addValidationCtx(ctx, config) {
         
         const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, currentVariable);
         const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
+        
+        console.log("Debug addValidation - Prefix config:", getConfig()?.programRuleVariablePrefix);
+        console.log("Debug addValidation - Variable1 PRV:", variable1Prv);
+        console.log("Debug addValidation - Variable2 PRV:", variable2Prv);
+        
         const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
         
         // Generate rule name and description with signature
@@ -281,7 +315,15 @@ export async function addValidationCtx(ctx, config) {
         const programRuleAction = { programRuleActionType: "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
         if (currentVariable.type === "dataElement") programRuleAction.dataElement = { id: currentVariable.id };
         else if (currentVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: currentVariable.id };
+        
+        console.log("Debug addValidation - About to create rule:", programRule);
+        console.log("Debug addValidation - About to create action:", programRuleAction);
+        
         await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
+        
+        console.log("Debug addValidation - Rule creation completed");
+        console.log("Debug addValidation - Updated metadata rules count:", getMeta().programRules.length);
+        
         showMessage("Validation rule created successfully");
         loadCurrentValidationsCtx(ctx);
         setupValidationFormCtx(ctx);

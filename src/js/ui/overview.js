@@ -5,8 +5,23 @@ export function showOverview() {
     document.getElementById("dateVariableDetails").style.display = "none";
 }
 
-export function renderDateVariables(programMetadata) {
+export function renderDateVariables(programMetadata, programConfig) {
     if (!programMetadata) return;
+    
+    // Check if settings are configured
+    const settingsConfigured = programConfig && programConfig.programRuleVariablePrefix && programConfig.programRuleVariablePrefix.trim().length > 0;
+    
+    // Show settings warning if not configured
+    const settingsWarning = document.getElementById("settingsWarning");
+    if (settingsWarning) {
+        if (!settingsConfigured) {
+            settingsWarning.style.display = "block";
+            settingsWarning.innerHTML = "<div class=\"card-panel orange lighten-4 orange-text text-darken-3\"><i class=\"material-icons left\">warning</i><strong>Settings Required:</strong> Please configure program settings by clicking the Settings button above before creating validation rules.</div>";
+        } else {
+            settingsWarning.style.display = "none";
+        }
+    }
+    
     renderEnrollmentDates(programMetadata);
     renderProgramStages(programMetadata);
     updateValidationIndicators(programMetadata);

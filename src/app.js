@@ -112,7 +112,7 @@ async function onProgramSelected() {
 
 function showOverview() {
     uiShowOverview();
-    uiRenderDateVariables(programMetadata);
+    uiRenderDateVariables(programMetadata, programConfig);
 }
 
 // Overview UI moved to ./js/ui/overview.js
@@ -223,7 +223,7 @@ window.editValidation = async function(ruleId) {
         
         // Update preview and validity
         updateValidationPreviewCtx(buildDetailsCtx());
-        checkFormValidityCtx();
+        checkFormValidityCtx(buildDetailsCtx());
         
         // Store the rule ID for updating instead of creating
         window.editingRuleId = ruleId;
@@ -258,9 +258,14 @@ async function saveSettings() {
     try {
         await svcProgSetConfig(currentProgram, config);
         programConfig = config;
+        setState({ programConfig });
         showMessage("Settings saved successfully");
         const modal = M.Modal.getInstance(document.getElementById("settingsModal"));
         modal.close();
+        // Refresh the overview to update settings warning
+        if (document.getElementById("dateVariablesOverview").style.display !== "none") {
+            showOverview();
+        }
     } catch (error) {
         console.error("Error saving settings:", error);
         showMessage("Error saving settings: " + error.message, "error");
