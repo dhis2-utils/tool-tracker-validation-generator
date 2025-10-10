@@ -14,7 +14,8 @@ import { programsAllGet as svcProgramsAllGet, programGet as svcProgramGet, progG
 import { buildDateVariablesArray as dvBuild, findDateVariableByComponents as dvFindByComponents } from "./js/date-variables.js";
 import { showMessage as uiToast } from "./js/ui/toast.js";
 import { showOverview as uiShowOverview, renderDateVariables as uiRenderDateVariables } from "./js/ui/overview.js";
-import { showVariableDetailsCtx as detailsShow, loadCurrentValidationsCtx as detailsLoadValidations } from "./js/ui/details.js";
+import { showVariableDetailsCtx as detailsShow, loadCurrentValidationsCtx as detailsLoadValidations, updateValidationPreviewCtx, checkFormValidityCtx } from "./js/ui/details.js";
+import { removeAppSignature } from "./js/rules/signature.js";
 
 loadLegacyHeaderBarIfNeeded();
 
@@ -151,6 +152,91 @@ window.deleteValidation = async function(ruleId) {
     } catch (error) {
         console.error("Error deleting validation:", error);
         showMessage("Error deleting validation: " + error.message, "error");
+    }
+};
+
+// Global function for edit validation (called from HTML)
+window.editValidation = async function(ruleId) {
+    try {
+        const rule = programMetadata.programRules.find(r => r.id === ruleId);
+        if (!rule) {
+            showMessage("Rule not found", "error");
+            return;
+        }
+        
+        const actions = programMetadata.programRuleActions.filter(a => a.programRule.id === ruleId);
+        const action = actions.find(a => ["SHOWWARNING", "SHOWERROR", "WARNINGONCOMPLETE", "ERRORONCOMPLETE"].includes(a.programRuleActionType));
+        
+        if (!action) {
+            showMessage("No editable action found for this rule", "error");
+            return;
+        }
+        
+        // Parse the rule condition to populate the form
+        const conditionMatch = rule.condition.match(/V\{([^}]+)\}\s*(>=|<=|>|<)\s*V\{([^}]+)\}/);
+        if (!conditionMatch) {
+            showMessage("Cannot parse rule condition for editing", "error");
+            return;
+        }
+        
+        // Map operators back to form values
+        const operatorMap = {
+            "<": "before",
+            ">": "after", 
+            "<=": "on_or_before",
+            ">=": "on_or_after"
+        };
+        
+        const [, , op, var2] = conditionMatch;
+        const formOperator = operatorMap[op];
+        
+        if (!formOperator) {
+            showMessage("Unsupported operator type for editing", "error");
+            return;
+        }
+        
+        // Find comparison variable type and ID
+        let comparisonValue = "";
+        if (var2 === "enrollment_date") comparisonValue = "enrollment:enrollment_date";
+        else if (var2 === "incident_date") comparisonValue = "incident:incident_date";
+        else if (var2 === "event_date") comparisonValue = "event_date:event_date";
+        else if (var2 === "current_date") comparisonValue = "current_date:current_date";
+        else {
+            // Try to find in program rule variables
+            const prv = programMetadata.programRuleVariables.find(v => v.name === var2.replace(/[#{}]/g, ""));
+            if (prv) {
+                if (prv.dataElement) comparisonValue = `dataElement:${prv.dataElement.id}`;
+                else if (prv.trackedEntityAttribute) comparisonValue = `trackedEntityAttribute:${prv.trackedEntityAttribute.id}`;
+            }
+        }
+        
+        // Populate the form
+        document.getElementById("validationOperator").value = formOperator;
+        document.getElementById("comparisonDate").value = comparisonValue;
+        document.getElementById("ruleName").value = rule.name;
+        document.getElementById("ruleDescription").value = removeAppSignature(rule.description || "");
+        document.getElementById("ruleMessage").value = action.content || "";
+        
+        // Reinitialize Materialize selects
+        M.FormSelect.init(document.querySelectorAll("#dateVariableDetails select"));
+        M.updateTextFields();
+        
+        // Update preview and validity
+        updateValidationPreviewCtx(buildDetailsCtx());
+        checkFormValidityCtx();
+        
+        // Store the rule ID for updating instead of creating
+        window.editingRuleId = ruleId;
+        
+        // Update button text
+        const createBtn = document.getElementById("createValidationBtn");
+        createBtn.innerHTML = "<i class=\"material-icons left\">save</i>Update Validation Rule";
+        
+        showMessage("Rule loaded for editing", "info");
+        
+    } catch (error) {
+        console.error("Error loading rule for editing:", error);
+        showMessage("Error loading rule for editing: " + error.message, "error");
     }
 };
 

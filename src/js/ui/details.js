@@ -1,7 +1,9 @@
 import M from "materialize-css";
 import { prGetExisting as detectExisting } from "../rules/detector.js";
-import { generateNewRuleCondition } from "../rules/builder.js";
+import { generateNewRuleCondition, generateRuleName } from "../rules/builder.js";
+import { isAppGenerated, addAppSignature, findDuplicateRule } from "../rules/signature.js";
 import { ensureProgramRuleVariable as svcEnsurePrv, prCreate as svcPrCreate } from "../services/rules.js";
+import { d2PutJson } from "../d2api.js";
 import { showMessage } from "./toast.js";
 
 export function showVariableDetailsCtx(ctx, variable) {
@@ -35,6 +37,11 @@ export function setupValidationFormCtx(ctx) {
     document.getElementById("ruleName").value = "";
     document.getElementById("ruleDescription").value = "";
     document.getElementById("ruleMessage").value = "";
+    
+    // Reset edit mode
+    window.editingRuleId = null;
+    document.getElementById("createValidationBtn").innerHTML = "<i class=\"material-icons left\">add</i>Create Validation Rule";
+    
     populateComparisonDatesCtx(ctx);
     setupFormEventListenersCtx(ctx);
     // Initialize Materialize selects once
@@ -59,7 +66,7 @@ export function setupFormEventListenersCtx(ctx) {
     const operatorEl = document.getElementById("validationOperator");
     operatorEl.addEventListener("change", handleOperatorChange);
     operatorEl.addEventListener("click", function(){ setTimeout(handleOperatorChange.bind(this), 100); });
-    ["comparisonDate", "intervalAmount", "intervalUnit", "ruleName", "ruleMessage"].forEach(id => {
+    ["comparisonDate", "intervalAmount", "intervalUnit", "ruleName", "ruleDescription", "ruleMessage"].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener("change", () => { updateValidationPreviewCtx(ctx); checkFormValidityCtx(); });
@@ -76,24 +83,60 @@ export function updateValidationPreviewCtx(ctx) {
     const comparisonDate = document.getElementById("comparisonDate").value;
     const intervalAmount = document.getElementById("intervalAmount").value;
     const intervalUnit = document.getElementById("intervalUnit").value;
-    let preview = ""; let suggestedRuleName = ""; let suggestedMessage = "";
+    let preview = ""; let suggestedRuleName = ""; let suggestedMessage = ""; let suggestedDescription = "";
     if (operator && comparisonDate) {
         const variableName = getCurrent().name;
         const comparisonOption = document.querySelector(`#comparisonDate option[value="${comparisonDate}"]`);
         const comparisonName = comparisonOption ? comparisonOption.textContent : "";
         switch (operator) {
-        case "before": preview = `${variableName} should be before ${comparisonName}`; suggestedRuleName = `${variableName} must be before ${comparisonName}`; suggestedMessage = `${variableName} must be before ${comparisonName}`; break;
-        case "after": preview = `${variableName} should be after ${comparisonName}`; suggestedRuleName = `${variableName} must be after ${comparisonName}`; suggestedMessage = `${variableName} must be after ${comparisonName}`; break;
-        case "on_or_after": preview = `${variableName} should be on or after ${comparisonName}`; suggestedRuleName = `${variableName} must be on or after ${comparisonName}`; suggestedMessage = `${variableName} must be on or after ${comparisonName}`; break;
-        case "on_or_before": preview = `${variableName} should be on or before ${comparisonName}`; suggestedRuleName = `${variableName} must be on or before ${comparisonName}`; suggestedMessage = `${variableName} must be on or before ${comparisonName}`; break;
-        case "within_before": if (intervalAmount && intervalUnit) { preview = `${variableName} should be within ${intervalAmount} ${intervalUnit} before ${comparisonName}`; suggestedRuleName = `${variableName} within ${intervalAmount} ${intervalUnit} before ${comparisonName}`; suggestedMessage = `${variableName} must be within ${intervalAmount} ${intervalUnit} before ${comparisonName}`; } break;
-        case "within_after": if (intervalAmount && intervalUnit) { preview = `${variableName} should be within ${intervalAmount} ${intervalUnit} after ${comparisonName}`; suggestedRuleName = `${variableName} within ${intervalAmount} ${intervalUnit} after ${comparisonName}`; suggestedMessage = `${variableName} must be within ${intervalAmount} ${intervalUnit} after ${comparisonName}`; } break;
+        case "before": 
+            preview = `${variableName} should be before ${comparisonName}`; 
+            suggestedRuleName = `${variableName} must be before ${comparisonName}`; 
+            suggestedMessage = `${variableName} must be before ${comparisonName}`;
+            suggestedDescription = `Validates that ${variableName} is entered before ${comparisonName}`;
+            break;
+        case "after": 
+            preview = `${variableName} should be after ${comparisonName}`; 
+            suggestedRuleName = `${variableName} must be after ${comparisonName}`; 
+            suggestedMessage = `${variableName} must be after ${comparisonName}`;
+            suggestedDescription = `Validates that ${variableName} is entered after ${comparisonName}`;
+            break;
+        case "on_or_after": 
+            preview = `${variableName} should be on or after ${comparisonName}`; 
+            suggestedRuleName = `${variableName} must be on or after ${comparisonName}`; 
+            suggestedMessage = `${variableName} must be on or after ${comparisonName}`;
+            suggestedDescription = `Validates that ${variableName} is on the same date or after ${comparisonName}`;
+            break;
+        case "on_or_before": 
+            preview = `${variableName} should be on or before ${comparisonName}`; 
+            suggestedRuleName = `${variableName} must be on or before ${comparisonName}`; 
+            suggestedMessage = `${variableName} must be on or before ${comparisonName}`;
+            suggestedDescription = `Validates that ${variableName} is on the same date or before ${comparisonName}`;
+            break;
+        case "within_before": 
+            if (intervalAmount && intervalUnit) { 
+                preview = `${variableName} should be within ${intervalAmount} ${intervalUnit} before ${comparisonName}`; 
+                suggestedRuleName = `${variableName} within ${intervalAmount} ${intervalUnit} before ${comparisonName}`; 
+                suggestedMessage = `${variableName} must be within ${intervalAmount} ${intervalUnit} before ${comparisonName}`;
+                suggestedDescription = `Validates that ${variableName} is no more than ${intervalAmount} ${intervalUnit} before ${comparisonName}`;
+            } 
+            break;
+        case "within_after": 
+            if (intervalAmount && intervalUnit) { 
+                preview = `${variableName} should be within ${intervalAmount} ${intervalUnit} after ${comparisonName}`; 
+                suggestedRuleName = `${variableName} within ${intervalAmount} ${intervalUnit} after ${comparisonName}`; 
+                suggestedMessage = `${variableName} must be within ${intervalAmount} ${intervalUnit} after ${comparisonName}`;
+                suggestedDescription = `Validates that ${variableName} is no more than ${intervalAmount} ${intervalUnit} after ${comparisonName}`;
+            } 
+            break;
         }
     }
     document.getElementById("validationPreview").textContent = preview || "Configure the validation above to see preview";
     const ruleNameInput = document.getElementById("ruleName");
+    const ruleDescriptionInput = document.getElementById("ruleDescription");
     const ruleMessageInput = document.getElementById("ruleMessage");
     if (suggestedRuleName && !ruleNameInput.value) { ruleNameInput.value = suggestedRuleName; M.updateTextFields(); }
+    if (suggestedDescription && !ruleDescriptionInput.value) { ruleDescriptionInput.value = suggestedDescription; M.updateTextFields(); }
     if (suggestedMessage && !ruleMessageInput.value) { ruleMessageInput.value = suggestedMessage; M.updateTextFields(); }
 }
 
@@ -118,7 +161,13 @@ export function createValidationRuleCtx(ctx) {
     const ruleDescription = document.getElementById("ruleDescription").value;
     const ruleMessage = document.getElementById("ruleMessage").value;
     const validationConfig = { operator, comparisonDate, intervalAmount: intervalAmount ? parseInt(intervalAmount) : null, intervalUnit, ruleName, ruleDescription, ruleMessage };
-    addValidationCtx(ctx, validationConfig);
+    
+    // Check if we're in edit mode
+    if (window.editingRuleId) {
+        updateValidationCtx(ctx, validationConfig, window.editingRuleId);
+    } else {
+        addValidationCtx(ctx, validationConfig);
+    }
 }
 
 export function loadCurrentValidationsCtx(ctx) {
@@ -131,14 +180,18 @@ export function loadCurrentValidationsCtx(ctx) {
         const action = validation.actions.find(a => ["SHOWWARNING", "SHOWERROR", "WARNINGONCOMPLETE", "ERRORONCOMPLETE"].includes(a.programRuleActionType));
         const actionType = action ? action.programRuleActionType : "UNKNOWN";
         const actionClass = actionType.includes("ERROR") ? "error" : "warning";
+        const isEditable = isAppGenerated(validation.rule);
+        const displayName = validation.rule.name;
+        
         return `
             <div class="validation-rule ${actionClass}">
-                <h6>${validation.rule.name}</h6>
+                <h6>${displayName}</h6>
                 <p><strong>Rule ID:</strong> <code>${validation.rule.id}</code></p>
                 <p><strong>Condition:</strong> ${validation.rule.condition}</p>
                 <p><strong>Action:</strong> ${actionType}</p>
                 ${action?.content ? `<p><strong>Message:</strong> ${action.content}</p>` : ""}
                 <div class="validation-actions">
+                    ${isEditable ? `<button class="btn-small blue" onclick="editValidation('${validation.rule.id}')"><i class="material-icons left">edit</i>Edit</button>` : ""}
                     <button class="btn-small red" onclick="deleteValidation('${validation.rule.id}')"><i class="material-icons left">delete</i>Delete</button>
                 </div>
             </div>`;
@@ -169,19 +222,60 @@ export function populateComparisonDatesCtx(ctx) {
     });
 }
 
+function generateDefaultDescription(variable1, variable2, operator, intervalAmount, intervalUnit) {
+    const var1Name = variable1.name;
+    const var2Name = variable2.name;
+    
+    switch (operator) {
+    case "before":
+        return `Validates that ${var1Name} is entered before ${var2Name}`;
+    case "after":
+        return `Validates that ${var1Name} is entered after ${var2Name}`;
+    case "on_or_after":
+        return `Validates that ${var1Name} is on the same date or after ${var2Name}`;
+    case "on_or_before":
+        return `Validates that ${var1Name} is on the same date or before ${var2Name}`;
+    case "within_before":
+        return `Validates that ${var1Name} is no more than ${intervalAmount} ${intervalUnit} before ${var2Name}`;
+    case "within_after":
+        return `Validates that ${var1Name} is no more than ${intervalAmount} ${intervalUnit} after ${var2Name}`;
+    default:
+        return `Date validation rule for ${var1Name}`;
+    }
+}
+
 export async function addValidationCtx(ctx, config) {
     const { getCurrent, getMeta, getProgramId, getConfig } = ctx;
     const currentVariable = getCurrent(); if (!config || !currentVariable) { showMessage("Invalid configuration", "error"); return; }
     try {
+        // Check for duplicates
         const [compareType, compareId, compareStageId] = config.comparisonDate.split(":");
         const compareDate = ctx.findByComponents(compareId, compareType, compareStageId);
         if (!compareDate) { showMessage("Target date not found", "error"); return; }
+        
+        const duplicateRule = findDuplicateRule(getMeta(), currentVariable, config);
+        if (duplicateRule) {
+            showMessage(`A similar validation rule "${duplicateRule.name}" already exists for this variable.`, "error");
+            return;
+        }
+        
+        // Check for existing rule with same name
         const existingRule = getMeta().programRules.find(rule => rule.name === config.ruleName);
-        if (existingRule) { showMessage(`A program rule with the name "${config.ruleName}" already exists. Please choose a different name.`, "error"); return; }
+        if (existingRule) { 
+            showMessage(`A program rule with the name "${config.ruleName}" already exists. Please choose a different name.`, "error"); 
+            return; 
+        }
+        
         const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, currentVariable);
         const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
         const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
-        const programRule = { name: config.ruleName, description: config.ruleDescription || `Date validation rule for ${currentVariable.name}`, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
+        
+        // Generate rule name and description with signature
+        const ruleName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
+        const defaultDesc = generateDefaultDescription(currentVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
+        const { description } = addAppSignature(ruleName, config.ruleDescription || defaultDesc);
+        
+        const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
         if (currentVariable.type === "dataElement" && currentVariable.stageId) programRule.programStage = { id: currentVariable.stageId };
         const programRuleAction = { programRuleActionType: "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
         if (currentVariable.type === "dataElement") programRuleAction.dataElement = { id: currentVariable.id };
@@ -193,5 +287,80 @@ export async function addValidationCtx(ctx, config) {
     } catch (error) {
         console.error("Error creating validation rule:", error);
         showMessage("Error creating validation rule: " + (error.message || error), "error");
+    }
+}
+
+export async function updateValidationCtx(ctx, config, ruleId) {
+    const { getCurrent, getMeta, getProgramId, getConfig } = ctx;
+    const currentVariable = getCurrent(); if (!config || !currentVariable || !ruleId) { showMessage("Invalid configuration", "error"); return; }
+    try {
+        const [compareType, compareId, compareStageId] = config.comparisonDate.split(":");
+        const compareDate = ctx.findByComponents(compareId, compareType, compareStageId);
+        if (!compareDate) { showMessage("Target date not found", "error"); return; }
+        
+        // Find the existing rule and action
+        const existingRule = getMeta().programRules.find(r => r.id === ruleId);
+        const existingActions = getMeta().programRuleActions.filter(a => a.programRule.id === ruleId);
+        const existingAction = existingActions.find(a => ["SHOWWARNING", "SHOWERROR", "WARNINGONCOMPLETE", "ERRORONCOMPLETE"].includes(a.programRuleActionType));
+        
+        if (!existingRule || !existingAction) {
+            showMessage("Rule or action not found for updating", "error");
+            return;
+        }
+        
+        // Check for duplicates (excluding the current rule)
+        const duplicateRule = findDuplicateRule(getMeta(), currentVariable, config);
+        if (duplicateRule && duplicateRule.id !== ruleId) {
+            showMessage(`A similar validation rule "${duplicateRule.name}" already exists for this variable.`, "error");
+            return;
+        }
+        
+        // Check for existing rule with same name (excluding current rule)
+        const duplicateName = getMeta().programRules.find(rule => rule.name === config.ruleName && rule.id !== ruleId);
+        if (duplicateName) { 
+            showMessage(`A program rule with the name "${config.ruleName}" already exists. Please choose a different name.`, "error"); 
+            return; 
+        }
+        
+        const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, currentVariable);
+        const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
+        const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
+        
+        // Generate rule name and description with signature
+        const ruleName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
+        const defaultDesc = generateDefaultDescription(currentVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
+        const { description } = addAppSignature(ruleName, config.ruleDescription || defaultDesc);
+        
+        // Update the rule
+        const updatedRule = { 
+            ...existingRule,
+            name: ruleName, 
+            description, 
+            condition: ruleCondition 
+        };
+        
+        // Update the action
+        const updatedAction = {
+            ...existingAction,
+            content: config.ruleMessage
+        };
+        
+        // Send updates to DHIS2
+        await d2PutJson(`/api/programRules/${ruleId}`, updatedRule);
+        await d2PutJson(`/api/programRuleActions/${existingAction.id}`, updatedAction);
+        
+        // Update local metadata cache
+        const ruleIndex = getMeta().programRules.findIndex(r => r.id === ruleId);
+        if (ruleIndex >= 0) getMeta().programRules[ruleIndex] = updatedRule;
+        
+        const actionIndex = getMeta().programRuleActions.findIndex(a => a.id === existingAction.id);
+        if (actionIndex >= 0) getMeta().programRuleActions[actionIndex] = updatedAction;
+        
+        showMessage("Validation rule updated successfully");
+        loadCurrentValidationsCtx(ctx);
+        setupValidationFormCtx(ctx);
+    } catch (error) {
+        console.error("Error updating validation rule:", error);
+        showMessage("Error updating validation rule: " + (error.message || error), "error");
     }
 }

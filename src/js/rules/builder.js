@@ -44,10 +44,15 @@ export function generateNewRuleCondition(variable1, variable2, config) {
     }
 }
 
-export function generateRuleName(variable1, variable2, validationType) {
+export function generateRuleName(variable1, variable2, validationType, customName = null) {
+    if (customName) {
+        // Don't add signature to the name, just return the custom name
+        return customName;
+    }
+    
     const labels = {
         before: "should be before",
-        on_or_before: "should be on or before",
+        on_or_before: "should be on or before", 
         after: "should be after",
         on_or_after: "should be on or after",
         difference_less: "difference should be less than",
