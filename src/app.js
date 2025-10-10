@@ -120,10 +120,16 @@ function showOverview() {
 function buildDetailsCtx() {
     return {
         setCurrent: (v) => { currentVariable = v; setState({ currentVariable: v }); },
-        getCurrent: () => currentVariable || getState().currentVariable,
+        getCurrent: () => {
+            const current = currentVariable || getState().currentVariable;
+            return current;
+        },
         getMeta: () => programMetadata || getState().programMetadata,
         setMeta: (meta) => { programMetadata = meta; setState({ programMetadata: meta }); },
-        getDateVars: () => dateVariables || getState().dateVariables,
+        getDateVars: () => {
+            const dateVars = dateVariables || getState().dateVariables;
+            return dateVars;
+        },
         findByComponents: (id, type, stageId) => dvFindByComponents(id, type, stageId),
         getProgramId: () => currentProgram || getState().currentProgram,
         getConfig: () => programConfig || getState().programConfig
@@ -188,8 +194,12 @@ window.editValidation = async function(ruleId) {
         currentVariable = variable1;
         setState({ currentVariable: variable1 });
         
-        // Show the variable details for the current variable
+        // Show the variable details for the current variable (this will reset the form)
         detailsShow(buildDetailsCtx(), variable1);
+        
+        // Now populate the form AFTER detailsShow has reset everything
+        // Store the rule ID for updating instead of creating (this gets reset by detailsShow)
+        window.editingRuleId = ruleId;
         
         // Create comparison value for the form
         let comparisonValue = "";
@@ -229,10 +239,7 @@ window.editValidation = async function(ruleId) {
         updateValidationPreviewCtx(buildDetailsCtx());
         checkFormValidityCtx(buildDetailsCtx());
         
-        // Store the rule ID for updating instead of creating
-        window.editingRuleId = ruleId;
-        
-        // Update button text
+        // Update button text (gets reset by detailsShow)
         const createBtn = document.getElementById("createValidationBtn");
         createBtn.innerHTML = "<i class=\"material-icons left\">save</i>Update Validation Rule";
         

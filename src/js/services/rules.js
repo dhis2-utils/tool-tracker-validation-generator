@@ -11,7 +11,12 @@ export function prvGetSet(programMetadata, programId, programRuleVariablePrefix,
         (type === "trackedEntityAttribute" && prv.trackedEntityAttribute?.id === id)
     );
     if (existing) return existing;
-    const name = `${programRuleVariablePrefix || ""}${nameFallback || id}`;
+    // Format PRV name: [PREFIX]_[NAME], uppercase, underscores, no special chars
+    let cleanName = (nameFallback || id)
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+    const name = programRuleVariablePrefix ? `${programRuleVariablePrefix}_${cleanName}` : cleanName;
     return {
         id: null,
         name,

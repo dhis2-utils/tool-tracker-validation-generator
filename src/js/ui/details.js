@@ -245,22 +245,30 @@ export function populateComparisonDatesCtx(ctx) {
     const select = document.getElementById("comparisonDate"); if (!select) return;
     select.innerHTML = "<option value=\"\" disabled selected>Choose date...</option>";
     const currentVariable = getCurrent(); const dateVariables = getDateVars();
+    
     if (!currentVariable || !dateVariables) return;
     dateVariables.forEach(variable => {
-        if (variable.id === currentVariable.id && variable.type === currentVariable.type && variable.stageId === currentVariable.stageId) return;
+        // Skip if this is the same variable as the one being validated
+        if (variable.id === currentVariable.id && 
+            (variable.type === currentVariable.type || 
+             (variable.type === "dataElement" && currentVariable.type === "data_element") ||
+             (variable.type === "data_element" && currentVariable.type === "dataElement")) && 
+            variable.stageId === currentVariable.stageId) return;
         let shouldInclude = false;
+        
         if (variable.type === "current_date") { shouldInclude = true; }
         else if (currentVariable.type === "enrollment") { shouldInclude = variable.type === "incident" || variable.type === "trackedEntityAttribute"; }
         else if (currentVariable.type === "incident") { shouldInclude = variable.type === "enrollment" || variable.type === "trackedEntityAttribute"; }
         else if (currentVariable.type === "trackedEntityAttribute") { shouldInclude = variable.type === "enrollment" || variable.type === "incident"; }
         else if (currentVariable.type === "event_date") {
             if (["enrollment","incident","trackedEntityAttribute"].includes(variable.type)) shouldInclude = true;
-            else if (variable.type === "dataElement") shouldInclude = variable.stageId === currentVariable.stageId;
-        } else if (currentVariable.type === "dataElement") {
+            else if (variable.type === "dataElement" || variable.type === "data_element") shouldInclude = variable.stageId === currentVariable.stageId;
+        } else if (currentVariable.type === "dataElement" || currentVariable.type === "data_element") {
             if (["enrollment","incident","trackedEntityAttribute"].includes(variable.type)) shouldInclude = true;
             else if (variable.type === "event_date") shouldInclude = variable.stageId === currentVariable.stageId;
-            else if (variable.type === "dataElement") shouldInclude = variable.stageId === currentVariable.stageId;
+            else if (variable.type === "dataElement" || variable.type === "data_element") shouldInclude = variable.stageId === currentVariable.stageId;
         } else if (currentVariable.type === "current_date") { shouldInclude = true; }
+        
         if (shouldInclude) { const option = document.createElement("option"); option.value = `${variable.type}:${variable.id}${variable.stageId ? ":" + variable.stageId : ""}`; option.textContent = variable.name; select.appendChild(option); }
     });
 }
@@ -311,24 +319,29 @@ export async function addValidationCtx(ctx, config) {
         }
         
         const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, currentVariable);
-        const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
+    const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
         
-        const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
+    const prefix = getConfig()?.programRuleVariablePrefix || "";
+    const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
         
-        // Generate rule name and description with signature
-        const ruleName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
-        const defaultDesc = generateDefaultDescription(currentVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
-        const { description } = addAppSignature(ruleName, config.ruleDescription || defaultDesc);
-        
-        const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
-        if (currentVariable.type === "dataElement" && currentVariable.stageId) programRule.programStage = { id: currentVariable.stageId };
-        const programRuleAction = { programRuleActionType: "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
-        if (currentVariable.type === "dataElement") programRuleAction.dataElement = { id: currentVariable.id };
-        else if (currentVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: currentVariable.id };
-        
-        await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
-        
-        showMessage("Validation rule created successfully");
+    // Generate rule name and description with signature
+    // Format rule name: [prefix] - [Actual name]
+    let actualName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
+    let ruleName = prefix ? `${prefix} - ${actualName}` : actualName;
+    const defaultDesc = generateDefaultDescription(currentVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
+    let desc = config.ruleDescription || defaultDesc;
+    if (!desc.startsWith("[DVT]")) desc = `[DVT] ${desc}`;
+    const { description } = addAppSignature(ruleName, desc);
+
+    const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
+    if ((currentVariable.type === "dataElement" || currentVariable.type === "data_element") && currentVariable.stageId) programRule.programStage = { id: currentVariable.stageId };
+    const programRuleAction = { programRuleActionType: "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
+    if (currentVariable.type === "dataElement" || currentVariable.type === "data_element") programRuleAction.dataElement = { id: currentVariable.id };
+    else if (currentVariable.type === "trackedEntityAttribute" || currentVariable.type === "attribute") programRuleAction.trackedEntityAttribute = { id: currentVariable.id };
+
+    await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
+
+    showMessage("Validation rule created successfully");
         
         // Refresh metadata from server to ensure we have the latest state
         const refreshedMetadata = await refreshMetadata(ctx);
@@ -375,15 +388,18 @@ export async function updateValidationCtx(ctx, config, ruleId) {
             showMessage(`A program rule with the name "${finalRuleName}" already exists. Please choose a different name.`, "error"); 
             return; 
         }
-        
-        const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, currentVariable);
-        const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
-        const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
-        
-        // Generate rule name and description with signature
-        const ruleName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
-        const defaultDesc = generateDefaultDescription(currentVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
-        const { description } = addAppSignature(ruleName, config.ruleDescription || defaultDesc);
+        // Pass variable prefix for PRV name formatting
+    const variablePrefix = getConfig()?.programRuleVariablePrefix ? getConfig().programRuleVariablePrefix.replace(/-/g, "_").toUpperCase() : "";
+    const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), variablePrefix, currentVariable);
+    const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), variablePrefix, compareDate);
+    const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
+
+    // Generate rule name and description with signature
+    // Format rule name: [prefix] - [Actual name]
+    let actualName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
+    let ruleName = getConfig()?.programRuleNamePrefix ? `${getConfig().programRuleNamePrefix} - ${actualName}` : actualName;
+    const defaultDesc = generateDefaultDescription(currentVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
+    const { description } = addAppSignature(ruleName, config.ruleDescription || defaultDesc);
         
         // Update the rule
         const updatedRule = { 

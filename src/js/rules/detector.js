@@ -2,7 +2,7 @@
 
 export function prGetExisting(programMetadata, variable) {
     if (!programMetadata || !variable) return [];
-    const { type, id, stageId } = variable;
+    const { type, id } = variable;
     
     const relatedPrvs = (programMetadata.programRuleVariables || []).filter(prv =>
         ((type === "dataElement" || type === "data_element") && prv.dataElement?.id === id) ||
@@ -19,24 +19,56 @@ export function prGetExisting(programMetadata, variable) {
 
         let matches = false;
 
-        if (type === "enrollment") {
-            matches = (rule.condition.includes("V{enrollment_date}") || rule.condition.includes("enrollment_date")) && !rule.programStage;
-        } else if (type === "incident") {
-            matches = (rule.condition.includes("V{incident_date}") || rule.condition.includes("incident_date")) && !rule.programStage;
-        } else if (type === "event_date") {
-            matches = (rule.condition.includes("V{event_date}") || rule.condition.includes("event_date")) && (!rule.programStage || rule.programStage.id === stageId);
-        } else if (type === "current_date") {
-            matches = (rule.condition.includes("V{current_date}") || rule.condition.includes("current_date"));
-        } else if (type === "dataElement" || type === "data_element" || type === "trackedEntityAttribute" || type === "attribute") {
-            matches = relatedPrvs.some(prv => rule.condition.includes(`#{${prv.name}}`) || rule.condition.includes(`A{${prv.name}}`))
-                || actions.some(a => ((type === "dataElement" || type === "data_element") && a.dataElement?.id === id) || ((type === "trackedEntityAttribute" || type === "attribute") && a.trackedEntityAttribute?.id === id));
-            if (matches && (type === "dataElement" || type === "data_element") && stageId) {
-                matches = !rule.programStage || rule.programStage.id === stageId;
-            }
-        }
+        // Check if this variable is the PRIMARY target of the validation (first variable in condition)
+        matches = isVariablePrimaryTarget(rule.condition, variable, relatedPrvs);
 
         if (matches) result.push({ rule, actions });
     });
     
     return result;
+}
+
+function isVariablePrimaryTarget(condition, variable, relatedPrvs) {
+    const { type } = variable;
+    
+    // Parse d2:daysBetween conditions to check if this variable is the first parameter
+    const daysBetweenMatch = condition.match(/d2:daysBetween\(([^,]+),\s*([^)]+)\)/);
+    if (daysBetweenMatch) {
+        const [, ref1] = daysBetweenMatch;
+        const var1Ref = ref1.trim();
+        
+        // Check if first variable matches our target variable
+        if (type === "enrollment" && (var1Ref === "enrollment_date" || var1Ref === "V{enrollment_date}")) return true;
+        if (type === "incident" && (var1Ref === "incident_date" || var1Ref === "V{incident_date}")) return true;
+        if (type === "event_date" && (var1Ref === "event_date" || var1Ref === "V{event_date}")) return true;
+        if (type === "current_date" && (var1Ref === "current_date" || var1Ref === "V{current_date}")) return true;
+        
+        // For data elements and attributes, check if the PRV name matches (including underscores)
+        if ((type === "dataElement" || type === "data_element" || type === "trackedEntityAttribute" || type === "attribute")) {
+            // Remove only curly braces and hash, keep underscores and all other chars
+            const prvName = var1Ref.replace(/[{}#]/g, "");
+            return relatedPrvs.some(prv => prv.name === prvName);
+        }
+    }
+    
+    // Parse interval-based conditions (d2:*Between)
+    const intervalMatch = condition.match(/d2:(days|weeks|months|years)Between\(([^,]+),\s*([^)]+)\)/);
+    if (intervalMatch) {
+        const [, , ref1] = intervalMatch;
+        const var1Ref = ref1.trim();
+        
+        // Same logic as above for interval conditions
+        if (type === "enrollment" && (var1Ref === "enrollment_date" || var1Ref === "V{enrollment_date}")) return true;
+        if (type === "incident" && (var1Ref === "incident_date" || var1Ref === "V{incident_date}")) return true;
+        if (type === "event_date" && (var1Ref === "event_date" || var1Ref === "V{event_date}")) return true;
+        if (type === "current_date" && (var1Ref === "current_date" || var1Ref === "V{current_date}")) return true;
+        
+        if ((type === "dataElement" || type === "data_element" || type === "trackedEntityAttribute" || type === "attribute")) {
+            // Remove only curly braces and hash, keep underscores and all other chars
+            const prvName = var1Ref.replace(/[{}#]/g, "");
+            return relatedPrvs.some(prv => prv.name === prvName);
+        }
+    }
+    
+    return false;
 }

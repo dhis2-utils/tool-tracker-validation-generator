@@ -9,15 +9,18 @@ export function buildDateVariablesArray() {
     }
 
     if (programMetadata.enrollmentDateLabel) {
-        list.push({ id: "enrollment_date", name: programMetadata.enrollmentDateLabel, type: "enrollment" });
+        const name = programMetadata.enrollmentDateLabel || "Enrollment date";
+        list.push({ id: "enrollment_date", name: `${name} (enrollment date)`, type: "enrollment" });
     }
     if (programMetadata.displayIncidentDate && programMetadata.incidentDateLabel) {
-        list.push({ id: "incident_date", name: programMetadata.incidentDateLabel, type: "incident" });
+        const name = programMetadata.incidentDateLabel || "Incident date";
+        list.push({ id: "incident_date", name: `${name} (incident date)`, type: "incident" });
     }
     list.push({ id: "current_date", name: "Current date", type: "current_date" });
 
     programMetadata.programStages?.forEach(stage => {
-        list.push({ id: stage.id, name: `${stage.name} - ${stage.executionDateLabel || "Event date"}`, type: "event_date", stageId: stage.id });
+        const eventLabel = stage.executionDateLabel || "Event date";
+        list.push({ id: stage.id, name: `${eventLabel} (event date)`, type: "event_date", stageId: stage.id });
         stage.programStageDataElements?.forEach(psde => {
             if (psde.dataElement?.valueType === "DATE") {
                 list.push({ id: psde.dataElement.id, name: psde.dataElement.name, type: "dataElement", stageId: stage.id });
