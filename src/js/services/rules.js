@@ -32,7 +32,6 @@ export async function ensureProgramRuleVariable(programMetadata, programId, prog
     if (!prv.id) {
         prv.id = await idFn();
         const created = await d2PostJson("/api/programRuleVariables", prv);
-        programMetadata.programRuleVariables.push(created);
         return created;
     }
     return prv;
@@ -43,20 +42,17 @@ export async function prCreate(programMetadata, programRule, programRuleActions,
     for (const prv of programRuleVariables) {
         if (!prv.id) {
             prv.id = await idFn();
-            const created = await d2PostJson("/api/programRuleVariables", prv);
-            programMetadata.programRuleVariables.push(created);
+            await d2PostJson("/api/programRuleVariables", prv);
         }
     }
     programRule.id = await idFn();
     const createdRule = await d2PostJson("/api/programRules", programRule);
-    programMetadata.programRules.push(createdRule);
 
     // Create actions
     for (const pra of programRuleActions) {
         pra.id = await idFn();
         pra.programRule = { id: programRule.id };
-        const created = await d2PostJson("/api/programRuleActions", pra);
-        programMetadata.programRuleActions.push(created);
+        await d2PostJson("/api/programRuleActions", pra);
     }
     return createdRule;
 }

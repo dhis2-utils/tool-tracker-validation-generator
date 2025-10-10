@@ -14,8 +14,8 @@ import { programsAllGet as svcProgramsAllGet, programGet as svcProgramGet, progG
 import { buildDateVariablesArray as dvBuild, findDateVariableByComponents as dvFindByComponents } from "./js/date-variables.js";
 import { showMessage as uiToast } from "./js/ui/toast.js";
 import { showOverview as uiShowOverview, renderDateVariables as uiRenderDateVariables } from "./js/ui/overview.js";
-import { showVariableDetailsCtx as detailsShow, loadCurrentValidationsCtx as detailsLoadValidations, updateValidationPreviewCtx, checkFormValidityCtx } from "./js/ui/details.js";
-import { removeAppSignature } from "./js/rules/signature.js";
+import { showVariableDetailsCtx as detailsShow, loadCurrentValidationsCtx as detailsLoadValidations, updateValidationPreviewCtx, checkFormValidityCtx, populateComparisonDatesCtx } from "./js/ui/details.js";
+import { removeAppSignature, parseRuleCondition } from "./js/rules/signature.js";
 
 loadLegacyHeaderBarIfNeeded();
 
@@ -122,6 +122,7 @@ function buildDetailsCtx() {
         setCurrent: (v) => { currentVariable = v; setState({ currentVariable: v }); },
         getCurrent: () => currentVariable || getState().currentVariable,
         getMeta: () => programMetadata || getState().programMetadata,
+        setMeta: (meta) => { programMetadata = meta; setState({ programMetadata: meta }); },
         getDateVars: () => dateVariables || getState().dateVariables,
         findByComponents: (id, type, stageId) => dvFindByComponents(id, type, stageId),
         getProgramId: () => currentProgram || getState().currentProgram,
@@ -144,9 +145,11 @@ window.deleteValidation = async function(ruleId) {
     try {
         await d2Delete(`programRules/${ruleId}`);
         showMessage("Validation rule deleted successfully");
-        // Remove from metadata cache
-        programMetadata.programRules = programMetadata.programRules.filter(rule => rule.id !== ruleId);
-        programMetadata.programRuleActions = programMetadata.programRuleActions.filter(action => action.programRule.id !== ruleId);
+        
+        // Refresh metadata from server to ensure we have the latest state
+        programMetadata = await svcProgramGet(currentProgram);
+        setState({ programMetadata });
+        
         // Refresh display
         loadCurrentValidations();
     } catch (error) {
@@ -173,53 +176,54 @@ window.editValidation = async function(ruleId) {
         }
         
         // Parse the rule condition to populate the form
-        const conditionMatch = rule.condition.match(/V\{([^}]+)\}\s*(>=|<=|>|<)\s*V\{([^}]+)\}/);
-        if (!conditionMatch) {
+        const ruleConfig = parseRuleCondition(rule.condition, programMetadata);
+        if (!ruleConfig) {
             showMessage("Cannot parse rule condition for editing", "error");
             return;
         }
         
-        // Map operators back to form values
-        const operatorMap = {
-            "<": "before",
-            ">": "after", 
-            "<=": "on_or_before",
-            ">=": "on_or_after"
-        };
+        const { variable1, variable2, config } = ruleConfig;
         
-        const [, , op, var2] = conditionMatch;
-        const formOperator = operatorMap[op];
+        // Set the current variable being validated (variable1)
+        currentVariable = variable1;
+        setState({ currentVariable: variable1 });
         
-        if (!formOperator) {
-            showMessage("Unsupported operator type for editing", "error");
-            return;
-        }
+        // Show the variable details for the current variable
+        detailsShow(buildDetailsCtx(), variable1);
         
-        // Find comparison variable type and ID
+        // Create comparison value for the form
         let comparisonValue = "";
-        if (var2 === "enrollment_date") comparisonValue = "enrollment:enrollment_date";
-        else if (var2 === "incident_date") comparisonValue = "incident:incident_date";
-        else if (var2 === "event_date") comparisonValue = "event_date:event_date";
-        else if (var2 === "current_date") comparisonValue = "current_date:current_date";
-        else {
-            // Try to find in program rule variables
-            const prv = programMetadata.programRuleVariables.find(v => v.name === var2.replace(/[#{}]/g, ""));
-            if (prv) {
-                if (prv.dataElement) comparisonValue = `dataElement:${prv.dataElement.id}`;
-                else if (prv.trackedEntityAttribute) comparisonValue = `trackedEntityAttribute:${prv.trackedEntityAttribute.id}`;
-            }
+        if (variable2.type === "enrollment") comparisonValue = "enrollment:enrollment_date";
+        else if (variable2.type === "incident") comparisonValue = "incident:incident_date";
+        else if (variable2.type === "event_date") comparisonValue = "event_date:event_date";
+        else if (variable2.type === "current_date") comparisonValue = "current_date:current_date";
+        else if (variable2.type === "dataElement") {
+            comparisonValue = `dataElement:${variable2.id}${variable2.stageId ? ":" + variable2.stageId : ""}`;
+        } else if (variable2.type === "trackedEntityAttribute") {
+            comparisonValue = `trackedEntityAttribute:${variable2.id}`;
         }
         
         // Populate the form
-        document.getElementById("validationOperator").value = formOperator;
+        document.getElementById("validationOperator").value = config.operator;
         document.getElementById("comparisonDate").value = comparisonValue;
+        if (config.intervalAmount && config.intervalUnit) {
+            document.getElementById("intervalAmount").value = config.intervalAmount;
+            document.getElementById("intervalUnit").value = config.intervalUnit;
+        }
         document.getElementById("ruleName").value = rule.name;
         document.getElementById("ruleDescription").value = removeAppSignature(rule.description || "");
         document.getElementById("ruleMessage").value = action.content || "";
         
-        // Reinitialize Materialize selects
+        // Reinitialize Materialize selects and repopulate comparison dropdown
         M.FormSelect.init(document.querySelectorAll("#dateVariableDetails select"));
         M.updateTextFields();
+        
+        // Repopulate comparison dates now that the current variable is set
+        populateComparisonDatesCtx(buildDetailsCtx());
+        
+        // Set the comparison date value again after repopulating
+        document.getElementById("comparisonDate").value = comparisonValue;
+        M.FormSelect.init(document.querySelectorAll("#dateVariableDetails select"));
         
         // Update preview and validity
         updateValidationPreviewCtx(buildDetailsCtx());
@@ -271,10 +275,3 @@ async function saveSettings() {
         showMessage("Error saving settings: " + error.message, "error");
     }
 }
-
-/**
- * Saves a configuration of prefix etc for a program
- * @param {string} programId - The ID of the program
- * @param {Object} config - The configuration to be saved
- */
-// Services moved to ./js/services/program.js

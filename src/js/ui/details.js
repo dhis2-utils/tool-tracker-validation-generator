@@ -3,8 +3,26 @@ import { prGetExisting as detectExisting } from "../rules/detector.js";
 import { generateNewRuleCondition, generateRuleName } from "../rules/builder.js";
 import { isAppGenerated, addAppSignature, findDuplicateRule } from "../rules/signature.js";
 import { ensureProgramRuleVariable as svcEnsurePrv, prCreate as svcPrCreate } from "../services/rules.js";
+import { programGet as svcProgramGet } from "../services/program.js";
+import { buildDateVariablesArray as dvBuild } from "../date-variables.js";
 import { d2PutJson } from "../d2api.js";
 import { showMessage } from "./toast.js";
+
+async function refreshMetadata(ctx) {
+    const { getProgramId, setMeta } = ctx;
+    try {
+        const refreshedMetadata = await svcProgramGet(getProgramId());
+        setMeta(refreshedMetadata);
+        // Rebuild date variables with new metadata
+        dvBuild();
+        console.log("Metadata refreshed, found", (refreshedMetadata.programRules || []).length, "rules");
+        return refreshedMetadata;
+    } catch (error) {
+        console.error("Error refreshing metadata:", error);
+        showMessage("Error refreshing metadata: " + error.message, "error");
+        return null;
+    }
+}
 
 export function showVariableDetailsCtx(ctx, variable) {
     const { setCurrent } = ctx;
@@ -196,12 +214,7 @@ export function loadCurrentValidationsCtx(ctx) {
     const { getCurrent, getMeta } = ctx;
     const variable = getCurrent(); if (!variable) return;
     
-    console.log("Debug loadValidations - Current variable:", variable);
-    console.log("Debug loadValidations - Metadata rules count:", getMeta().programRules?.length || 0);
-    
     const validations = detectExisting(getMeta(), variable);
-    
-    console.log("Debug loadValidations - Found validations:", validations.length);
     
     const container = document.getElementById("currentValidations");
     if (validations.length === 0) { container.innerHTML = "<p class='grey-text'>No validations configured for this date variable.</p>"; return; }
@@ -245,6 +258,7 @@ export function populateComparisonDatesCtx(ctx) {
             else if (variable.type === "dataElement") shouldInclude = variable.stageId === currentVariable.stageId;
         } else if (currentVariable.type === "dataElement") {
             if (["enrollment","incident","trackedEntityAttribute"].includes(variable.type)) shouldInclude = true;
+            else if (variable.type === "event_date") shouldInclude = variable.stageId === currentVariable.stageId;
             else if (variable.type === "dataElement") shouldInclude = variable.stageId === currentVariable.stageId;
         } else if (currentVariable.type === "current_date") { shouldInclude = true; }
         if (shouldInclude) { const option = document.createElement("option"); option.value = `${variable.type}:${variable.id}${variable.stageId ? ":" + variable.stageId : ""}`; option.textContent = variable.name; select.appendChild(option); }
@@ -299,10 +313,6 @@ export async function addValidationCtx(ctx, config) {
         const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, currentVariable);
         const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
         
-        console.log("Debug addValidation - Prefix config:", getConfig()?.programRuleVariablePrefix);
-        console.log("Debug addValidation - Variable1 PRV:", variable1Prv);
-        console.log("Debug addValidation - Variable2 PRV:", variable2Prv);
-        
         const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
         
         // Generate rule name and description with signature
@@ -316,16 +326,16 @@ export async function addValidationCtx(ctx, config) {
         if (currentVariable.type === "dataElement") programRuleAction.dataElement = { id: currentVariable.id };
         else if (currentVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: currentVariable.id };
         
-        console.log("Debug addValidation - About to create rule:", programRule);
-        console.log("Debug addValidation - About to create action:", programRuleAction);
-        
         await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
         
-        console.log("Debug addValidation - Rule creation completed");
-        console.log("Debug addValidation - Updated metadata rules count:", getMeta().programRules.length);
-        
         showMessage("Validation rule created successfully");
-        loadCurrentValidationsCtx(ctx);
+        
+        // Refresh metadata from server to ensure we have the latest state
+        const refreshedMetadata = await refreshMetadata(ctx);
+        if (refreshedMetadata) {
+            loadCurrentValidationsCtx(ctx);
+        }
+        
         setupValidationFormCtx(ctx);
     } catch (error) {
         console.error("Error creating validation rule:", error);
@@ -393,15 +403,14 @@ export async function updateValidationCtx(ctx, config, ruleId) {
         await d2PutJson(`/api/programRules/${ruleId}`, updatedRule);
         await d2PutJson(`/api/programRuleActions/${existingAction.id}`, updatedAction);
         
-        // Update local metadata cache
-        const ruleIndex = getMeta().programRules.findIndex(r => r.id === ruleId);
-        if (ruleIndex >= 0) getMeta().programRules[ruleIndex] = updatedRule;
-        
-        const actionIndex = getMeta().programRuleActions.findIndex(a => a.id === existingAction.id);
-        if (actionIndex >= 0) getMeta().programRuleActions[actionIndex] = updatedAction;
-        
         showMessage("Validation rule updated successfully");
-        loadCurrentValidationsCtx(ctx);
+        
+        // Refresh metadata from server to ensure we have the latest state
+        const refreshedMetadata = await refreshMetadata(ctx);
+        if (refreshedMetadata) {
+            loadCurrentValidationsCtx(ctx);
+        }
+        
         setupValidationFormCtx(ctx);
     } catch (error) {
         console.error("Error updating validation rule:", error);

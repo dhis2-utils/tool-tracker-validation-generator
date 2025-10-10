@@ -98,7 +98,7 @@ export function findDuplicateRule(programMetadata, variable, config) {
     return null;
 }
 
-function parseRuleCondition(condition, programMetadata) {
+export function parseRuleCondition(condition, programMetadata) {
     // Parse d2:daysBetween date comparison conditions
     const daysBetweenMatch = condition.match(/d2:daysBetween\(([^,]+),\s*([^)]+)\)\s*(>=|<=|>|<)\s*(-?\d+)/);
     if (daysBetweenMatch) {
@@ -150,16 +150,16 @@ function parseRuleCondition(condition, programMetadata) {
         
         if (!variable1 || !variable2) return null;
         
-        // Determine the operator based on the order of variables
-        // d2:*Between(var2, var1) > amount means var1 should be within amount units after var2
-        // d2:*Between(var1, var2) > amount means var2 should be within amount units after var1
-        const operator = "within_after"; // Both cases are "within" validations
+        // The pattern from builder:
+        // within_before: d2:*Between(var2, var1) > amount (comparison date first, validated date second)
+        // within_after:  d2:*Between(var1, var2) > amount (validated date first, comparison date second)
+        // We return variables in the order [validated_date, comparison_date] for consistency
         
         return {
-            variable1,
-            variable2,
+            variable1: variable2, // The validated date (second in within_before, first in within_after)
+            variable2: variable1, // The comparison date (first in within_before, second in within_after)
             config: { 
-                operator, 
+                operator: "within_before", // We'll assume before for now since we can't distinguish
                 intervalAmount: parseInt(amount), 
                 intervalUnit: unit 
             }
