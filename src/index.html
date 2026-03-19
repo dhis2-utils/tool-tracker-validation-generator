@@ -203,10 +203,46 @@
                             <span class="helper-text">How DHIS2 should respond when validation fails</span>
                         </div>
 
-                        <div>
+                        <div class="action-row">
                             <button id="createValidationBtn" class="btn btn-primary" disabled>
                                 Create Validation Rule
                             </button>
+                            <button id="batchApplyBtn" class="btn btn-secondary" disabled>
+                                Apply to All Unvalidated…
+                            </button>
+                        </div>
+
+                        <!-- Batch Apply Panel -->
+                        <div id="batchApplyPanel" style="display:none;">
+                            <div class="batch-panel">
+                                <h4 class="batch-panel-title">Batch Apply Validation</h4>
+                                <p class="batch-panel-desc">
+                                    This will apply the rule above to all unvalidated variables of the same type.
+                                    Select the scope and review the list before confirming.
+                                </p>
+
+                                <div class="form-group">
+                                    <label class="form-label">Scope</label>
+                                    <div class="radio-group">
+                                        <label class="radio-label">
+                                            <input type="radio" name="batchScope" value="programme" checked> Whole programme
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="batchScope" value="stage"> This stage only
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Will apply to (<span id="batchVariableCount">0</span> variables):</label>
+                                    <div id="batchVariableList" class="batch-variable-list"></div>
+                                </div>
+
+                                <div class="action-row">
+                                    <button id="batchApplyConfirmBtn" class="btn btn-primary">Confirm Batch Apply</button>
+                                    <button id="batchApplyCancelBtn" class="btn btn-ghost">Cancel</button>
+                                </div>
+                            </div>
                         </div>
 
                     </div><!-- /newValidationForm -->
