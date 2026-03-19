@@ -313,6 +313,14 @@ export function createValidationRuleCtx(ctx) {
 }
 
 function renderValidationCard(validation, isEditable) {
+    // Validate ruleId is a safe DHIS2 UID before injecting into JS string context
+    const rawId = validation.rule.id || "";
+    if (!/^[A-Za-z0-9]{11}$/.test(rawId)) {
+        console.warn("Skipping rule card: invalid rule ID format", rawId);
+        return "";
+    }
+    const ruleId = rawId; // safe for onclick JS string context (validated alphanumeric)
+
     const action = validation.actions.find(a =>
         ["SHOWWARNING", "SHOWERROR", "WARNINGONCOMPLETE", "ERRORONCOMPLETE"].includes(a.programRuleActionType)
     );
@@ -320,8 +328,6 @@ function renderValidationCard(validation, isEditable) {
     // actionClass is derived from enum check, always "error" or "warning"
     const actionClass = actionType.includes("ERROR") ? "error" : "warning";
     const displayName = escapeHtml(validation.rule.name);
-    // ruleId is a DHIS2 UID (11-char alphanumeric), safe for JS string context
-    const ruleId = escapeHtml(validation.rule.id);
     const condition = escapeHtml(validation.rule.condition);
     const message = action?.content ? escapeHtml(action.content) : null;
 
