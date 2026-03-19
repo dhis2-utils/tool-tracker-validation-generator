@@ -7,6 +7,13 @@ import { buildVariablesArray as dvBuild } from "../variables.js";
 import { d2PutJson } from "../d2api.js";
 import { showMessage } from "./toast.js";
 
+function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 async function refreshMetadata(ctx) {
     const { getProgramId, setMeta } = ctx;
     try {
@@ -311,18 +318,21 @@ function renderValidationCard(validation, isEditable) {
     );
     const actionType = action ? action.programRuleActionType : "UNKNOWN";
     const actionClass = actionType.includes("ERROR") ? "error" : "warning";
-    const displayName = validation.rule.name;
+    const displayName = escapeHtml(validation.rule.name);
+    const ruleId = escapeHtml(validation.rule.id);
+    const condition = escapeHtml(validation.rule.condition);
+    const message = action?.content ? escapeHtml(action.content) : null;
 
     return `
         <div class="validation-rule ${actionClass}">
             <h6>${displayName}</h6>
-            <p><strong>Rule ID:</strong> <code>${validation.rule.id}</code></p>
-            <p><strong>Condition:</strong> ${validation.rule.condition}</p>
+            <p><strong>Rule ID:</strong> <code>${ruleId}</code></p>
+            <p><strong>Condition:</strong> ${condition}</p>
             <p><strong>Action:</strong> ${actionType}</p>
-            ${action?.content ? `<p><strong>Message:</strong> ${action.content}</p>` : ""}
+            ${message ? `<p><strong>Message:</strong> ${message}</p>` : ""}
             <div class="validation-actions">
-                ${isEditable ? `<button class="btn btn-sm btn-secondary" onclick="editValidation('${validation.rule.id}')">Edit</button>` : ""}
-                <button class="btn btn-sm btn-danger" onclick="deleteValidation('${validation.rule.id}')">Delete</button>
+                ${isEditable ? `<button class="btn btn-sm btn-secondary" onclick="editValidation('${ruleId}')">Edit</button>` : ""}
+                <button class="btn btn-sm btn-danger" onclick="deleteValidation('${ruleId}')">Delete</button>
             </div>
         </div>`;
 }
