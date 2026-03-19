@@ -224,17 +224,17 @@
                                 <div class="form-group">
                                     <label class="form-label">Scope</label>
                                     <div class="radio-group">
-                                        <label class="radio-label">
-                                            <input type="radio" name="batchScope" value="programme" checked> Whole programme
+                                        <label class="radio-label" for="batchScope-programme">
+                                            <input type="radio" id="batchScope-programme" name="batchScope" value="programme" checked> Whole programme
                                         </label>
-                                        <label class="radio-label">
-                                            <input type="radio" name="batchScope" value="stage"> This stage only
+                                        <label class="radio-label" for="batchScope-stage">
+                                            <input type="radio" id="batchScope-stage" name="batchScope" value="stage"> This stage only
                                         </label>
                                     </div>
                                 </div>
 
                                 <div class="form-group">
-                                    <label class="form-label">Will apply to (<span id="batchVariableCount">0</span> variables):</label>
+                                    <label class="form-label">Will apply to (<span id="batchVariableCount" aria-live="polite">0</span> variables):</label>
                                     <div id="batchVariableList" class="batch-variable-list"></div>
                                 </div>
 
