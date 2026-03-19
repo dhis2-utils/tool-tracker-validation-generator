@@ -34,8 +34,15 @@ export function isBatchGenerated(rule) {
 export function addBatchSignature(ruleName, description) {
     const { name, description: signedDesc } = addAppSignature(ruleName, description);
     const batchPrefix = `[${BATCH_TAG}]`;
-    // Insert [DVT-BATCH] after [DVT] in the description
-    const descWithBatch = signedDesc.replace(/^\[DVT\]\s*/, `[DVT] ${batchPrefix} `);
+    // Return early if already tagged (idempotent)
+    if (signedDesc.includes(batchPrefix)) {
+        return { name, description: signedDesc };
+    }
+    const signature = getAppSignature();
+    const descWithBatch = signedDesc.replace(
+        new RegExp(`^\\[${signature}\\]\\s*`),
+        `[${signature}] ${batchPrefix} `
+    );
     return { name, description: descWithBatch };
 }
 

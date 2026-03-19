@@ -117,4 +117,15 @@ describe("batch signature", () => {
         const rule = { description: "[DVT] Some desc" };
         expect(isBatchGenerated(rule)).toBe(false);
     });
+
+    it("addBatchSignature is idempotent (no duplicate tags)", () => {
+        const result1 = addBatchSignature("Rule", "desc");
+        const result2 = addBatchSignature("Rule", result1.description);
+        expect(result2.description).toBe(result1.description);
+        expect((result2.description.match(/\[DVT-BATCH\]/g) || []).length).toBe(1);
+    });
+
+    it("isBatchGenerated requires [DVT] prefix, not just [DVT-BATCH] anywhere", () => {
+        expect(isBatchGenerated({ description: "[DVT-BATCH] desc" })).toBe(false);
+    });
 });
