@@ -5,7 +5,7 @@ export async function getId() {
     return r.codes?.[0];
 }
 
-export function prvGetSet(programMetadata, programId, programRuleVariablePrefix, type, id, nameFallback) {
+export function prvGetSet(programMetadata, programId, programRuleVariablePrefix, type, id, nameFallback, valueType = "DATE") {
     const existing = (programMetadata.programRuleVariables || []).find(prv =>
         (type === "dataElement" && prv.dataElement?.id === id) ||
         (type === "trackedEntityAttribute" && prv.trackedEntityAttribute?.id === id)
@@ -24,7 +24,7 @@ export function prvGetSet(programMetadata, programId, programRuleVariablePrefix,
         programRuleVariableSourceType: type === "dataElement" ? "DATAELEMENT_CURRENT_EVENT" : "TEI_ATTRIBUTE",
         dataElement: type === "dataElement" ? { id } : undefined,
         trackedEntityAttribute: type === "trackedEntityAttribute" ? { id } : undefined,
-        valueType: "DATE"
+        valueType: valueType || "DATE"
     };
 }
 
@@ -33,7 +33,7 @@ export async function ensureProgramRuleVariable(programMetadata, programId, prog
         return { name: variable.prvName || variable.type };
     }
     const type = (variable.type === "data_element") ? "dataElement" : (variable.type === "attribute" ? "trackedEntityAttribute" : variable.type);
-    let prv = prvGetSet(programMetadata, programId, programRuleVariablePrefix, type, variable.id, variable.name || variable.id);
+    let prv = prvGetSet(programMetadata, programId, programRuleVariablePrefix, type, variable.id, variable.name || variable.id, variable.valueType);
     if (!prv.id) {
         prv.id = await idFn();
         const created = await d2PostJson("/api/programRuleVariables", prv);

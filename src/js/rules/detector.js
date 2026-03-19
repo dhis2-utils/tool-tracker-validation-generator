@@ -5,8 +5,8 @@ export function prGetExisting(programMetadata, variable) {
     const { type, id } = variable;
     
     const relatedPrvs = (programMetadata.programRuleVariables || []).filter(prv =>
-        ((type === "dataElement" || type === "data_element") && prv.dataElement?.id === id) ||
-        ((type === "trackedEntityAttribute" || type === "attribute") && prv.trackedEntityAttribute?.id === id)
+        (type === "dataElement" && prv.dataElement?.id === id) ||
+        (type === "trackedEntityAttribute" && prv.trackedEntityAttribute?.id === id)
     );
 
     const result = [];
@@ -51,7 +51,7 @@ function isVariablePrimaryTarget(condition, variable, relatedPrvs, rule) {
         if (type === "current_date" && (var1Ref === "current_date" || var1Ref === "V{current_date}")) return true;
         
         // For data elements and attributes, check if the PRV name matches (including underscores)
-        if ((type === "dataElement" || type === "data_element" || type === "trackedEntityAttribute" || type === "attribute")) {
+        if (type === "dataElement" || type === "trackedEntityAttribute") {
             // Remove only curly braces and hash, keep underscores and all other chars
             const prvName = var1Ref.replace(/[{}#]/g, "");
             return relatedPrvs.some(prv => prv.name === prvName);
@@ -70,9 +70,18 @@ function isVariablePrimaryTarget(condition, variable, relatedPrvs, rule) {
         if (type === "event_date" && (var1Ref === "event_date" || var1Ref === "V{event_date}")) return true;
         if (type === "current_date" && (var1Ref === "current_date" || var1Ref === "V{current_date}")) return true;
         
-        if ((type === "dataElement" || type === "data_element" || type === "trackedEntityAttribute" || type === "attribute")) {
+        if (type === "dataElement" || type === "trackedEntityAttribute") {
             // Remove only curly braces and hash, keep underscores and all other chars
             const prvName = var1Ref.replace(/[{}#]/g, "");
+            return relatedPrvs.some(prv => prv.name === prvName);
+        }
+    }
+
+    // Parse numeric conditions: #{VAR} OP value  or  #{VAR} OP #{VAR2}
+    const numericMatch = condition.match(/#{([^}]+)}\s*(>=|<=|>|<|==|!=)\s*.+/);
+    if (numericMatch) {
+        const [, prvName] = numericMatch;
+        if (type === "dataElement" || type === "trackedEntityAttribute") {
             return relatedPrvs.some(prv => prv.name === prvName);
         }
     }

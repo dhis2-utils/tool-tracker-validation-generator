@@ -1,5 +1,9 @@
 // Pure functions for building rule expressions and labels
 
+export function isSystemVariable(variable) {
+    return ["enrollment", "incident", "event_date", "due_date", "current_date"].includes(variable?.type);
+}
+
 export function getVariableReference(variable) {
     if (!variable) return "";
     switch (variable.type) {
@@ -10,16 +14,10 @@ export function getVariableReference(variable) {
     case "current_date": return "V{current_date}";
     case "dataElement":
     case "trackedEntityAttribute":
-    case "data_element":
-    case "attribute":
         return `#{${variable.prvName || variable.name || variable.id}}`;
     default:
         return `#{${variable.prvName || variable.name || variable.id}}`;
     }
-}
-
-export function isSystemVariable(variable) {
-    return ["enrollment", "incident", "event_date", "due_date", "current_date"].includes(variable?.type);
 }
 
 export function generateIntervalCondition(startDateRef, endDateRef, amount, unit) {
@@ -30,18 +28,29 @@ export function generateIntervalCondition(startDateRef, endDateRef, amount, unit
     return `${fn}(${startDateRef}, ${endDateRef}) > ${amount}`;
 }
 
+function buildNullGuard(variable) {
+    if (isSystemVariable(variable)) return null;
+    const ref = getVariableReference(variable);
+    return `d2:hasValue(${ref})`;
+}
+
 export function generateNewRuleCondition(variable1, variable2, config) {
     const var1Ref = getVariableReference(variable1);
     const var2Ref = getVariableReference(variable2);
+    const guard = buildNullGuard(variable1);
+
+    let condition;
     switch (config.operator) {
-    case "before": return `d2:daysBetween(${var1Ref}, ${var2Ref}) < 0`;
-    case "after": return `d2:daysBetween(${var1Ref}, ${var2Ref}) > 0`;
-    case "on_or_after": return `d2:daysBetween(${var1Ref}, ${var2Ref}) >= 0`;
-    case "on_or_before": return `d2:daysBetween(${var1Ref}, ${var2Ref}) <= 0`;
-    case "within_before": return generateIntervalCondition(var2Ref, var1Ref, config.intervalAmount, config.intervalUnit);
-    case "within_after": return generateIntervalCondition(var1Ref, var2Ref, config.intervalAmount, config.intervalUnit);
+    case "before": condition = `d2:daysBetween(${var1Ref}, ${var2Ref}) < 0`; break;
+    case "after": condition = `d2:daysBetween(${var1Ref}, ${var2Ref}) > 0`; break;
+    case "on_or_after": condition = `d2:daysBetween(${var1Ref}, ${var2Ref}) >= 0`; break;
+    case "on_or_before": condition = `d2:daysBetween(${var1Ref}, ${var2Ref}) <= 0`; break;
+    case "within_before": condition = generateIntervalCondition(var2Ref, var1Ref, config.intervalAmount, config.intervalUnit); break;
+    case "within_after": condition = generateIntervalCondition(var1Ref, var2Ref, config.intervalAmount, config.intervalUnit); break;
     default: throw new Error(`Unknown operator: ${config.operator}`);
     }
+
+    return guard ? `${guard} && ${condition}` : condition;
 }
 
 export function generateRuleName(variable1, variable2, validationType, customName = null) {
@@ -71,6 +80,30 @@ export function generateValidationMessage(variable1, variable2, validationType, 
 }
 
 export function getValidationStageId(variable1, variable2) {
-    const pick = v => (v?.type === "dataElement" || v?.type === "data_element" || v?.type === "event_date") ? v.stageId : null;
+    const pick = v => (v?.type === "dataElement" || v?.type === "event_date" || v?.type === "due_date") ? v.stageId : null;
     return pick(variable1) || pick(variable2) || null;
+}
+
+const NUMERIC_OP_MAP = {
+    "greater_than": ">",
+    "greater_than_or_equal": ">=",
+    "less_than": "<",
+    "less_than_or_equal": "<=",
+    "equal_to": "==",
+    "not_equal_to": "!="
+};
+
+export function generateNumericCondition(variable, operator, value) {
+    const varRef = getVariableReference(variable);
+    const op = NUMERIC_OP_MAP[operator];
+    if (!op) throw new Error(`Unknown numeric operator: ${operator}`);
+    return `d2:hasValue(${varRef}) && ${varRef} ${op} ${value}`;
+}
+
+export function generateNumericFieldCondition(variable1, operator, variable2) {
+    const var1Ref = getVariableReference(variable1);
+    const var2Ref = getVariableReference(variable2);
+    const op = NUMERIC_OP_MAP[operator];
+    if (!op) throw new Error(`Unknown numeric operator: ${operator}`);
+    return `d2:hasValue(${var1Ref}) && ${var1Ref} ${op} ${var2Ref}`;
 }
