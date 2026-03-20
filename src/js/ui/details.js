@@ -657,6 +657,22 @@ function renderBatchVariableList(variables) {
         </div>`).join("");
 }
 
+function getRestrictedBatchStageId(ctx, config) {
+    if (config.numericComparisonType === "field" && config.numericComparisonField) {
+        const [compareType, compareId, compareStageId] = config.numericComparisonField.split(":");
+        const compareField = ctx.findByComponents(compareId, compareType, compareStageId);
+        return compareField?.stageId || null;
+    }
+
+    if (config.comparisonDate) {
+        const [compareType, compareId, compareStageId] = config.comparisonDate.split(":");
+        const compareVariable = ctx.findByComponents(compareId, compareType, compareStageId);
+        return compareVariable?.stageId || null;
+    }
+
+    return null;
+}
+
 export function showBatchApplyPanel(ctx, config) {
     const panel = document.getElementById("batchApplyPanel");
     if (!panel) return;
@@ -665,16 +681,35 @@ export function showBatchApplyPanel(ctx, config) {
     const current = ctx.getCurrent();
     const category = current?.category || "date";
     const currentStageId = current?.stageId || null;
+    const restrictedStageId = getRestrictedBatchStageId(ctx, config);
+
+    const radios = [...document.querySelectorAll("input[name='batchScope']")].map(radio => {
+        const newRadio = radio.cloneNode(true);
+        radio.parentNode.replaceChild(newRadio, radio);
+        return newRadio;
+    });
+    const programmeRadio = radios.find(radio => radio.value === "programme");
+    const stageRadio = radios.find(radio => radio.value === "stage");
+
+    if (programmeRadio) {
+        programmeRadio.disabled = restrictedStageId !== null;
+        if (restrictedStageId !== null) {
+            programmeRadio.checked = false;
+        }
+    }
+    if (stageRadio && restrictedStageId !== null) {
+        stageRadio.checked = true;
+    }
 
     function refreshList() {
         const scope = document.querySelector("input[name='batchScope']:checked")?.value || "programme";
-        const stageId = scope === "stage" ? currentStageId : null;
+        const stageId = restrictedStageId !== null ? restrictedStageId : (scope === "stage" ? currentStageId : null);
         const unvalidated = getUnvalidatedVariables(ctx, category, stageId);
         document.getElementById("batchVariableList").innerHTML = renderBatchVariableList(unvalidated);
         document.getElementById("batchVariableCount").textContent = unvalidated.length;
     }
 
-    document.querySelectorAll("input[name='batchScope']").forEach(r => {
+    radios.forEach(r => {
         r.addEventListener("change", refreshList);
     });
     refreshList();

@@ -63,6 +63,23 @@ function createButton(key = null, elements = null) {
     return button;
 }
 
+function createRadio(value, checked = false, radios = null, index = null) {
+    const radio = createInput("");
+    radio.value = value;
+    radio.checked = checked;
+    radio.disabled = false;
+    radio.parentNode = {
+        replaceChild: vi.fn((newNode) => {
+            newNode.parentNode = radio.parentNode;
+            if (radios && index !== null) {
+                radios[index] = newNode;
+            }
+        })
+    };
+    radio.cloneNode = vi.fn(() => createRadio(radio.value, radio.checked, radios, index));
+    return radio;
+}
+
 function createDocument(elements, radios = [], checkedBoxes = []) {
     return {
         getElementById: (id) => elements[id],
@@ -192,11 +209,10 @@ describe("details form config and batch panel", () => {
         const batchVariableCount = createInput("0");
         const confirmBtn = createButton();
         const cancelBtn = createButton();
-        const programmeRadio = createInput("");
-        programmeRadio.value = "programme";
-        const stageRadio = createInput("");
-        stageRadio.value = "stage";
-        stageRadio.checked = true;
+        const radios = [];
+        const programmeRadio = createRadio("programme", false, radios, 0);
+        const stageRadio = createRadio("stage", true, radios, 1);
+        radios.push(programmeRadio, stageRadio);
 
         global.document = createDocument({
             batchApplyPanel,
@@ -204,7 +220,7 @@ describe("details form config and batch panel", () => {
             batchVariableCount,
             batchApplyConfirmBtn: confirmBtn,
             batchApplyCancelBtn: cancelBtn
-        }, [programmeRadio, stageRadio]);
+        }, radios);
 
         const current = { id: "deCurrent01A", type: "dataElement", stageId: "stageA", category: "numeric", name: "Current" };
         const unvalidatedSameStage = { id: "deFree001AAA", type: "dataElement", stageId: "stageA", category: "numeric", name: "Valid <Field>" };
@@ -236,6 +252,82 @@ describe("details form config and batch panel", () => {
         expect(batchVariableList.innerHTML).not.toContain("Other stage");
     });
 
+    it("showBatchApplyPanel replaces scope radios before rebinding listeners", () => {
+        const batchApplyPanel = { style: { display: "none" } };
+        const batchVariableList = createInput("");
+        const batchVariableCount = createInput("0");
+        const confirmBtn = createButton();
+        const cancelBtn = createButton();
+        const radios = [];
+        const programmeRadio = createRadio("programme", true, radios, 0);
+        const stageRadio = createRadio("stage", false, radios, 1);
+        radios.push(programmeRadio, stageRadio);
+
+        global.document = createDocument({
+            batchApplyPanel,
+            batchVariableList,
+            batchVariableCount,
+            batchApplyConfirmBtn: confirmBtn,
+            batchApplyCancelBtn: cancelBtn
+        }, radios);
+
+        const current = { id: "deCurrent01A", type: "dataElement", stageId: "stageA", category: "numeric", name: "Current" };
+        const ctx = {
+            getCurrent: () => current,
+            getDateVars: () => [current],
+            getMeta: () => ({ programRules: [], programRuleActions: [], programRuleVariables: [] })
+        };
+
+        showBatchApplyPanel(ctx, { numericOperator: "greater_than" });
+        showBatchApplyPanel(ctx, { numericOperator: "greater_than" });
+
+        expect(radios[0].addEventListener).toHaveBeenCalledTimes(1);
+        expect(radios[1].addEventListener).toHaveBeenCalledTimes(1);
+    });
+
+    it("showBatchApplyPanel restricts programme scope when comparison field is stage-specific", () => {
+        const batchApplyPanel = { style: { display: "none" } };
+        const batchVariableList = createInput("");
+        const batchVariableCount = createInput("0");
+        const confirmBtn = createButton();
+        const cancelBtn = createButton();
+        const radios = [];
+        const programmeRadio = createRadio("programme", true, radios, 0);
+        const stageRadio = createRadio("stage", false, radios, 1);
+        radios.push(programmeRadio, stageRadio);
+
+        global.document = createDocument({
+            batchApplyPanel,
+            batchVariableList,
+            batchVariableCount,
+            batchApplyConfirmBtn: confirmBtn,
+            batchApplyCancelBtn: cancelBtn
+        }, radios);
+
+        const current = { id: "deCurrent01A", type: "dataElement", stageId: "stageA", category: "numeric", name: "Current" };
+        const stageATarget = { id: "deFree001AAA", type: "dataElement", stageId: "stageA", category: "numeric", name: "Stage A target" };
+        const stageBTarget = { id: "deOther01AAA", type: "dataElement", stageId: "stageB", category: "numeric", name: "Stage B target" };
+
+        const ctx = {
+            getCurrent: () => current,
+            getDateVars: () => [current, stageATarget, stageBTarget],
+            getMeta: () => ({ programRules: [], programRuleActions: [], programRuleVariables: [] }),
+            findByComponents: (id, type, stageId) => ({ id, type, stageId, name: "Comparison field" })
+        };
+
+        showBatchApplyPanel(ctx, {
+            numericOperator: "greater_than",
+            numericComparisonType: "field",
+            numericComparisonField: "dataElement:cmp001AAAAA:stageA"
+        });
+
+        expect(radios[0].disabled).toBe(true);
+        expect(radios[1].checked).toBe(true);
+        expect(batchVariableCount.textContent).toBe(1);
+        expect(batchVariableList.innerHTML).toContain("Stage A target");
+        expect(batchVariableList.innerHTML).not.toContain("Stage B target");
+    });
+
     it("batch apply confirm creates tagged rules and refreshes indicators", async () => {
         const elements = {};
         elements.batchApplyPanel = { style: { display: "none" } };
@@ -244,11 +336,10 @@ describe("details form config and batch panel", () => {
         elements.batchApplyConfirmBtn = createButton("batchApplyConfirmBtn", elements);
         elements.batchApplyCancelBtn = createButton("batchApplyCancelBtn", elements);
 
-        const programmeRadio = createInput("");
-        programmeRadio.value = "programme";
-        programmeRadio.checked = true;
-        const stageRadio = createInput("");
-        stageRadio.value = "stage";
+        const radios = [];
+        const programmeRadio = createRadio("programme", true, radios, 0);
+        const stageRadio = createRadio("stage", false, radios, 1);
+        radios.push(programmeRadio, stageRadio);
 
         Object.assign(elements, {
             currentValidations: createInput(""),
@@ -279,7 +370,7 @@ describe("details form config and batch panel", () => {
         });
 
         const checkedBox = { value: "dataElement:deFree001AAA:stageA", checked: true };
-        global.document = createDocument(elements, [programmeRadio, stageRadio], [checkedBox]);
+        global.document = createDocument(elements, radios, [checkedBox]);
 
         global.window = { editingRuleId: null };
 
