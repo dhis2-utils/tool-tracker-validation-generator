@@ -1,6 +1,7 @@
 import { prGetExisting as detectExisting } from "../rules/detector.js";
 import { generateNewRuleCondition, generateRuleName, generateNumericCondition, generateNumericFieldCondition } from "../rules/builder.js";
-import { isAppGenerated, addAppSignature, findDuplicateRule } from "../rules/signature.js";
+// eslint-disable-next-line no-unused-vars
+import { isAppGenerated, addAppSignature, findDuplicateRule, addBatchSignature, isBatchGenerated } from "../rules/signature.js";
 import { ensureProgramRuleVariable as svcEnsurePrv, prCreate as svcPrCreate } from "../services/rules.js";
 import { programGet as svcProgramGet } from "../services/program.js";
 import { buildVariablesArray as dvBuild } from "../variables.js";
@@ -443,36 +444,39 @@ function generateDefaultNumericDescription(variable, operator, comparisonType, v
     return `Validates that ${variable.name} is ${opLabel} ${value}`;
 }
 
+async function createNumericValidationForVariable(ctx, config, targetVariable, signatureFn = addAppSignature) {
+    const { getMeta, getProgramId, getConfig } = ctx;
+    let ruleCondition;
+    let compareField = null;
+    if (config.numericComparisonType === "field") {
+        const [compareType, compareId, compareStageId] = config.numericComparisonField.split(":");
+        compareField = ctx.findByComponents(compareId, compareType, compareStageId);
+        if (!compareField) throw new Error("Comparison field not found");
+    }
+    const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, targetVariable);
+    const variable1WithPrv = { ...targetVariable, prvName: variable1Prv.name };
+    if (config.numericComparisonType === "field") {
+        const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareField);
+        ruleCondition = generateNumericFieldCondition(variable1WithPrv, config.numericOperator, { ...compareField, prvName: variable2Prv.name });
+    } else {
+        ruleCondition = generateNumericCondition(variable1WithPrv, config.numericOperator, config.numericValue);
+    }
+    const prefix = getConfig()?.programRulePrefix || "";
+    const ruleName = prefix ? `${prefix} - ${config.ruleName}` : config.ruleName;
+    const defaultDesc = generateDefaultNumericDescription(targetVariable, config.numericOperator, config.numericComparisonType, config.numericValue, compareField);
+    const { description } = signatureFn(ruleName, config.ruleDescription || defaultDesc);
+    const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
+    if (targetVariable.type === "dataElement" && targetVariable.stageId) programRule.programStage = { id: targetVariable.stageId };
+    const programRuleAction = { programRuleActionType: config.actionType || "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
+    if (targetVariable.type === "dataElement") programRuleAction.dataElement = { id: targetVariable.id };
+    else if (targetVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: targetVariable.id };
+    await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
+}
+
 async function addNumericValidationCtx(ctx, config) {
-    const { getCurrent, getMeta, getProgramId, getConfig } = ctx;
-    const currentVariable = getCurrent();
+    const currentVariable = ctx.getCurrent();
     try {
-        let ruleCondition;
-        let compareField = null;
-        if (config.numericComparisonType === "field") {
-            const [compareType, compareId, compareStageId] = config.numericComparisonField.split(":");
-            compareField = ctx.findByComponents(compareId, compareType, compareStageId);
-            if (!compareField) { showMessage("Comparison field not found", "error"); return; }
-        }
-        const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, currentVariable);
-        const variable1WithPrv = { ...currentVariable, prvName: variable1Prv.name };
-        if (config.numericComparisonType === "field") {
-            const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareField);
-            ruleCondition = generateNumericFieldCondition(variable1WithPrv, config.numericOperator, { ...compareField, prvName: variable2Prv.name });
-        } else {
-            ruleCondition = generateNumericCondition(variable1WithPrv, config.numericOperator, config.numericValue);
-        }
-        const prefix = getConfig()?.programRulePrefix || "";
-        const actualName = config.ruleName;
-        const ruleName = prefix ? `${prefix} - ${actualName}` : actualName;
-        const defaultDesc = generateDefaultNumericDescription(currentVariable, config.numericOperator, config.numericComparisonType, config.numericValue, compareField);
-        const { description } = addAppSignature(ruleName, config.ruleDescription || defaultDesc);
-        const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
-        if (currentVariable.type === "dataElement" && currentVariable.stageId) programRule.programStage = { id: currentVariable.stageId };
-        const programRuleAction = { programRuleActionType: config.actionType || "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
-        if (currentVariable.type === "dataElement") programRuleAction.dataElement = { id: currentVariable.id };
-        else if (currentVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: currentVariable.id };
-        await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
+        await createNumericValidationForVariable(ctx, config, currentVariable);
         showMessage("Validation rule created successfully");
         const refreshedMetadata = await refreshMetadata(ctx);
         if (refreshedMetadata) loadCurrentValidationsCtx(ctx);
@@ -547,68 +551,53 @@ function generateDefaultDescription(variable1, variable2, operator, intervalAmou
     }
 }
 
+async function createDateValidationForVariable(ctx, config, targetVariable, signatureFn = addAppSignature) {
+    const { getMeta, getProgramId, getConfig } = ctx;
+    const [compareType, compareId, compareStageId] = config.comparisonDate.split(":");
+    const compareDate = ctx.findByComponents(compareId, compareType, compareStageId);
+    if (!compareDate) throw new Error("Target date not found");
+
+    const duplicateRule = findDuplicateRule(getMeta(), targetVariable, config);
+    if (duplicateRule) throw new Error(`Duplicate rule already exists: "${duplicateRule.name}"`);
+
+    const finalRuleName = generateRuleName(targetVariable, compareDate, config.operator, config.ruleName);
+    const existingRule = getMeta().programRules.find(rule => rule.name === finalRuleName);
+    if (existingRule) throw new Error(`Rule "${finalRuleName}" already exists`);
+
+    const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, targetVariable);
+    const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
+
+    const prefix = getConfig()?.programRulePrefix || "";
+    const ruleCondition = generateNewRuleCondition({ ...targetVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
+
+    let actualName = generateRuleName(targetVariable, compareDate, config.operator, config.ruleName);
+    let ruleName = prefix ? `${prefix} - ${actualName}` : actualName;
+    const defaultDesc = generateDefaultDescription(targetVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
+    const { description } = signatureFn(ruleName, config.ruleDescription || defaultDesc);
+
+    const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
+    if (targetVariable.type === "dataElement" && targetVariable.stageId) programRule.programStage = { id: targetVariable.stageId };
+    if (targetVariable.type === "event_date" && targetVariable.stageId) programRule.programStage = { id: targetVariable.stageId };
+
+    const programRuleAction = { programRuleActionType: config.actionType || "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
+    if (targetVariable.type === "dataElement") programRuleAction.dataElement = { id: targetVariable.id };
+    else if (targetVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: targetVariable.id };
+
+    await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
+}
+
 export async function addValidationCtx(ctx, config) {
-    const { getCurrent, getMeta, getProgramId, getConfig } = ctx;
-    const currentVariable = getCurrent(); if (!config || !currentVariable) { showMessage("Invalid configuration", "error"); return; }
+    const currentVariable = ctx.getCurrent();
+    if (!config || !currentVariable) { showMessage("Invalid configuration", "error"); return; }
     if (currentVariable.category === "numeric") { return addNumericValidationCtx(ctx, config); }
     try {
-        // Check for duplicates
-        const [compareType, compareId, compareStageId] = config.comparisonDate.split(":");
-        const compareDate = ctx.findByComponents(compareId, compareType, compareStageId);
-        if (!compareDate) { showMessage("Target date not found", "error"); return; }
-        
-        const duplicateRule = findDuplicateRule(getMeta(), currentVariable, config);
-        if (duplicateRule) {
-            showMessage(`A validation rule comparing these same date variables already exists: "${duplicateRule.name}". Please choose different variables or modify the existing rule.`, "error");
-            return;
-        }
-        
-        // Generate the final rule name to check for collisions
-        const finalRuleName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
-        const existingRule = getMeta().programRules.find(rule => rule.name === finalRuleName);
-        if (existingRule) { 
-            showMessage(`A program rule with the name "${finalRuleName}" already exists. Please choose a different name.`, "error"); 
-            return; 
-        }
-        
-        const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, currentVariable);
-        const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
-        
-        const prefix = getConfig()?.programRulePrefix || "";
-        const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
-        
-        // Generate rule name and description with signature
-        // Format rule name: [prefix] - [Actual name]
-        let actualName = generateRuleName(currentVariable, compareDate, config.operator, config.ruleName);
-        let ruleName = prefix ? `${prefix} - ${actualName}` : actualName;
-        const defaultDesc = generateDefaultDescription(currentVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
-        const { description } = addAppSignature(ruleName, config.ruleDescription || defaultDesc);
-
-        const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
-        if (currentVariable.type === "dataElement" && currentVariable.stageId) {
-            programRule.programStage = { id: currentVariable.stageId };
-        }
-        // Always set programStage for event_date rules
-        if (currentVariable.type === "event_date" && currentVariable.stageId) {
-            programRule.programStage = { id: currentVariable.stageId };
-        }
-        const programRuleAction = { programRuleActionType: config.actionType || "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
-        if (currentVariable.type === "dataElement") programRuleAction.dataElement = { id: currentVariable.id };
-        else if (currentVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: currentVariable.id };
-
-        await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
-
+        await createDateValidationForVariable(ctx, config, currentVariable);
         showMessage("Validation rule created successfully");
-        
-        // Refresh metadata from server to ensure we have the latest state
         const refreshedMetadata = await refreshMetadata(ctx);
-        if (refreshedMetadata) {
-            loadCurrentValidationsCtx(ctx);
-        }
-        
+        if (refreshedMetadata) loadCurrentValidationsCtx(ctx);
         setupValidationFormCtx(ctx);
     } catch (error) {
-        console.error("Error creating validation rule:", error);
+        console.error("Error creating date validation rule:", error);
         showMessage("Error creating validation rule: " + (error.message || error), "error");
     }
 }
