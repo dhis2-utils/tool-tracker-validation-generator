@@ -7,6 +7,7 @@ import { programGet as svcProgramGet } from "../services/program.js";
 import { buildVariablesArray as dvBuild } from "../variables.js";
 import { d2PutJson } from "../d2api.js";
 import { showMessage } from "./toast.js";
+import { updateValidationIndicators } from "./overview.js";
 
 function escapeHtml(str) {
     if (!str) return "";
@@ -147,6 +148,17 @@ export function setupFormEventListenersCtx(ctx) {
         // Add the event listener to the new node
         newCreateBtn.addEventListener("click", () => createValidationRuleCtx(ctx));
     }
+
+    const batchApplyBtn = document.getElementById("batchApplyBtn");
+    if (batchApplyBtn) {
+        const newBatchBtn = batchApplyBtn.cloneNode(true);
+        batchApplyBtn.parentNode.replaceChild(newBatchBtn, batchApplyBtn);
+        newBatchBtn.addEventListener("click", () => {
+            const config = collectFormConfigCtx(ctx);
+            if (config) showBatchApplyPanel(ctx, config);
+        });
+    }
+
 }
 
 export function updateValidationPreviewCtx(ctx) {
@@ -250,6 +262,8 @@ export function checkFormValidityCtx(ctx) {
     
     if (!settingsValid) {
         document.getElementById("createValidationBtn").disabled = true;
+        const batchBtn = document.getElementById("batchApplyBtn");
+        if (batchBtn) batchBtn.style.display = "none";
         // Show settings requirement message
         const validationPreview = document.getElementById("validationPreview");
         if (validationPreview) {
@@ -274,38 +288,51 @@ export function checkFormValidityCtx(ctx) {
         if (numericCompType === "value" && !numericVal) isValid = false;
         if (numericCompType === "field" && !numericField) isValid = false;
         document.getElementById("createValidationBtn").disabled = !isValid;
+        const batchBtn = document.getElementById("batchApplyBtn");
+        if (batchBtn) batchBtn.style.display = (isValid && !window.editingRuleId) ? "" : "none";
         return;
     }
 
     let isValid = operator && comparisonDate && ruleName && ruleMessage;
     if ((operator === "within_before" || operator === "within_after") && !intervalAmount) isValid = false;
     document.getElementById("createValidationBtn").disabled = !isValid;
+    const batchBtn = document.getElementById("batchApplyBtn");
+    if (batchBtn) batchBtn.style.display = (isValid && !window.editingRuleId) ? "" : "none";
 }
 
-export function createValidationRuleCtx(ctx) {
-    if (document.getElementById("createValidationBtn").disabled) return;
+export function collectFormConfigCtx(ctx) {
     const ruleName = document.getElementById("ruleName").value;
     const ruleDescription = document.getElementById("ruleDescription").value;
     const ruleMessage = document.getElementById("ruleMessage").value;
     const actionType = document.getElementById("actionType").value || "SHOWERROR";
 
     const currentVariable = ctx.getCurrent();
-    let validationConfig;
+    if (!ruleName || !ruleMessage) return null;
 
     if (currentVariable?.category === "numeric") {
         const numericOperator = document.getElementById("numericOperator").value;
         const numericComparisonType = document.getElementById("numericComparisonType").value;
         const numericVal = document.getElementById("numericValue").value;
         const numericComparisonField = document.getElementById("numericComparisonField").value;
-        validationConfig = { numericOperator, numericComparisonType, numericValue: numericVal !== "" ? parseFloat(numericVal) : null, numericComparisonField, ruleName, ruleDescription, ruleMessage, actionType };
+        if (!numericOperator) return null;
+        if (numericComparisonType === "value" && numericVal === "") return null;
+        if (numericComparisonType === "field" && !numericComparisonField) return null;
+        return { numericOperator, numericComparisonType, numericValue: numericVal !== "" ? parseFloat(numericVal) : null, numericComparisonField, ruleName, ruleDescription, ruleMessage, actionType };
     } else {
         const operator = document.getElementById("validationOperator").value;
         const comparisonDate = document.getElementById("comparisonDate").value;
         const intervalAmount = document.getElementById("intervalAmount").value;
         const intervalUnit = document.getElementById("intervalUnit").value;
-        validationConfig = { operator, comparisonDate, intervalAmount: intervalAmount ? parseInt(intervalAmount) : null, intervalUnit, ruleName, ruleDescription, ruleMessage, actionType };
+        if (!operator || !comparisonDate) return null;
+        if ((operator === "within_before" || operator === "within_after") && !intervalAmount) return null;
+        return { operator, comparisonDate, intervalAmount: intervalAmount ? parseInt(intervalAmount) : null, intervalUnit, ruleName, ruleDescription, ruleMessage, actionType };
     }
+}
 
+export function createValidationRuleCtx(ctx) {
+    if (document.getElementById("createValidationBtn").disabled) return;
+    const validationConfig = collectFormConfigCtx(ctx);
+    if (!validationConfig) return;
     if (window.editingRuleId) {
         updateValidationCtx(ctx, validationConfig, window.editingRuleId);
     } else {
@@ -600,6 +627,109 @@ export async function addValidationCtx(ctx, config) {
         console.error("Error creating date validation rule:", error);
         showMessage("Error creating validation rule: " + (error.message || error), "error");
     }
+}
+
+function getUnvalidatedVariables(ctx, category, stageId) {
+    const { getMeta, getDateVars, getCurrent } = ctx;
+    const current = getCurrent();
+    const all = getDateVars() || [];
+    return all.filter(v => {
+        if (v.category !== category) return false;
+        if (v.id === current.id && v.type === current.type && v.stageId === current.stageId) return false;
+        if (stageId !== null && v.stageId !== stageId) return false;
+        const existing = detectExisting(getMeta(), v);
+        return existing.length === 0;
+    });
+}
+
+function renderBatchVariableList(variables) {
+    if (variables.length === 0) {
+        return "<p class='empty-state'>No unvalidated variables found for this scope.</p>";
+    }
+    return variables.map(v => `
+        <div class="batch-variable-item">
+            <label>
+                <input type="checkbox" class="batch-var-check" value="${v.type}:${v.id}${v.stageId ? ":" + v.stageId : ""}" checked>
+                <strong>${escapeHtml(v.name)}</strong>
+                <span class="var-type-label">(${escapeHtml(v.type)})</span>
+            </label>
+        </div>`).join("");
+}
+
+export function showBatchApplyPanel(ctx, config) {
+    const panel = document.getElementById("batchApplyPanel");
+    if (!panel) return;
+    panel.style.display = "";
+
+    const current = ctx.getCurrent();
+    const category = current?.category || "date";
+    const currentStageId = current?.stageId || null;
+
+    function refreshList() {
+        const scope = document.querySelector("input[name='batchScope']:checked")?.value || "programme";
+        const stageId = scope === "stage" ? currentStageId : null;
+        const unvalidated = getUnvalidatedVariables(ctx, category, stageId);
+        document.getElementById("batchVariableList").innerHTML = renderBatchVariableList(unvalidated);
+        document.getElementById("batchVariableCount").textContent = unvalidated.length;
+    }
+
+    document.querySelectorAll("input[name='batchScope']").forEach(r => {
+        r.addEventListener("change", refreshList);
+    });
+    refreshList();
+
+    const confirmBtn = document.getElementById("batchApplyConfirmBtn");
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    newConfirmBtn.addEventListener("click", () => executeBatchApply(ctx, config));
+
+    const cancelBtn = document.getElementById("batchApplyCancelBtn");
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    newCancelBtn.addEventListener("click", () => { panel.style.display = "none"; });
+}
+
+async function executeBatchApply(ctx, config) {
+    const panel = document.getElementById("batchApplyPanel");
+    const checked = [...document.querySelectorAll(".batch-var-check:checked")].map(cb => cb.value);
+    if (checked.length === 0) { showMessage("No variables selected.", "error"); return; }
+
+    const allVars = ctx.getDateVars() || [];
+    const targets = checked.map(key => {
+        const [type, id, stageId] = key.split(":");
+        return allVars.find(v => v.type === type && v.id === id && (v.stageId || "") === (stageId || ""));
+    }).filter(Boolean);
+
+    let successCount = 0;
+    const errors = [];
+
+    for (const target of targets) {
+        try {
+            if (target.category === "numeric") {
+                await createNumericValidationForVariable(ctx, config, target, addBatchSignature);
+            } else {
+                await createDateValidationForVariable(ctx, config, target, addBatchSignature);
+            }
+            successCount++;
+        } catch (err) {
+            errors.push(`${target.name}: ${err.message}`);
+        }
+    }
+
+    if (panel) panel.style.display = "none";
+
+    if (errors.length > 0) {
+        showMessage(`Created ${successCount} rule(s). ${errors.length} skipped: ${errors.join("; ")}`, "error");
+    } else {
+        showMessage(`Created ${successCount} validation rule${successCount !== 1 ? "s" : ""} successfully`);
+    }
+
+    const refreshedMetadata = await refreshMetadata(ctx);
+    if (refreshedMetadata) {
+        loadCurrentValidationsCtx(ctx);
+        updateValidationIndicators(refreshedMetadata);
+    }
+    setupValidationFormCtx(ctx);
 }
 
 export async function updateValidationCtx(ctx, config, ruleId) {
