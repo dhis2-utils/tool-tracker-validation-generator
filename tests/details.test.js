@@ -1,7 +1,8 @@
 import { vi } from "vitest";
 
 vi.mock("../src/js/d2api.js", () => ({
-    d2PutJson: vi.fn()
+    d2PutJson: vi.fn(),
+    d2Delete: vi.fn()
 }));
 
 vi.mock("../src/js/services/rules.js", () => ({
@@ -25,7 +26,8 @@ vi.mock("../src/js/ui/overview.js", () => ({
     updateValidationIndicators: vi.fn()
 }));
 
-import { checkFormValidityCtx, collectFormConfigCtx, showBatchApplyPanel } from "../src/js/ui/details.js";
+import { addValidationCtx, checkFormValidityCtx, collectFormConfigCtx, showBatchApplyPanel } from "../src/js/ui/details.js";
+import { d2Delete } from "../src/js/d2api.js";
 import { ensureProgramRuleVariable, prCreate } from "../src/js/services/rules.js";
 import { programGet } from "../src/js/services/program.js";
 import { showMessage } from "../src/js/ui/toast.js";
@@ -319,5 +321,80 @@ describe("details form config and batch panel", () => {
         expect(showMessage).toHaveBeenCalledWith("Created 1 validation rule successfully");
         expect(updateValidationIndicators).toHaveBeenCalled();
         expect(elements.batchApplyPanel.style.display).toBe("none");
+    });
+
+    it("addValidationCtx offers cleanup and deletes existing batch rules after specific create", async () => {
+        const elements = {};
+        Object.assign(elements, {
+            currentValidations: createInput(""),
+            otherProgramRulesCard: { style: { display: "none" } },
+            otherProgramRules: createInput(""),
+            validationOperator: createInput(""),
+            comparisonDate: createInput(""),
+            intervalInputs: { style: {} },
+            intervalAmount: createInput(""),
+            intervalUnit: createInput("days"),
+            createValidationBtn: createButton("createValidationBtn", elements),
+            batchApplyBtn: createButton("batchApplyBtn", elements),
+            ruleName: createInput(""),
+            ruleDescription: createInput(""),
+            ruleMessage: createInput(""),
+            actionType: createInput("SHOWERROR"),
+            dateForm: { style: {} },
+            numericForm: { style: {} },
+            numericOperator: createInput(""),
+            numericComparisonType: createInput("value"),
+            numericValue: createInput(""),
+            numericComparisonField: createInput(""),
+            numericValueInput: { style: {} },
+            numericFieldInput: { style: {} },
+            validatedDateName: createInput(""),
+            validatedNumericName: createInput(""),
+            validationPreview: createInput("")
+        });
+        global.document = createDocument(elements);
+        global.window = { editingRuleId: null };
+        global.confirm = vi.fn(() => true);
+
+        vi.mocked(ensureProgramRuleVariable).mockResolvedValue({ name: "PRV_NUM" });
+        vi.mocked(prCreate).mockResolvedValue(undefined);
+
+        let metadata = {
+            programRuleVariables: [
+                { name: "PRV_NUM", dataElement: { id: "deCurrent01A" }, programStage: { id: "stageA" } }
+            ],
+            programRules: [
+                { id: "Abcdef12345", name: "Generic batch rule", description: "[DVT] [DVT-BATCH] Batch desc", condition: "d2:hasValue(#{PRV_NUM}) && #{PRV_NUM} > 0", programStage: { id: "stageA" } }
+            ],
+            programRuleActions: [
+                { id: "Bcdefg12345", programRule: { id: "Abcdef12345" }, programRuleActionType: "SHOWERROR", dataElement: { id: "deCurrent01A" } }
+            ]
+        };
+        vi.mocked(programGet).mockImplementation(async () => metadata);
+
+        const current = { id: "deCurrent01A", type: "dataElement", stageId: "stageA", category: "numeric", name: "Current" };
+        const ctx = {
+            getCurrent: () => current,
+            getDateVars: () => [current],
+            getMeta: () => metadata,
+            getProgramId: () => "program12345",
+            getConfig: () => ({ programRulePrefix: "PFX", programRuleVariablePrefix: "ABC_" }),
+            setMeta: vi.fn((next) => { metadata = next; })
+        };
+
+        await addValidationCtx(ctx, {
+            numericOperator: "greater_than",
+            numericComparisonType: "value",
+            numericValue: 0,
+            ruleName: "Current > 0",
+            ruleDescription: "",
+            ruleMessage: "Too low",
+            actionType: "SHOWERROR"
+        });
+
+        expect(global.confirm).toHaveBeenCalled();
+        expect(d2Delete).toHaveBeenCalledWith("/api/programRuleActions/Bcdefg12345");
+        expect(d2Delete).toHaveBeenCalledWith("/api/programRules/Abcdef12345");
+        expect(showMessage).toHaveBeenCalledWith("Removed 1 batch rule");
     });
 });

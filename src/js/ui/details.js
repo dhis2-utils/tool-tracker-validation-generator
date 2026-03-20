@@ -1,11 +1,10 @@
 import { prGetExisting as detectExisting } from "../rules/detector.js";
 import { generateNewRuleCondition, generateRuleName, generateNumericCondition, generateNumericFieldCondition } from "../rules/builder.js";
-// eslint-disable-next-line no-unused-vars
 import { isAppGenerated, addAppSignature, findDuplicateRule, addBatchSignature, isBatchGenerated } from "../rules/signature.js";
 import { ensureProgramRuleVariable as svcEnsurePrv, prCreate as svcPrCreate } from "../services/rules.js";
 import { programGet as svcProgramGet } from "../services/program.js";
 import { buildVariablesArray as dvBuild } from "../variables.js";
-import { d2PutJson } from "../d2api.js";
+import { d2Delete, d2PutJson } from "../d2api.js";
 import { showMessage } from "./toast.js";
 import { updateValidationIndicators } from "./overview.js";
 
@@ -505,6 +504,7 @@ async function addNumericValidationCtx(ctx, config) {
     try {
         await createNumericValidationForVariable(ctx, config, currentVariable);
         showMessage("Validation rule created successfully");
+        await offerBatchRuleCleanup(ctx, currentVariable);
         const refreshedMetadata = await refreshMetadata(ctx);
         if (refreshedMetadata) loadCurrentValidationsCtx(ctx);
         setupValidationFormCtx(ctx);
@@ -620,6 +620,7 @@ export async function addValidationCtx(ctx, config) {
     try {
         await createDateValidationForVariable(ctx, config, currentVariable);
         showMessage("Validation rule created successfully");
+        await offerBatchRuleCleanup(ctx, currentVariable);
         const refreshedMetadata = await refreshMetadata(ctx);
         if (refreshedMetadata) loadCurrentValidationsCtx(ctx);
         setupValidationFormCtx(ctx);
@@ -730,6 +731,36 @@ async function executeBatchApply(ctx, config) {
         updateValidationIndicators(refreshedMetadata);
     }
     setupValidationFormCtx(ctx);
+}
+
+async function offerBatchRuleCleanup(ctx, targetVariable) {
+    const { getMeta } = ctx;
+    const validations = detectExisting(getMeta(), targetVariable);
+    const batchRules = validations.filter(v => isBatchGenerated(v.rule));
+    if (batchRules.length === 0) return;
+
+    const names = batchRules.map(v => `"${v.rule.name}"`).join(", ");
+    const msg = batchRules.length === 1
+        ? `This variable already has a batch rule: ${names}.\nRemove it since you now have a specific rule?`
+        : `This variable has ${batchRules.length} batch rules: ${names}.\nRemove them since you now have a specific rule?`;
+
+    if (!confirm(msg)) return;
+
+    for (const { rule, actions } of batchRules) {
+        for (const action of actions) {
+            try {
+                await d2Delete(`/api/programRuleActions/${action.id}`);
+            } catch (e) {
+                console.warn("Could not delete action", e);
+            }
+        }
+        try {
+            await d2Delete(`/api/programRules/${rule.id}`);
+        } catch (e) {
+            console.warn("Could not delete rule", e);
+        }
+    }
+    showMessage(`Removed ${batchRules.length} batch rule${batchRules.length !== 1 ? "s" : ""}`);
 }
 
 export async function updateValidationCtx(ctx, config, ruleId) {
