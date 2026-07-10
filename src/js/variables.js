@@ -33,21 +33,21 @@ export function buildVariablesArray() {
         const eventLabel = stage.executionDateLabel || "Event date";
         list.push({
             id: `event_date_${stage.id}`, name: `${eventLabel} (event date)`,
-            type: "event_date", category: "date", valueType: "DATE", stageId: stage.id
+            type: "event_date", category: "date", valueType: "DATE", stageId: stage.id, stageName: stage.name
         });
         if (!stage.hideDueDate) {
             list.push({
                 id: `due_date_${stage.id}`, name: "Due date",
-                type: "due_date", category: "date", valueType: "DATE", stageId: stage.id
+                type: "due_date", category: "date", valueType: "DATE", stageId: stage.id, stageName: stage.name
             });
         }
         stage.programStageDataElements?.forEach(psde => {
             const de = psde.dataElement;
             if (!de) return;
             if (de.valueType === "DATE") {
-                list.push({ id: de.id, name: de.name, type: "dataElement", category: "date", valueType: "DATE", stageId: stage.id });
+                list.push({ id: de.id, name: de.name, type: "dataElement", category: "date", valueType: "DATE", stageId: stage.id, stageName: stage.name });
             } else if (NUMERIC_VALUE_TYPES.has(de.valueType)) {
-                list.push({ id: de.id, name: de.name, type: "dataElement", category: "numeric", valueType: de.valueType, stageId: stage.id });
+                list.push({ id: de.id, name: de.name, type: "dataElement", category: "numeric", valueType: de.valueType, stageId: stage.id, stageName: stage.name });
             }
         });
     });
