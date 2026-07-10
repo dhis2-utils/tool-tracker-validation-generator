@@ -1,4 +1,4 @@
-import { d2Get, d2PutJson } from "../d2api.js";
+import { d2Get, d2PutJson, d2PostJson } from "../d2api.js";
 
 export async function programsAllGet() {
     const res = await d2Get("/api/programs?fields=id,name,programType&filter=programType:eq:WITH_REGISTRATION&paging=false");
@@ -34,7 +34,12 @@ export async function progGetConfig(programId) {
 export async function progSetConfig(programId, config) {
     const ns = "tracker-date-validation";
     const key = `config-${programId}`;
-    await d2PutJson(`/api/dataStore/${ns}/${key}`, config);
+    try {
+        await d2PutJson(`/api/dataStore/${ns}/${key}`, config);
+    } catch {
+        // Key does not exist yet — create with POST
+        await d2PostJson(`/api/dataStore/${ns}/${key}`, config);
+    }
     return config;
 }
 

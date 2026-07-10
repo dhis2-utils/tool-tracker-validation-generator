@@ -1,219 +1,395 @@
 <!DOCTYPE html>
 <!--suppress ALL -->
-<html>
+<html lang="en">
 
 <head>
-    <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tracker Validation Tool</title>
 </head>
 
 <body>
     <div id="dhis-header-bar"></div>
 
+    <!-- Top Navigation -->
+    <nav id="app-nav">
+        <div class="nav-brand">
+            <div class="nav-brand-icon">✓</div>
+            <span>Tracker Validation Tool</span>
+        </div>
+        <div class="nav-separator"></div>
+        <div class="nav-program-select">
+            <select id="programSelect">
+                <option value="" disabled selected>Loading programmes...</option>
+            </select>
+        </div>
+        <div class="nav-spacer"></div>
+        <button id="settingsBtn">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="8" r="2.5"/>
+                <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1"/>
+            </svg>
+            Programme Settings
+        </button>
+    </nav>
+
     <div id="mainView">
-        <div class="container">
-            <h1>Tracker Date Validation Tool</h1>
-            
-            <!-- Program Selection -->
-            <div id="programSelection" class="section">
-                <div class="row">
-                    <div class="col s12 m6">
-                        <label for="programSelect">Select Tracker Programme:</label>
-                        <select id="programSelect" class="browser-default">
-                            <option value="" disabled selected>Loading programmes...</option>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" style="display: none;">
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading programme metadata…</p>
+            </div>
+        </div>
+
+        <!-- Variables Overview -->
+        <div id="dateVariablesOverview" style="display: none;">
+            <p class="section-heading">Variables</p>
+
+            <!-- Settings Warning -->
+            <div id="settingsWarning" style="display: none;"></div>
+
+            <div class="card" id="batchWorkspaceCard">
+                <div class="card-header">
+                    <h3>Bulk Rules for Unvalidated Variables</h3>
+                </div>
+                <div class="card-body">
+                    <p class="helper-text" style="margin-top:0;">
+                        Queue reusable baseline rules here, then apply all queued rules in one go to variables that currently have no validations.
+                    </p>
+
+                    <div class="batch-workspace-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="batchTemplateCategory">Variable type</label>
+                            <select id="batchTemplateCategory" class="form-select">
+                                <option value="date" selected>Date</option>
+                                <option value="numeric">Numeric</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="batchTemplateScope">Apply within</label>
+                            <select id="batchTemplateScope" class="form-select">
+                                <option value="programme" selected>Whole programme</option>
+                                <option value="stage">One programme stage</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="batchTemplateStageGroup" style="display:none;">
+                            <label class="form-label" for="batchTemplateStage">Programme stage</label>
+                            <select id="batchTemplateStage" class="form-select">
+                                <option value="" disabled selected>Choose stage…</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="batchDateTemplateForm">
+                        <div class="rule-builder batch-rule-builder">
+                            <span class="var-name">Any unvalidated date</span>
+                            <span class="text-connector">should be</span>
+                            <select id="batchDateOperator" class="form-select" style="width: auto;">
+                                <option value="" disabled selected>Choose relationship…</option>
+                                <option value="before">before</option>
+                                <option value="after">after</option>
+                                <option value="on_or_after">on or after</option>
+                                <option value="on_or_before">on or before</option>
+                                <option value="within_before">within … before</option>
+                                <option value="within_after">within … after</option>
+                            </select>
+                                <span id="batchIntervalInputs" style="display:none;">
+                                    <input id="batchIntervalAmount" type="number" min="1" placeholder="30" style="width: 70px;">
+                                    <select id="batchIntervalUnit" style="width: 90px;">
+                                        <option value="days" selected>days</option>
+                                        <option value="weeks">weeks</option>
+                                    <option value="months">months</option>
+                                    <option value="years">years</option>
+                                </select>
+                                <span id="batchIntervalDirection" class="text-connector"></span>
+                                </span>
+                                <select id="batchDateComparisonMode" class="form-select" style="width:auto;">
+                                    <option value="fixed" selected>a fixed date</option>
+                                    <option value="current">the current date</option>
+                                </select>
+                                <input id="batchFixedDate" type="date" class="form-input" style="width:auto;min-width:170px;">
+                                <span id="batchRelativeInputs" style="display:none;">
+                                <span class="text-connector">offset by</span>
+                                <input id="batchRelativeAmount" type="number" min="1" placeholder="1" style="width: 70px;">
+                                <select id="batchRelativeUnit" style="width: 90px;">
+                                    <option value="days">days</option>
+                                    <option value="months">months</option>
+                                    <option value="years" selected>years</option>
+                                </select>
+                                <select id="batchRelativeDirection" style="width: 100px;">
+                                    <option value="past" selected>in the past</option>
+                                    <option value="future">in the future</option>
+                                </select>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div id="batchNumericTemplateForm" style="display:none;">
+                        <div class="rule-builder batch-rule-builder">
+                            <span class="var-name">Any unvalidated number</span>
+                            <span class="text-connector">should be</span>
+                            <select id="batchNumericOperator" class="form-select" style="width:auto;">
+                                <option value="" disabled selected>Choose operator…</option>
+                                <option value="less_than">less than</option>
+                                <option value="less_than_or_equal">less than or equal to</option>
+                                <option value="greater_than">greater than</option>
+                                <option value="greater_than_or_equal">greater than or equal to</option>
+                                <option value="equal_to">equal to</option>
+                                <option value="not_equal_to">not equal to</option>
+                            </select>
+                            <span class="text-connector">a fixed value of</span>
+                            <input id="batchNumericValue" type="number" step="0.01" class="form-input" style="width: 120px;">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top:16px;">
+                        <label class="form-label" for="batchTemplateActionType">Action type</label>
+                        <select id="batchTemplateActionType" class="form-select" style="max-width:320px;">
+                            <option value="SHOWERROR" selected>Error — block save</option>
+                            <option value="SHOWWARNING">Warning — allow save</option>
+                            <option value="ERRORONCOMPLETE">Error on complete</option>
+                            <option value="WARNINGONCOMPLETE">Warning on complete</option>
                         </select>
                     </div>
-                    <div class="col s12 m6">
-                        <button id="settingsBtn" class="btn waves-effect waves-light grey">
-                            <i class="material-icons left">settings</i>Programme Settings
-                        </button>
+
+                    <div class="preview-panel batch-preview-panel">
+                        <span class="preview-label">Template preview</span>
+                        <span id="batchTemplatePreview">Configure a bulk rule template to preview it here.</span>
                     </div>
+
+                    <div class="action-row">
+                        <button id="addBatchTemplateBtn" class="btn btn-secondary">Add to Bulk Queue</button>
+                    </div>
+
+                    <div id="batchTemplateDrafts" class="batch-template-drafts"></div>
+
+                    <div class="action-row">
+                        <button id="applyBatchTemplatesBtn" class="btn btn-primary" disabled>Apply Queued Rules</button>
+                        <button id="clearBatchTemplatesBtn" class="btn btn-ghost" disabled>Clear Queue</button>
+                    </div>
+                    <span id="batchApplyStatus" class="helper-text" aria-live="polite"></span>
                 </div>
             </div>
 
-            <!-- Loading Indicator -->
-            <div id="loadingIndicator" class="center-align" style="display: none;">
-                <div class="preloader-wrapper big active">
-                    <div class="spinner-layer spinner-blue-only">
-                        <div class="circle-clipper left">
-                            <div class="circle"></div>
-                        </div>
-                        <div class="gap-patch">
-                            <div class="circle"></div>
-                        </div>
-                        <div class="circle-clipper right">
-                            <div class="circle"></div>
-                        </div>
-                    </div>
+            <!-- Enrollment & Programme Dates -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Enrollment &amp; Programme Dates</h3>
                 </div>
-                <p>Loading programme metadata...</p>
-            </div>
-
-            <!-- Date Variables Overview -->
-            <div id="dateVariablesOverview" class="section" style="display: none;">
-                <h2>Date Variables</h2>
-                <p class="grey-text">Click on any date variable to configure validation rules.</p>
-                
-                <!-- Settings Warning -->
-                <div id="settingsWarning" style="display: none;"></div>
-                
-                <!-- Enrollment Dates -->
-                <div class="card">
-                    <div class="card-content">
-                        <span class="card-title">Enrollment & Programme Dates</span>
-                        <div id="enrollmentDates"></div>
-                    </div>
-                </div>
-
-                <!-- Program Stages -->
-                <div id="programStages"></div>
-            </div>
-
-            <!-- Date Variable Details -->
-            <div id="dateVariableDetails" class="section" style="display: none;">
-                <div class="row">
-                    <div class="col s12">
-                        <button id="backToOverview" class="btn waves-effect waves-light grey">
-                            <i class="material-icons left">arrow_back</i>Back to Overview
-                        </button>
-                    </div>
-                </div>
-                
-                <h2 id="variableDetailsTitle">Date Variable Details</h2>
-                
-                <!-- Current Validations -->
-                <div class="card">
-                    <div class="card-content">
-                        <span class="card-title">Current Validations</span>
-                        <div id="currentValidations"></div>
-                    </div>
-                </div>
-
-                <!-- Other Program Rules Using This Variable -->
-                <div class="card">
-                    <div class="card-content">
-                        <span class="card-title">Other Program Rules Using This Variable</span>
-                        <div id="otherProgramRules"></div>
-                    </div>
-                </div>
-
-                <!-- Add New Validation -->
-                <div class="card">
-                    <div class="card-content">
-                        <span class="card-title">Add New Validation</span>
-                        <div id="newValidationForm">
-                            <!-- Validation Rule Builder -->
-                            <div class="row">
-                                <div class="col s12">
-                                    <p class="validation-sentence" style="font-size: 1.1rem; line-height: 2rem;">
-                                        <span id="validatedDateName" class="validation-date-name" style="font-weight: bold;">This date</span>
-                                        <span> should be </span>
-                                        <div class="input-field inline" style="width: 200px; margin: 0 10px;">
-                                            <select id="validationOperator" required>
-                                                <option value="" disabled selected>Choose relationship...</option>
-                                                <option value="before">before</option>
-                                                <option value="after">after</option>
-                                                <option value="on_or_after">on or after</option>
-                                                <option value="on_or_before">on or before</option>
-                                                <option value="within_before">within (specify time) before</option>
-                                                <option value="within_after">within (specify time) after</option>
-                                            </select>
-                                        </div>
-                                        <span id="intervalInputs" style="display: none;">
-                                            <div class="input-field inline" style="width: 80px; margin: 0 5px;">
-                                                <input id="intervalAmount" type="number" min="1" placeholder="30">
-                                            </div>
-                                            <div class="input-field inline" style="width: 100px; margin: 0 5px;">
-                                                <select id="intervalUnit">
-                                                    <option value="days" selected>days</option>
-                                                    <option value="weeks">weeks</option>
-                                                    <option value="months">months</option>
-                                                    <option value="years">years</option>
-                                                </select>
-                                            </div>
-                                            <span id="intervalDirection"></span>
-                                        </span>
-                                        <div class="input-field inline" style="width: 200px; margin: 0 10px;">
-                                            <select id="comparisonDate" required>
-                                                <option value="" disabled selected>Choose date...</option>
-                                            </select>
-                                        </div>
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Preview -->
-                            <div class="row">
-                                <div class="col s12">
-                                    <div class="card-panel blue-grey lighten-5">
-                                        <h6>Preview</h6>
-                                        <p id="validationPreview" class="grey-text">Configure the validation above to see preview</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Rule Customization -->
-                            <div class="row">
-                                <div class="input-field col s12">
-                                    <input id="ruleName" type="text" required placeholder="e.g. Birth Date must be before Enrollment Date">
-                                    <label for="ruleName">Rule Name</label>
-                                    <span class="helper-text">A descriptive name for administrators to identify this rule</span>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="input-field col s12">
-                                    <textarea id="ruleDescription" class="materialize-textarea" placeholder="Optional description for administrators explaining when and why this rule applies"></textarea>
-                                    <label for="ruleDescription">Rule Description (optional)</label>
-                                    <span class="helper-text">Additional details about this validation rule for administrators</span>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="input-field col s12">
-                                    <textarea id="ruleMessage" class="materialize-textarea" required placeholder="e.g. Birth date cannot be after enrollment date"></textarea>
-                                    <label for="ruleMessage">Validation Message</label>
-                                    <span class="helper-text">Error message shown to users when validation fails</span>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col s12">
-                                    <button id="createValidationBtn" class="btn waves-effect waves-light" disabled>
-                                        <i class="material-icons left">add</i>Create Validation Rule
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="card-body">
+                    <div id="enrollmentDates"></div>
                 </div>
             </div>
+
+            <!-- Program Stages -->
+            <div id="programStages"></div>
         </div>
+
+        <!-- Variable Details -->
+        <div id="dateVariableDetails" style="display: none;">
+
+            <div class="back-row">
+                <button id="backToOverview" class="btn btn-ghost">
+                    ← Back to Overview
+                </button>
+            </div>
+
+            <h2 id="variableDetailsTitle" class="details-title">Variable Details</h2>
+
+            <!-- Current Validations -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Current Validations</h3>
+                </div>
+                <div class="card-body">
+                    <div id="currentValidations"></div>
+                </div>
+            </div>
+
+            <!-- Other Program Rules -->
+            <div class="card" id="otherProgramRulesCard" style="display:none;">
+                <div class="card-header">
+                    <h3>Other Program Rules Using This Variable</h3>
+                </div>
+                <div class="card-body">
+                    <div id="otherProgramRules"></div>
+                </div>
+            </div>
+
+            <!-- Add / Edit Validation -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 id="newValidationFormTitle">Add New Validation</h3>
+                </div>
+                <div class="card-body">
+                    <div id="newValidationForm">
+
+                        <!-- Date Form -->
+                        <div id="dateForm">
+                            <div class="rule-builder">
+                                <span id="validatedDateName" class="var-name">This date</span>
+                                <span class="text-connector">should be</span>
+                                <select id="validationOperator" class="form-select" style="width: auto;" required>
+                                    <option value="" disabled selected>Choose relationship…</option>
+                                    <option value="before">before</option>
+                                    <option value="after">after</option>
+                                    <option value="on_or_after">on or after</option>
+                                    <option value="on_or_before">on or before</option>
+                                    <option value="within_before">within … before</option>
+                                    <option value="within_after">within … after</option>
+                                </select>
+                                <span id="intervalInputs" style="display: none;">
+                                    <input id="intervalAmount" type="number" min="1" placeholder="30" style="width: 70px;">
+                                    <select id="intervalUnit" style="width: 90px;">
+                                        <option value="days" selected>days</option>
+                                        <option value="weeks">weeks</option>
+                                        <option value="months">months</option>
+                                        <option value="years">years</option>
+                                    </select>
+                                    <span id="intervalDirection" class="text-connector"></span>
+                                </span>
+                                <select id="comparisonDateMode" class="form-select" style="width:auto;" required>
+                                    <option value="variable" selected>another tracked date</option>
+                                    <option value="fixed">a fixed date</option>
+                                    <option value="current">the current date</option>
+                                </select>
+                                <select id="comparisonDate" class="form-select" style="width: auto;" required>
+                                    <option value="" disabled selected>Choose date…</option>
+                                </select>
+                                <input id="fixedComparisonDate" type="date" class="form-input" style="display:none;width:auto;min-width:170px;">
+                                <span id="relativeComparisonInputs" style="display:none;">
+                                    <span class="text-connector">offset by</span>
+                                    <input id="relativeComparisonAmount" type="number" min="1" placeholder="1" style="width:70px;">
+                                    <select id="relativeComparisonUnit" style="width: 90px;">
+                                        <option value="days">days</option>
+                                        <option value="months">months</option>
+                                        <option value="years" selected>years</option>
+                                    </select>
+                                    <select id="relativeComparisonDirection" style="width: 100px;">
+                                        <option value="past" selected>in the past</option>
+                                        <option value="future">in the future</option>
+                                    </select>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Numeric Form -->
+                        <div id="numericForm" style="display: none;">
+                            <div class="rule-builder">
+                                <span id="validatedNumericName" class="var-name">This value</span>
+                                <span class="text-connector">should be</span>
+                                <select id="numericOperator" class="form-select" style="width: auto;" required>
+                                    <option value="" disabled selected>Choose operator…</option>
+                                    <option value="less_than">less than</option>
+                                    <option value="less_than_or_equal">less than or equal to</option>
+                                    <option value="greater_than">greater than</option>
+                                    <option value="greater_than_or_equal">greater than or equal to</option>
+                                    <option value="equal_to">equal to</option>
+                                    <option value="not_equal_to">not equal to</option>
+                                </select>
+                                <select id="numericComparisonType" class="form-select" style="width: auto;" required>
+                                    <option value="value">a fixed value</option>
+                                    <option value="field">another field</option>
+                                </select>
+                                <div id="numericValueInput" style="display: inline-flex; align-items: center;">
+                                    <input id="numericValue" type="number" step="0.01" placeholder="e.g. 100" style="width: 110px;">
+                                </div>
+                                <div id="numericFieldInput" style="display: none; align-items: center;">
+                                    <select id="numericComparisonField" class="form-select" style="width: auto;" required>
+                                        <option value="" disabled selected>Choose field…</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Preview -->
+                        <div class="preview-panel">
+                            <span class="preview-label">Preview</span>
+                            <span id="validationPreview">Configure the validation above to see a preview</span>
+                        </div>
+
+                        <!-- Rule Name -->
+                        <div class="form-group">
+                            <label class="form-label" for="ruleName">Rule Name</label>
+                            <input id="ruleName" type="text" class="form-input"
+                                placeholder="e.g. Birth Date must be before Enrollment Date" required>
+                            <span class="helper-text">A descriptive name for administrators to identify this rule</span>
+                        </div>
+
+                        <!-- Rule Description -->
+                        <div class="form-group">
+                            <label class="form-label" for="ruleDescription">Rule Description <span style="font-weight:400;color:var(--text-3)">(optional)</span></label>
+                            <textarea id="ruleDescription" class="form-textarea"
+                                placeholder="Additional details about this validation rule for administrators"></textarea>
+                        </div>
+
+                        <!-- Validation Message -->
+                        <div class="form-group">
+                            <label class="form-label" for="ruleMessage">Validation Message</label>
+                            <textarea id="ruleMessage" class="form-textarea"
+                                placeholder="e.g. Birth date cannot be after enrollment date" required></textarea>
+                            <span class="helper-text">Message shown to users when validation fails</span>
+                        </div>
+
+                        <!-- Action Type -->
+                        <div class="form-group">
+                            <label class="form-label" for="actionType">Action Type</label>
+                            <select id="actionType" class="form-select" style="max-width: 320px;">
+                                <option value="SHOWERROR" selected>Error — block save</option>
+                                <option value="SHOWWARNING">Warning — allow save</option>
+                                <option value="ERRORONCOMPLETE">Error on complete</option>
+                                <option value="WARNINGONCOMPLETE">Warning on complete</option>
+                            </select>
+                            <span class="helper-text">How DHIS2 should respond when validation fails</span>
+                        </div>
+
+                        <div class="action-row">
+                            <button id="createValidationBtn" class="btn btn-primary" disabled>
+                                Create Validation Rule
+                            </button>
+                        </div>
+
+                    </div><!-- /newValidationForm -->
+                </div><!-- /card-body -->
+            </div><!-- /card -->
+        </div><!-- /dateVariableDetails -->
 
         <!-- Settings Modal -->
-        <div id="settingsModal" class="modal">
-            <div class="modal-content">
-                <h4>Programme Settings</h4>
-                <div class="row">
-                    <div class="col s12">
-                        <label for="programRulePrefix">Program Rule Name Prefix:</label>
-                        <input type="text" id="programRulePrefix" placeholder="e.g., EIR - " />
-                        <span class="helper-text">This prefix will be added to all program rule names</span>
+        <div id="settingsModal" class="modal-overlay">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h3>Programme Settings</h3>
+                    <button class="modal-close-btn" id="settingsModalClose">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label" for="programRulePrefix">Program Rule Name Prefix</label>
+                        <input type="text" id="programRulePrefix" class="form-input"
+                            placeholder="e.g. EIR - ">
+                        <span class="helper-text">Added to all program rule names created by this tool</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="programRuleVariablePrefix">Program Rule Variable Prefix</label>
+                        <input type="text" id="programRuleVariablePrefix" class="form-input"
+                            placeholder="e.g. EIR_">
+                        <span class="helper-text">Added to all program rule variable names (use underscores only)</span>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col s12">
-                        <label for="programRuleVariablePrefix">Program Rule Variable Prefix:</label>
-                        <input type="text" id="programRuleVariablePrefix" placeholder="e.g., EIR_" />
-                        <span class="helper-text">This prefix will be added to all program rule variable names</span>
-                    </div>
+                <div class="modal-footer">
+                    <button class="btn btn-ghost" id="settingsModalCancel">Cancel</button>
+                    <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-close waves-effect waves-green btn-flat">Cancel</button>
-                <button id="saveSettingsBtn" class="waves-effect waves-green btn blue">Save Settings</button>
             </div>
         </div>
-    </div>
+
+        <!-- Toast container -->
+        <div id="toast-container"></div>
+
+    </div><!-- /mainView -->
 </body>
 
 </html>

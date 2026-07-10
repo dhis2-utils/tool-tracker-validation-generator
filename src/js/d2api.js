@@ -42,7 +42,11 @@ const handleApiError = async (response) => {
 
     errorMessage = errorDetail.message || errorMessage;
 
-    throw new Error(`${response.statusText} - ${errorMessage}`);
+    const error = new Error(`${response.statusText} - ${errorMessage}`);
+    error.response = errorDetail;
+    error.httpStatus = errorDetail.httpStatus || response.statusText;
+    error.httpStatusCode = errorDetail.httpStatusCode || response.status;
+    throw error;
 };
 
 // GET from API async

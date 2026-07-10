@@ -3,10 +3,9 @@
   "description": "Tool to configure and manage date validation in tracker programmes",
   "version": "0.1.0",
   "dependencies": {
-    "materialize-css": "^1.0.0",
+    "choices.js": "^10.2.0",
     "datatables.net": "^2.1.8",
-    "datatables.net-dt": "^2.1.8",
-    "choices.js": "^10.2.0"
+    "datatables.net-dt": "^2.1.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
@@ -21,6 +20,7 @@
     "html-webpack-plugin": "^5.6.4",
     "style-loader": "^4.0.0",
     "url-loader": "^4.1.1",
+    "vitest": "^4.1.0",
     "webpack": "^5.101.3",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.2.2"
@@ -33,7 +33,8 @@
     "postbuild": "npm run manifest",
     "prebuild": "rm -rf build && npm run lint",
     "start": "d2-manifest package.json manifest.webapp && webpack-dev-server",
-    "zip": "rm -rf compiled && npm run build && mkdir compiled && cd build && zip -r ../compiled/$npm_package_name.zip *"
+    "zip": "rm -rf compiled && npm run build && mkdir compiled && cd build && zip -r ../compiled/$npm_package_name.zip *",
+    "test": "vitest run"
   },
   "manifest.webapp": {
     "developer": {
@@ -45,7 +46,7 @@
       "48": "img/icons/app_logo_48x48.png",
       "96": "img/icons/app_logo_96x96.png"
     },
-    "name": "Tracker date validation tool",
+    "name": "Tracker validation tool",
     "appType": "APP"
   }
 }
