@@ -15,6 +15,70 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+function getElementValue(id, fallback = "") {
+    return document.getElementById(id)?.value ?? fallback;
+}
+
+function buildRelativeDateTarget(amount, unit, direction) {
+    const normalizedAmount = Math.abs(parseInt(amount, 10));
+    if (!normalizedAmount) return null;
+    const normalizedUnit = unit || "days";
+    const normalizedDirection = direction === "future" ? "future" : "past";
+    return {
+        type: "relative_current_date",
+        id: `current_date_${normalizedDirection}_${normalizedAmount}_${normalizedUnit}`,
+        name: `${normalizedAmount} ${normalizedUnit} ${normalizedDirection === "past" ? "before" : "after"} current date`,
+        relativeAmount: normalizedAmount,
+        relativeUnit: normalizedUnit,
+        relativeDirection: normalizedDirection
+    };
+}
+
+function resolveDateComparisonTargetCtx(ctx, config) {
+    const comparisonMode = config.comparisonDateMode || "variable";
+    if (comparisonMode === "fixed") {
+        if (!config.fixedComparisonDate) return null;
+        return { type: "fixed_date", id: config.fixedComparisonDate, name: config.fixedComparisonDate };
+    }
+    if (comparisonMode === "current") {
+        return { type: "current_date", id: "current_date", name: "Current date" };
+    }
+    if (comparisonMode === "relative") {
+        return buildRelativeDateTarget(config.relativeComparisonAmount, config.relativeComparisonUnit, config.relativeComparisonDirection);
+    }
+    if (!config.comparisonDate) return null;
+    const [compareType, compareId, compareStageId] = config.comparisonDate.split(":");
+    return ctx.findByComponents(compareId, compareType, compareStageId);
+}
+
+function setDateComparisonModeUI(mode) {
+    const variableSelect = document.getElementById("comparisonDate");
+    const fixedInput = document.getElementById("fixedComparisonDate");
+    const relativeInputs = document.getElementById("relativeComparisonInputs");
+    if (variableSelect) variableSelect.style.display = mode === "variable" ? "" : "none";
+    if (fixedInput) fixedInput.style.display = mode === "fixed" ? "" : "none";
+    if (relativeInputs) relativeInputs.style.display = mode === "relative" ? "inline-flex" : "none";
+}
+
+function getDateComparisonLabelCtx() {
+    const mode = document.getElementById("comparisonDateMode")?.value || "variable";
+    if (mode === "fixed") {
+        return document.getElementById("fixedComparisonDate")?.value || "";
+    }
+    if (mode === "current") {
+        return "Current date";
+    }
+    if (mode === "relative") {
+        const amount = document.getElementById("relativeComparisonAmount")?.value;
+        const unit = document.getElementById("relativeComparisonUnit")?.value || "days";
+        const direction = document.getElementById("relativeComparisonDirection")?.value || "past";
+        return amount ? `${amount} ${unit} ${direction === "past" ? "before" : "after"} current date` : "";
+    }
+    const comparisonDate = document.getElementById("comparisonDate")?.value || "";
+    const comparisonOption = document.querySelector(`#comparisonDate option[value="${comparisonDate}"]`);
+    return comparisonOption ? comparisonOption.textContent : "";
+}
+
 async function refreshMetadata(ctx) {
     const { getProgramId, setMeta } = ctx;
     try {
@@ -54,10 +118,16 @@ export function setupValidationFormCtx(ctx) {
     });
 
     document.getElementById("validationOperator").value = "";
-    document.getElementById("comparisonDate").value = "";
+    if (document.getElementById("comparisonDateMode")) document.getElementById("comparisonDateMode").value = "variable";
+    if (document.getElementById("comparisonDate")) document.getElementById("comparisonDate").value = "";
+    if (document.getElementById("fixedComparisonDate")) document.getElementById("fixedComparisonDate").value = "";
+    if (document.getElementById("relativeComparisonAmount")) document.getElementById("relativeComparisonAmount").value = "";
+    if (document.getElementById("relativeComparisonUnit")) document.getElementById("relativeComparisonUnit").value = "years";
+    if (document.getElementById("relativeComparisonDirection")) document.getElementById("relativeComparisonDirection").value = "past";
     document.getElementById("intervalInputs").style.display = "none";
     document.getElementById("intervalAmount").value = "";
     document.getElementById("intervalUnit").value = "days";
+    setDateComparisonModeUI("variable");
     document.getElementById("createValidationBtn").disabled = true;
     document.getElementById("ruleName").value = "";
     document.getElementById("ruleDescription").value = "";
@@ -105,7 +175,15 @@ export function setupFormEventListenersCtx(ctx) {
     const operatorEl = document.getElementById("validationOperator");
     operatorEl.addEventListener("change", handleOperatorChange);
     operatorEl.addEventListener("click", function(){ setTimeout(handleOperatorChange.bind(this), 100); });
-    ["comparisonDate", "intervalAmount", "intervalUnit", "ruleName", "ruleDescription", "ruleMessage"].forEach(id => {
+    const comparisonModeEl = document.getElementById("comparisonDateMode");
+    if (comparisonModeEl) {
+        comparisonModeEl.addEventListener("change", function() {
+            setDateComparisonModeUI(this.value);
+            updateValidationPreviewCtx(ctx);
+            checkFormValidityCtx(ctx);
+        });
+    }
+    ["comparisonDate", "fixedComparisonDate", "relativeComparisonAmount", "relativeComparisonUnit", "relativeComparisonDirection", "intervalAmount", "intervalUnit", "ruleName", "ruleDescription", "ruleMessage"].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener("change", () => { updateValidationPreviewCtx(ctx); checkFormValidityCtx(ctx); });
@@ -148,16 +226,6 @@ export function setupFormEventListenersCtx(ctx) {
         newCreateBtn.addEventListener("click", () => createValidationRuleCtx(ctx));
     }
 
-    const batchApplyBtn = document.getElementById("batchApplyBtn");
-    if (batchApplyBtn) {
-        const newBatchBtn = batchApplyBtn.cloneNode(true);
-        batchApplyBtn.parentNode.replaceChild(newBatchBtn, batchApplyBtn);
-        newBatchBtn.addEventListener("click", () => {
-            const config = collectFormConfigCtx(ctx);
-            if (config) showBatchApplyPanel(ctx, config);
-        });
-    }
-
 }
 
 export function updateValidationPreviewCtx(ctx) {
@@ -191,13 +259,11 @@ export function updateValidationPreviewCtx(ctx) {
         }
     } else {
         const operator = document.getElementById("validationOperator").value;
-        const comparisonDate = document.getElementById("comparisonDate").value;
+        const comparisonName = getDateComparisonLabelCtx();
         const intervalAmount = document.getElementById("intervalAmount").value;
         const intervalUnit = document.getElementById("intervalUnit").value;
-        if (operator && comparisonDate) {
+        if (operator && comparisonName) {
             const variableName = getCurrent().name;
-            const comparisonOption = document.querySelector(`#comparisonDate option[value="${comparisonDate}"]`);
-            const comparisonName = comparisonOption ? comparisonOption.textContent : "";
             switch (operator) {
             case "before":
                 preview = `${variableName} should be before ${comparisonName}`;
@@ -261,8 +327,6 @@ export function checkFormValidityCtx(ctx) {
     
     if (!settingsValid) {
         document.getElementById("createValidationBtn").disabled = true;
-        const batchBtn = document.getElementById("batchApplyBtn");
-        if (batchBtn) batchBtn.style.display = "none";
         // Show settings requirement message
         const validationPreview = document.getElementById("validationPreview");
         if (validationPreview) {
@@ -271,8 +335,11 @@ export function checkFormValidityCtx(ctx) {
         return;
     }
     
-    const operator = document.getElementById("validationOperator").value;
-    const comparisonDate = document.getElementById("comparisonDate").value;
+    const operator = getElementValue("validationOperator");
+    const comparisonMode = getElementValue("comparisonDateMode", "variable");
+    const comparisonDate = getElementValue("comparisonDate");
+    const fixedComparisonDate = getElementValue("fixedComparisonDate");
+    const relativeComparisonAmount = getElementValue("relativeComparisonAmount");
     const intervalAmount = document.getElementById("intervalAmount").value;
     const ruleName = document.getElementById("ruleName").value;
     const ruleMessage = document.getElementById("ruleMessage").value;
@@ -287,16 +354,17 @@ export function checkFormValidityCtx(ctx) {
         if (numericCompType === "value" && !numericVal) isValid = false;
         if (numericCompType === "field" && !numericField) isValid = false;
         document.getElementById("createValidationBtn").disabled = !isValid;
-        const batchBtn = document.getElementById("batchApplyBtn");
-        if (batchBtn) batchBtn.style.display = (isValid && !window.editingRuleId) ? "" : "none";
         return;
     }
 
-    let isValid = operator && comparisonDate && ruleName && ruleMessage;
+    let hasComparisonTarget = false;
+    if (comparisonMode === "variable") hasComparisonTarget = Boolean(comparisonDate);
+    if (comparisonMode === "fixed") hasComparisonTarget = Boolean(fixedComparisonDate);
+    if (comparisonMode === "current") hasComparisonTarget = true;
+    if (comparisonMode === "relative") hasComparisonTarget = Boolean(relativeComparisonAmount);
+    let isValid = operator && hasComparisonTarget && ruleName && ruleMessage;
     if ((operator === "within_before" || operator === "within_after") && !intervalAmount) isValid = false;
     document.getElementById("createValidationBtn").disabled = !isValid;
-    const batchBtn = document.getElementById("batchApplyBtn");
-    if (batchBtn) batchBtn.style.display = (isValid && !window.editingRuleId) ? "" : "none";
 }
 
 export function collectFormConfigCtx(ctx) {
@@ -318,13 +386,35 @@ export function collectFormConfigCtx(ctx) {
         if (numericComparisonType === "field" && !numericComparisonField) return null;
         return { numericOperator, numericComparisonType, numericValue: numericVal !== "" ? parseFloat(numericVal) : null, numericComparisonField, ruleName, ruleDescription, ruleMessage, actionType };
     } else {
-        const operator = document.getElementById("validationOperator").value;
-        const comparisonDate = document.getElementById("comparisonDate").value;
-        const intervalAmount = document.getElementById("intervalAmount").value;
-        const intervalUnit = document.getElementById("intervalUnit").value;
-        if (!operator || !comparisonDate) return null;
+        const operator = getElementValue("validationOperator");
+        const comparisonDateMode = getElementValue("comparisonDateMode", "variable");
+        const comparisonDate = getElementValue("comparisonDate");
+        const fixedComparisonDate = getElementValue("fixedComparisonDate");
+        const relativeComparisonAmount = getElementValue("relativeComparisonAmount");
+        const relativeComparisonUnit = getElementValue("relativeComparisonUnit", "years");
+        const relativeComparisonDirection = getElementValue("relativeComparisonDirection", "past");
+        const intervalAmount = getElementValue("intervalAmount");
+        const intervalUnit = getElementValue("intervalUnit", "days");
+        if (!operator) return null;
+        if (comparisonDateMode === "variable" && !comparisonDate) return null;
+        if (comparisonDateMode === "fixed" && !fixedComparisonDate) return null;
+        if (comparisonDateMode === "relative" && !relativeComparisonAmount) return null;
         if ((operator === "within_before" || operator === "within_after") && !intervalAmount) return null;
-        return { operator, comparisonDate, intervalAmount: intervalAmount ? parseInt(intervalAmount) : null, intervalUnit, ruleName, ruleDescription, ruleMessage, actionType };
+        return {
+            operator,
+            comparisonDateMode,
+            comparisonDate: comparisonDateMode === "variable" ? comparisonDate : "",
+            fixedComparisonDate: comparisonDateMode === "fixed" ? fixedComparisonDate : "",
+            relativeComparisonAmount: comparisonDateMode === "relative" ? parseInt(relativeComparisonAmount, 10) : null,
+            relativeComparisonUnit,
+            relativeComparisonDirection,
+            intervalAmount: intervalAmount ? parseInt(intervalAmount, 10) : null,
+            intervalUnit,
+            ruleName,
+            ruleDescription,
+            ruleMessage,
+            actionType
+        };
     }
 }
 
@@ -423,8 +513,7 @@ function populateDateComparisonCtx(ctx) {
         if (variable.id === currentVariable.id && variable.type === currentVariable.type && variable.stageId === currentVariable.stageId) return;
         let shouldInclude = false;
         
-        if (variable.type === "current_date") { shouldInclude = true; }
-        else if (currentVariable.type === "enrollment") { shouldInclude = variable.type === "incident" || variable.type === "trackedEntityAttribute"; }
+        if (currentVariable.type === "enrollment") { shouldInclude = variable.type === "incident" || variable.type === "trackedEntityAttribute"; }
         else if (currentVariable.type === "incident") { shouldInclude = variable.type === "enrollment" || variable.type === "trackedEntityAttribute"; }
         else if (currentVariable.type === "trackedEntityAttribute") { shouldInclude = variable.type === "enrollment" || variable.type === "incident"; }
         else if (currentVariable.type === "event_date") {
@@ -470,6 +559,15 @@ function generateDefaultNumericDescription(variable, operator, comparisonType, v
     return `Validates that ${variable.name} is ${opLabel} ${value}`;
 }
 
+function generateDefaultNumericMessage(variable, operator, comparisonType, value, compareField) {
+    const opLabels = { greater_than: "greater than", greater_than_or_equal: "greater than or equal to", less_than: "less than", less_than_or_equal: "less than or equal to", equal_to: "equal to", not_equal_to: "not equal to" };
+    const opLabel = opLabels[operator] || operator;
+    if (comparisonType === "field") {
+        return `${variable.name} must be ${opLabel} ${compareField?.name || "another field"}`;
+    }
+    return `${variable.name} must be ${opLabel} ${value}`;
+}
+
 async function createNumericValidationForVariable(ctx, config, targetVariable, signatureFn = addAppSignature) {
     const { getMeta, getProgramId, getConfig } = ctx;
     let ruleCondition;
@@ -488,12 +586,13 @@ async function createNumericValidationForVariable(ctx, config, targetVariable, s
         ruleCondition = generateNumericCondition(variable1WithPrv, config.numericOperator, config.numericValue);
     }
     const prefix = getConfig()?.programRulePrefix || "";
-    const ruleName = prefix ? `${prefix} - ${config.ruleName}` : config.ruleName;
+    const ruleNameBase = config.ruleName || generateDefaultNumericMessage(targetVariable, config.numericOperator, config.numericComparisonType, config.numericValue, compareField);
+    const ruleName = prefix ? `${prefix} - ${ruleNameBase}` : ruleNameBase;
     const defaultDesc = generateDefaultNumericDescription(targetVariable, config.numericOperator, config.numericComparisonType, config.numericValue, compareField);
     const { description } = signatureFn(ruleName, config.ruleDescription || defaultDesc);
     const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
     if (targetVariable.type === "dataElement" && targetVariable.stageId) programRule.programStage = { id: targetVariable.stageId };
-    const programRuleAction = { programRuleActionType: config.actionType || "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
+    const programRuleAction = { programRuleActionType: config.actionType || "SHOWERROR", content: config.ruleMessage || generateDefaultNumericMessage(targetVariable, config.numericOperator, config.numericComparisonType, config.numericValue, compareField), program: { id: getProgramId() } };
     if (targetVariable.type === "dataElement") programRuleAction.dataElement = { id: targetVariable.id };
     else if (targetVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: targetVariable.id };
     await svcPrCreate(getMeta(), programRule, [programRuleAction], []);
@@ -580,8 +679,7 @@ function generateDefaultDescription(variable1, variable2, operator, intervalAmou
 
 async function createDateValidationForVariable(ctx, config, targetVariable, signatureFn = addAppSignature) {
     const { getMeta, getProgramId, getConfig } = ctx;
-    const [compareType, compareId, compareStageId] = config.comparisonDate.split(":");
-    const compareDate = ctx.findByComponents(compareId, compareType, compareStageId);
+    const compareDate = resolveDateComparisonTargetCtx(ctx, config);
     if (!compareDate) throw new Error("Target date not found");
 
     const duplicateRule = findDuplicateRule(getMeta(), targetVariable, config);
@@ -592,21 +690,26 @@ async function createDateValidationForVariable(ctx, config, targetVariable, sign
     if (existingRule) throw new Error(`Rule "${finalRuleName}" already exists`);
 
     const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, targetVariable);
-    const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
+    let compareDateRef = compareDate;
+    if (["dataElement", "trackedEntityAttribute"].includes(compareDate.type)) {
+        const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), getConfig()?.programRuleVariablePrefix, compareDate);
+        compareDateRef = { ...compareDate, prvName: variable2Prv.name };
+    }
 
     const prefix = getConfig()?.programRulePrefix || "";
-    const ruleCondition = generateNewRuleCondition({ ...targetVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
+    const ruleCondition = generateNewRuleCondition({ ...targetVariable, prvName: variable1Prv.name }, compareDateRef, config);
 
     let actualName = generateRuleName(targetVariable, compareDate, config.operator, config.ruleName);
     let ruleName = prefix ? `${prefix} - ${actualName}` : actualName;
     const defaultDesc = generateDefaultDescription(targetVariable, compareDate, config.operator, config.intervalAmount, config.intervalUnit);
+    const defaultMessage = generateRuleName(targetVariable, compareDate, config.operator).replace("Date validation: ", "");
     const { description } = signatureFn(ruleName, config.ruleDescription || defaultDesc);
 
     const programRule = { name: ruleName, description, condition: ruleCondition, program: { id: getProgramId() }, priority: 1 };
     if (targetVariable.type === "dataElement" && targetVariable.stageId) programRule.programStage = { id: targetVariable.stageId };
     if (targetVariable.type === "event_date" && targetVariable.stageId) programRule.programStage = { id: targetVariable.stageId };
 
-    const programRuleAction = { programRuleActionType: config.actionType || "SHOWERROR", content: config.ruleMessage, program: { id: getProgramId() } };
+    const programRuleAction = { programRuleActionType: config.actionType || "SHOWERROR", content: config.ruleMessage || defaultMessage, program: { id: getProgramId() } };
     if (targetVariable.type === "dataElement") programRuleAction.dataElement = { id: targetVariable.id };
     else if (targetVariable.type === "trackedEntityAttribute") programRuleAction.trackedEntityAttribute = { id: targetVariable.id };
 
@@ -630,17 +733,19 @@ export async function addValidationCtx(ctx, config) {
     }
 }
 
-function getUnvalidatedVariables(ctx, category, stageId) {
-    const { getMeta, getDateVars, getCurrent } = ctx;
-    const current = getCurrent();
-    const all = getDateVars() || [];
-    return all.filter(v => {
+function getUnvalidatedVariablesFromMeta(programMetadata, variables, category, stageId, excludeVariable = null) {
+    return (variables || []).filter(v => {
         if (v.category !== category) return false;
-        if (v.id === current.id && v.type === current.type && v.stageId === current.stageId) return false;
+        if (excludeVariable && v.id === excludeVariable.id && v.type === excludeVariable.type && v.stageId === excludeVariable.stageId) return false;
         if (stageId !== null && v.stageId !== stageId) return false;
-        const existing = detectExisting(getMeta(), v);
+        const existing = detectExisting(programMetadata, v);
         return existing.length === 0;
     });
+}
+
+function getUnvalidatedVariables(ctx, category, stageId) {
+    const { getMeta, getDateVars, getCurrent } = ctx;
+    return getUnvalidatedVariablesFromMeta(getMeta(), getDateVars() || [], category, stageId, getCurrent());
 }
 
 function renderBatchVariableList(variables) {
@@ -677,7 +782,6 @@ export function showBatchApplyPanel(ctx, config) {
     const panel = document.getElementById("batchApplyPanel");
     if (!panel) return;
     panel.style.display = "";
-
     const current = ctx.getCurrent();
     const category = current?.category || "date";
     const currentStageId = current?.stageId || null;
@@ -723,6 +827,56 @@ export function showBatchApplyPanel(ctx, config) {
     const newCancelBtn = cancelBtn.cloneNode(true);
     cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
     newCancelBtn.addEventListener("click", () => { panel.style.display = "none"; });
+}
+
+export async function applyQueuedBatchTemplatesCtx(ctx, templates, onProgress = null) {
+    const initialMetadata = ctx.getMeta();
+    const allVariables = ctx.getDateVars() || [];
+    let createdCount = 0;
+    const errors = [];
+    const total = templates.length;
+    const templateTargets = templates.map(template => {
+        const stageId = template.scope === "stage" ? template.stageId || null : null;
+        return {
+            template,
+            targets: getUnvalidatedVariablesFromMeta(initialMetadata, allVariables, template.category, stageId)
+        };
+    });
+
+    if (onProgress) {
+        onProgress({ completed: 0, total, currentTemplate: 0 });
+    }
+
+    for (const [index, { template, targets }] of templateTargets.entries()) {
+        for (const target of targets) {
+            try {
+                if (template.category === "numeric") {
+                    await createNumericValidationForVariable(ctx, template, target, addBatchSignature);
+                } else {
+                    await createDateValidationForVariable(ctx, template, target, addBatchSignature);
+                }
+                createdCount++;
+            } catch (error) {
+                errors.push(`${target.name}: ${error.message}`);
+            }
+        }
+        if (onProgress) {
+            onProgress({ completed: index + 1, total, currentTemplate: index });
+        }
+    }
+
+    const refreshedMetadata = await refreshMetadata(ctx);
+    if (refreshedMetadata) {
+        if (typeof document !== "undefined" && document.getElementById("currentValidations")) {
+            loadCurrentValidationsCtx(ctx);
+        }
+        updateValidationIndicators(refreshedMetadata);
+    }
+    if (typeof document !== "undefined" && document.getElementById("createValidationBtn")) {
+        setupValidationFormCtx(ctx);
+    }
+
+    return { createdCount, errors };
 }
 
 async function executeBatchApply(ctx, config) {
@@ -803,8 +957,7 @@ export async function updateValidationCtx(ctx, config, ruleId) {
     const currentVariable = getCurrent(); if (!config || !currentVariable || !ruleId) { showMessage("Invalid configuration", "error"); return; }
     if (currentVariable.category === "numeric") { return updateNumericValidationCtx(ctx, config, ruleId); }
     try {
-        const [compareType, compareId, compareStageId] = config.comparisonDate.split(":");
-        const compareDate = ctx.findByComponents(compareId, compareType, compareStageId);
+        const compareDate = resolveDateComparisonTargetCtx(ctx, config);
         if (!compareDate) { showMessage("Target date not found", "error"); return; }
         
         // Find the existing rule and action
@@ -834,8 +987,12 @@ export async function updateValidationCtx(ctx, config, ruleId) {
         // Pass variable prefix for PRV name formatting
         const variablePrefix = getConfig()?.programRuleVariablePrefix || "";
         const variable1Prv = await svcEnsurePrv(getMeta(), getProgramId(), variablePrefix, currentVariable);
-        const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), variablePrefix, compareDate);
-        const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, { ...compareDate, prvName: variable2Prv.name }, config);
+        let compareDateRef = compareDate;
+        if (["dataElement", "trackedEntityAttribute"].includes(compareDate.type)) {
+            const variable2Prv = await svcEnsurePrv(getMeta(), getProgramId(), variablePrefix, compareDate);
+            compareDateRef = { ...compareDate, prvName: variable2Prv.name };
+        }
+        const ruleCondition = generateNewRuleCondition({ ...currentVariable, prvName: variable1Prv.name }, compareDateRef, config);
 
         // Generate rule name and description with signature
         // Format rule name: [prefix] - [Actual name]

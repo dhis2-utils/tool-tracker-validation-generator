@@ -5,7 +5,8 @@ const state = {
     programMetadata: null,
     currentVariable: null,
     programConfig: null,
-    dateVariables: null
+    dateVariables: null,
+    batchTemplates: []
 };
 
 export function setState(partial) {
@@ -22,6 +23,7 @@ export function resetOnProgramChange(programId) {
     state.currentVariable = null;
     state.programConfig = null;
     state.dateVariables = null;
+    state.batchTemplates = [];
 }
 
 export function setCurrentVariable(variable) {

@@ -50,6 +50,131 @@
             <!-- Settings Warning -->
             <div id="settingsWarning" style="display: none;"></div>
 
+            <div class="card" id="batchWorkspaceCard">
+                <div class="card-header">
+                    <h3>Bulk Rules for Unvalidated Variables</h3>
+                </div>
+                <div class="card-body">
+                    <p class="helper-text" style="margin-top:0;">
+                        Queue reusable baseline rules here, then apply all queued rules in one go to variables that currently have no validations.
+                    </p>
+
+                    <div class="batch-workspace-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="batchTemplateCategory">Variable type</label>
+                            <select id="batchTemplateCategory" class="form-select">
+                                <option value="date" selected>Date</option>
+                                <option value="numeric">Numeric</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="batchTemplateScope">Apply within</label>
+                            <select id="batchTemplateScope" class="form-select">
+                                <option value="programme" selected>Whole programme</option>
+                                <option value="stage">One programme stage</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="batchTemplateStageGroup" style="display:none;">
+                            <label class="form-label" for="batchTemplateStage">Programme stage</label>
+                            <select id="batchTemplateStage" class="form-select">
+                                <option value="" disabled selected>Choose stage…</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="batchDateTemplateForm">
+                        <div class="rule-builder batch-rule-builder">
+                            <span class="var-name">Any unvalidated date</span>
+                            <span class="text-connector">should be</span>
+                            <select id="batchDateOperator" class="form-select" style="width: auto;">
+                                <option value="" disabled selected>Choose relationship…</option>
+                                <option value="before">before</option>
+                                <option value="after">after</option>
+                                <option value="on_or_after">on or after</option>
+                                <option value="on_or_before">on or before</option>
+                                <option value="within_before">within … before</option>
+                                <option value="within_after">within … after</option>
+                            </select>
+                                <span id="batchIntervalInputs" style="display:none;">
+                                    <input id="batchIntervalAmount" type="number" min="1" placeholder="30" style="width: 70px;">
+                                    <select id="batchIntervalUnit" style="width: 90px;">
+                                        <option value="days" selected>days</option>
+                                        <option value="weeks">weeks</option>
+                                    <option value="months">months</option>
+                                    <option value="years">years</option>
+                                </select>
+                                <span id="batchIntervalDirection" class="text-connector"></span>
+                                </span>
+                                <select id="batchDateComparisonMode" class="form-select" style="width:auto;">
+                                    <option value="fixed" selected>a fixed date</option>
+                                    <option value="current">the current date</option>
+                                </select>
+                                <input id="batchFixedDate" type="date" class="form-input" style="width:auto;min-width:170px;">
+                                <span id="batchRelativeInputs" style="display:none;">
+                                <span class="text-connector">offset by</span>
+                                <input id="batchRelativeAmount" type="number" min="1" placeholder="1" style="width: 70px;">
+                                <select id="batchRelativeUnit" style="width: 90px;">
+                                    <option value="days">days</option>
+                                    <option value="months">months</option>
+                                    <option value="years" selected>years</option>
+                                </select>
+                                <select id="batchRelativeDirection" style="width: 100px;">
+                                    <option value="past" selected>in the past</option>
+                                    <option value="future">in the future</option>
+                                </select>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div id="batchNumericTemplateForm" style="display:none;">
+                        <div class="rule-builder batch-rule-builder">
+                            <span class="var-name">Any unvalidated number</span>
+                            <span class="text-connector">should be</span>
+                            <select id="batchNumericOperator" class="form-select" style="width:auto;">
+                                <option value="" disabled selected>Choose operator…</option>
+                                <option value="less_than">less than</option>
+                                <option value="less_than_or_equal">less than or equal to</option>
+                                <option value="greater_than">greater than</option>
+                                <option value="greater_than_or_equal">greater than or equal to</option>
+                                <option value="equal_to">equal to</option>
+                                <option value="not_equal_to">not equal to</option>
+                            </select>
+                            <span class="text-connector">a fixed value of</span>
+                            <input id="batchNumericValue" type="number" step="0.01" class="form-input" style="width: 120px;">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top:16px;">
+                        <label class="form-label" for="batchTemplateActionType">Action type</label>
+                        <select id="batchTemplateActionType" class="form-select" style="max-width:320px;">
+                            <option value="SHOWERROR" selected>Error — block save</option>
+                            <option value="SHOWWARNING">Warning — allow save</option>
+                            <option value="ERRORONCOMPLETE">Error on complete</option>
+                            <option value="WARNINGONCOMPLETE">Warning on complete</option>
+                        </select>
+                    </div>
+
+                    <div class="preview-panel batch-preview-panel">
+                        <span class="preview-label">Template preview</span>
+                        <span id="batchTemplatePreview">Configure a bulk rule template to preview it here.</span>
+                    </div>
+
+                    <div class="action-row">
+                        <button id="addBatchTemplateBtn" class="btn btn-secondary">Add to Bulk Queue</button>
+                    </div>
+
+                    <div id="batchTemplateDrafts" class="batch-template-drafts"></div>
+
+                    <div class="action-row">
+                        <button id="applyBatchTemplatesBtn" class="btn btn-primary" disabled>Apply Queued Rules</button>
+                        <button id="clearBatchTemplatesBtn" class="btn btn-ghost" disabled>Clear Queue</button>
+                    </div>
+                    <span id="batchApplyStatus" class="helper-text" aria-live="polite"></span>
+                </div>
+            </div>
+
             <!-- Enrollment & Programme Dates -->
             <div class="card">
                 <div class="card-header">
@@ -127,9 +252,28 @@
                                     </select>
                                     <span id="intervalDirection" class="text-connector"></span>
                                 </span>
+                                <select id="comparisonDateMode" class="form-select" style="width:auto;" required>
+                                    <option value="variable" selected>another tracked date</option>
+                                    <option value="fixed">a fixed date</option>
+                                    <option value="current">the current date</option>
+                                </select>
                                 <select id="comparisonDate" class="form-select" style="width: auto;" required>
                                     <option value="" disabled selected>Choose date…</option>
                                 </select>
+                                <input id="fixedComparisonDate" type="date" class="form-input" style="display:none;width:auto;min-width:170px;">
+                                <span id="relativeComparisonInputs" style="display:none;">
+                                    <span class="text-connector">offset by</span>
+                                    <input id="relativeComparisonAmount" type="number" min="1" placeholder="1" style="width:70px;">
+                                    <select id="relativeComparisonUnit" style="width: 90px;">
+                                        <option value="days">days</option>
+                                        <option value="months">months</option>
+                                        <option value="years" selected>years</option>
+                                    </select>
+                                    <select id="relativeComparisonDirection" style="width: 100px;">
+                                        <option value="past" selected>in the past</option>
+                                        <option value="future">in the future</option>
+                                    </select>
+                                </span>
                             </div>
                         </div>
 
@@ -207,42 +351,6 @@
                             <button id="createValidationBtn" class="btn btn-primary" disabled>
                                 Create Validation Rule
                             </button>
-                            <button id="batchApplyBtn" class="btn btn-secondary" disabled>
-                                Apply to All Unvalidated…
-                            </button>
-                        </div>
-
-                        <!-- Batch Apply Panel -->
-                        <div id="batchApplyPanel" style="display:none;">
-                            <div class="batch-panel">
-                                <h4 class="batch-panel-title">Batch Apply Validation</h4>
-                                <p class="batch-panel-desc">
-                                    This will apply the rule above to all unvalidated variables of the same type.
-                                    Select the scope and review the list before confirming.
-                                </p>
-
-                                <div class="form-group">
-                                    <label class="form-label">Scope</label>
-                                    <div class="radio-group">
-                                        <label class="radio-label" for="batchScope-programme">
-                                            <input type="radio" id="batchScope-programme" name="batchScope" value="programme" checked> Whole programme
-                                        </label>
-                                        <label class="radio-label" for="batchScope-stage">
-                                            <input type="radio" id="batchScope-stage" name="batchScope" value="stage"> This stage only
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label class="form-label">Will apply to (<span id="batchVariableCount" aria-live="polite">0</span> variables):</label>
-                                    <div id="batchVariableList" class="batch-variable-list"></div>
-                                </div>
-
-                                <div class="action-row">
-                                    <button id="batchApplyConfirmBtn" class="btn btn-primary">Confirm Batch Apply</button>
-                                    <button id="batchApplyCancelBtn" class="btn btn-ghost">Cancel</button>
-                                </div>
-                            </div>
                         </div>
 
                     </div><!-- /newValidationForm -->

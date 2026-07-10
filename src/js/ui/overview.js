@@ -75,15 +75,15 @@ export function renderProgramStages(programMetadata) {
         const stageCard = document.createElement("div");
         stageCard.className = "stage-section-wrap";
         const dateElements = [];
-        dateElements.push({ name: stage.executionDateLabel || "Event date", type: "event_date", id: `event_date_${stage.id}`, stageId: stage.id });
-        if (!stage.hideDueDate) dateElements.push({ name: "Due date", type: "due_date", id: `due_date_${stage.id}`, stageId: stage.id });
+        dateElements.push({ name: stage.executionDateLabel || "Event date", type: "event_date", id: `event_date_${stage.id}`, stageId: stage.id, stageName: stage.name });
+        if (!stage.hideDueDate) dateElements.push({ name: "Due date", type: "due_date", id: `due_date_${stage.id}`, stageId: stage.id, stageName: stage.name });
         (stage.programStageDataElements || []).forEach(psde => {
             const de = psde.dataElement;
             if (!de) return;
             if (de.valueType === "DATE") {
-                dateElements.push({ name: de.name, type: "dataElement", id: de.id, stageId: stage.id, category: "date", valueType: "DATE" });
+                dateElements.push({ name: de.name, type: "dataElement", id: de.id, stageId: stage.id, stageName: stage.name, category: "date", valueType: "DATE" });
             } else if (["INTEGER","INTEGER_POSITIVE","INTEGER_ZERO_OR_POSITIVE","INTEGER_NEGATIVE","NUMBER","PERCENTAGE"].includes(de.valueType)) {
-                dateElements.push({ name: de.name, type: "dataElement", id: de.id, stageId: stage.id, category: "numeric", valueType: de.valueType });
+                dateElements.push({ name: de.name, type: "dataElement", id: de.id, stageId: stage.id, stageName: stage.name, category: "numeric", valueType: de.valueType });
             }
         });
         if (dateElements.length > 0) {

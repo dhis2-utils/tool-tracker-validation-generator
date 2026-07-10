@@ -26,7 +26,7 @@ vi.mock("../src/js/ui/overview.js", () => ({
     updateValidationIndicators: vi.fn()
 }));
 
-import { addValidationCtx, checkFormValidityCtx, collectFormConfigCtx, showBatchApplyPanel } from "../src/js/ui/details.js";
+import { addValidationCtx, applyQueuedBatchTemplatesCtx, checkFormValidityCtx, collectFormConfigCtx, showBatchApplyPanel } from "../src/js/ui/details.js";
 import { d2Delete } from "../src/js/d2api.js";
 import { ensureProgramRuleVariable, prCreate } from "../src/js/services/rules.js";
 import { programGet } from "../src/js/services/program.js";
@@ -132,7 +132,12 @@ describe("details form config and batch panel", () => {
             ruleMessage: createInput("Message"),
             actionType: createInput("SHOWWARNING"),
             validationOperator: createInput("within_before"),
+            comparisonDateMode: createInput("variable"),
             comparisonDate: createInput("event_date:event_date_stageA:stageA"),
+            fixedComparisonDate: createInput(""),
+            relativeComparisonAmount: createInput(""),
+            relativeComparisonUnit: createInput("years"),
+            relativeComparisonDirection: createInput("past"),
             intervalAmount: createInput("30"),
             intervalUnit: createInput("days")
         });
@@ -143,7 +148,12 @@ describe("details form config and batch panel", () => {
 
         expect(collectFormConfigCtx(ctx)).toEqual({
             operator: "within_before",
+            comparisonDateMode: "variable",
             comparisonDate: "event_date:event_date_stageA:stageA",
+            fixedComparisonDate: "",
+            relativeComparisonAmount: null,
+            relativeComparisonUnit: "years",
+            relativeComparisonDirection: "past",
             intervalAmount: 30,
             intervalUnit: "days",
             ruleName: "Date rule",
@@ -172,16 +182,17 @@ describe("details form config and batch panel", () => {
         expect(collectFormConfigCtx(ctx)).toBeNull();
     });
 
-    it("checkFormValidityCtx shows batch apply button only for valid create mode", () => {
+    it("checkFormValidityCtx enables create for a valid date rule", () => {
         global.window = { editingRuleId: null };
         const createValidationBtn = createButton();
-        const batchApplyBtn = createButton();
         global.document = createDocument({
             createValidationBtn,
-            batchApplyBtn,
             validationPreview: createInput(""),
             validationOperator: createInput("before"),
+            comparisonDateMode: createInput("variable"),
             comparisonDate: createInput("enrollment:enrollment_date"),
+            fixedComparisonDate: createInput(""),
+            relativeComparisonAmount: createInput(""),
             intervalAmount: createInput(""),
             ruleName: createInput("Date rule"),
             ruleMessage: createInput("Message")
@@ -195,12 +206,6 @@ describe("details form config and batch panel", () => {
         checkFormValidityCtx(ctx);
 
         expect(createValidationBtn.disabled).toBe(false);
-        expect(batchApplyBtn.style.display).toBe("");
-
-        global.window.editingRuleId = "rule001AAAAA";
-        checkFormValidityCtx(ctx);
-
-        expect(batchApplyBtn.style.display).toBe("none");
     });
 
     it("showBatchApplyPanel renders only unvalidated variables for selected stage scope", () => {
@@ -346,12 +351,16 @@ describe("details form config and batch panel", () => {
             otherProgramRulesCard: { style: { display: "none" } },
             otherProgramRules: createInput(""),
             validationOperator: createInput(""),
+            comparisonDateMode: createInput("variable"),
             comparisonDate: createInput(""),
+            fixedComparisonDate: createInput(""),
+            relativeComparisonAmount: createInput(""),
+            relativeComparisonUnit: createInput("years"),
+            relativeComparisonDirection: createInput("past"),
             intervalInputs: { style: {} },
             intervalAmount: createInput(""),
             intervalUnit: createInput("days"),
             createValidationBtn: createButton("createValidationBtn", elements),
-            batchApplyBtn: createButton("batchApplyBtn", elements),
             ruleName: createInput(""),
             ruleDescription: createInput(""),
             ruleMessage: createInput(""),
@@ -421,12 +430,16 @@ describe("details form config and batch panel", () => {
             otherProgramRulesCard: { style: { display: "none" } },
             otherProgramRules: createInput(""),
             validationOperator: createInput(""),
+            comparisonDateMode: createInput("variable"),
             comparisonDate: createInput(""),
+            fixedComparisonDate: createInput(""),
+            relativeComparisonAmount: createInput(""),
+            relativeComparisonUnit: createInput("years"),
+            relativeComparisonDirection: createInput("past"),
             intervalInputs: { style: {} },
             intervalAmount: createInput(""),
             intervalUnit: createInput("days"),
             createValidationBtn: createButton("createValidationBtn", elements),
-            batchApplyBtn: createButton("batchApplyBtn", elements),
             ruleName: createInput(""),
             ruleDescription: createInput(""),
             ruleMessage: createInput(""),
@@ -487,5 +500,179 @@ describe("details form config and batch panel", () => {
         expect(d2Delete).toHaveBeenCalledWith("/api/programRuleActions/Bcdefg12345");
         expect(d2Delete).toHaveBeenCalledWith("/api/programRules/Abcdef12345");
         expect(showMessage).toHaveBeenCalledWith("Removed 1 batch rule");
+    });
+
+    it("applyQueuedBatchTemplatesCtx reports progress while processing queued rules", async () => {
+        const elements = {
+            currentValidations: createInput(""),
+            otherProgramRulesCard: { style: { display: "none" } },
+            otherProgramRules: createInput(""),
+            validationOperator: createInput(""),
+            comparisonDateMode: createInput("variable"),
+            comparisonDate: createInput(""),
+            fixedComparisonDate: createInput(""),
+            relativeComparisonAmount: createInput(""),
+            relativeComparisonUnit: createInput("years"),
+            relativeComparisonDirection: createInput("past"),
+            intervalInputs: { style: {} },
+            intervalAmount: createInput(""),
+            intervalUnit: createInput("days"),
+            createValidationBtn: createButton("createValidationBtn", {}),
+            ruleName: createInput(""),
+            ruleDescription: createInput(""),
+            ruleMessage: createInput(""),
+            actionType: createInput("SHOWERROR"),
+            dateForm: { style: {} },
+            numericForm: { style: {} },
+            numericOperator: createInput(""),
+            numericComparisonType: createInput("value"),
+            numericValue: createInput(""),
+            numericComparisonField: createInput(""),
+            numericValueInput: { style: {} },
+            numericFieldInput: { style: {} },
+            validatedDateName: createInput(""),
+            validatedNumericName: createInput(""),
+            validationPreview: createInput("")
+        };
+        global.document = createDocument(elements);
+        global.window = { editingRuleId: null };
+
+        vi.mocked(ensureProgramRuleVariable).mockResolvedValue({ name: "PRV_DATE" });
+        vi.mocked(prCreate).mockResolvedValue(undefined);
+        let metadata = {
+            programRules: [],
+            programRuleActions: [],
+            programRuleVariables: []
+        };
+        vi.mocked(programGet).mockImplementation(async () => metadata);
+
+        const target = { id: "deFree001AAA", type: "dataElement", stageId: "stageA", stageName: "VISITS", category: "date", name: "Visit date" };
+        const ctx = {
+            getCurrent: () => target,
+            getDateVars: () => [target],
+            getMeta: () => metadata,
+            getProgramId: () => "program12345",
+            getConfig: () => ({ programRulePrefix: "PFX", programRuleVariablePrefix: "ABC_" }),
+            setMeta: vi.fn((next) => { metadata = next; })
+        };
+        const onProgress = vi.fn();
+
+        await applyQueuedBatchTemplatesCtx(ctx, [
+            {
+                category: "date",
+                scope: "stage",
+                stageId: "stageA",
+                operator: "on_or_after",
+                comparisonDateMode: "fixed",
+                fixedComparisonDate: "1900-01-01",
+                ruleMessage: "Too early"
+            },
+            {
+                category: "date",
+                scope: "stage",
+                stageId: "stageA",
+                operator: "on_or_before",
+                comparisonDateMode: "current",
+                ruleMessage: "In future"
+            }
+        ], onProgress);
+
+        expect(onProgress).toHaveBeenCalledWith({ completed: 0, total: 2, currentTemplate: 0 });
+        expect(onProgress).toHaveBeenNthCalledWith(2, { completed: 1, total: 2, currentTemplate: 0 });
+        expect(onProgress).toHaveBeenNthCalledWith(3, { completed: 2, total: 2, currentTemplate: 1 });
+    });
+
+    it("applyQueuedBatchTemplatesCtx applies every queued template to variables that were initially unvalidated", async () => {
+        const elements = {
+            currentValidations: createInput(""),
+            otherProgramRulesCard: { style: { display: "none" } },
+            otherProgramRules: createInput(""),
+            validationOperator: createInput(""),
+            comparisonDateMode: createInput("variable"),
+            comparisonDate: createInput(""),
+            fixedComparisonDate: createInput(""),
+            relativeComparisonAmount: createInput(""),
+            relativeComparisonUnit: createInput("years"),
+            relativeComparisonDirection: createInput("past"),
+            intervalInputs: { style: {} },
+            intervalAmount: createInput(""),
+            intervalUnit: createInput("days"),
+            createValidationBtn: createButton("createValidationBtn", {}),
+            ruleName: createInput(""),
+            ruleDescription: createInput(""),
+            ruleMessage: createInput(""),
+            actionType: createInput("SHOWERROR"),
+            dateForm: { style: {} },
+            numericForm: { style: {} },
+            numericOperator: createInput(""),
+            numericComparisonType: createInput("value"),
+            numericValue: createInput(""),
+            numericComparisonField: createInput(""),
+            numericValueInput: { style: {} },
+            numericFieldInput: { style: {} },
+            validatedDateName: createInput(""),
+            validatedNumericName: createInput(""),
+            validationPreview: createInput("")
+        };
+        global.document = createDocument(elements);
+        global.window = { editingRuleId: null };
+
+        const target = { id: "deFree001AAA", type: "dataElement", stageId: "stageA", stageName: "VISITS", category: "date", name: "Visit date" };
+        vi.mocked(ensureProgramRuleVariable).mockResolvedValue({ name: "PRV_DATE" });
+        let metadata = {
+            programRules: [],
+            programRuleActions: [],
+            programRuleVariables: []
+        };
+        vi.mocked(prCreate).mockImplementation(async (programMetadata, programRule, programRuleActions) => {
+            const ruleId = `rule-${programMetadata.programRules.length + 1}`;
+            if (!programMetadata.programRuleVariables.some(prv => prv.name === "PRV_DATE")) {
+                programMetadata.programRuleVariables.push({
+                    id: "prv-1",
+                    name: "PRV_DATE",
+                    programRuleVariableSourceType: "DATAELEMENT_CURRENT_EVENT",
+                    dataElement: { id: target.id }
+                });
+            }
+            programMetadata.programRules.push({ ...programRule, id: ruleId });
+            programMetadata.programRuleActions.push(...programRuleActions.map((action, index) => ({
+                ...action,
+                id: `${ruleId}-action-${index + 1}`,
+                programRule: { id: ruleId }
+            })));
+            return { ...programRule, id: ruleId };
+        });
+        vi.mocked(programGet).mockImplementation(async () => metadata);
+
+        const ctx = {
+            getCurrent: () => target,
+            getDateVars: () => [target],
+            getMeta: () => metadata,
+            getProgramId: () => "program12345",
+            getConfig: () => ({ programRulePrefix: "PFX", programRuleVariablePrefix: "ABC_" }),
+            setMeta: vi.fn((next) => { metadata = next; })
+        };
+
+        await applyQueuedBatchTemplatesCtx(ctx, [
+            {
+                category: "date",
+                scope: "stage",
+                stageId: "stageA",
+                operator: "on_or_after",
+                comparisonDateMode: "fixed",
+                fixedComparisonDate: "1900-01-01",
+                ruleMessage: "Too early"
+            },
+            {
+                category: "date",
+                scope: "stage",
+                stageId: "stageA",
+                operator: "on_or_before",
+                comparisonDateMode: "current",
+                ruleMessage: "In future"
+            }
+        ]);
+
+        expect(prCreate).toHaveBeenCalledTimes(2);
     });
 });

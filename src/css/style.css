@@ -9,9 +9,11 @@
     --surface:     #ffffff;
     --border:      #dde3ec;
     --border-focus:#2563eb;
-    --nav-bg:      #1a2840;
-    --nav-text:    #c8d6e8;
-    --nav-text-hi: #ffffff;
+    --nav-bg:      #edf4fb;
+    --nav-text:    #4f647a;
+    --nav-text-hi: #16324b;
+    --toast-bg:    #16324b;
+    --toast-text:  #ffffff;
 
     --blue:        #2563eb;
     --blue-hover:  #1d4ed8;
@@ -52,7 +54,7 @@ body {
 /* --- Top nav bar --- */
 #app-nav {
     background: var(--nav-bg);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid #d7e4f1;
     padding: 0 20px;
     display: flex;
     align-items: center;
@@ -76,7 +78,8 @@ body {
 
 .nav-brand-icon {
     width: 26px; height: 26px;
-    background: var(--blue);
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: var(--blue-hover);
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -84,7 +87,7 @@ body {
     font-size: 14px;
 }
 
-.nav-separator { width: 1px; height: 20px; background: rgba(255,255,255,0.12); flex-shrink: 0; }
+.nav-separator { width: 1px; height: 20px; background: #d7e4f1; flex-shrink: 0; }
 
 .nav-program-select {
     flex: 1;
@@ -94,8 +97,8 @@ body {
 .nav-program-select select {
     width: 100%;
     height: 34px;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.14);
+    background: #ffffff;
+    border: 1px solid #cad9e8;
     border-radius: var(--r-sm);
     color: var(--nav-text-hi);
     padding: 0 30px 0 10px;
@@ -103,7 +106,7 @@ body {
     cursor: pointer;
     appearance: none;
     -webkit-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23c8d6e8'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23506a85'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 10px center;
 }
@@ -111,10 +114,10 @@ body {
 .nav-program-select select:focus {
     outline: none;
     border-color: var(--blue);
-    background-color: rgba(255,255,255,0.12);
+    background-color: #ffffff;
 }
 
-.nav-program-select select option { background: #1a2840; color: #fff; }
+.nav-program-select select option { background: #ffffff; color: var(--text); }
 
 .nav-spacer { flex: 1; }
 
@@ -123,8 +126,8 @@ body {
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.14);
+    background: #ffffff;
+    border: 1px solid #cad9e8;
     border-radius: var(--r-sm);
     color: var(--nav-text);
     font-size: 13px;
@@ -132,7 +135,7 @@ body {
     transition: background 0.15s, color 0.15s;
     white-space: nowrap;
 }
-#settingsBtn:hover { background: rgba(255,255,255,0.14); color: var(--nav-text-hi); }
+#settingsBtn:hover { background: #f8fbff; color: var(--nav-text-hi); }
 #settingsBtn svg { width: 14px; height: 14px; }
 
 /* --- Page container --- */
@@ -221,10 +224,11 @@ body {
     padding: 1px 7px;
     border-radius: 20px;
     white-space: nowrap;
+    margin-left: 0;
 }
 
 .date-variable strong { font-size: 13px; font-weight: 500; }
-.var-type-label { font-size: 12px; color: var(--text-3); margin-left: 2px; }
+.var-type-label { font-size: 12px; color: var(--text-3); margin-left: 2px; margin-right: auto; }
 
 /* --- Badges --- */
 .variable-badge {
@@ -234,7 +238,7 @@ body {
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.02em;
-    margin-left: auto;
+    margin-left: 0;
 }
 .variable-badge-date { background: var(--blue-light); color: var(--blue-hover); }
 .variable-badge-numeric { background: var(--teal-light); color: var(--teal); }
@@ -286,6 +290,80 @@ body {
 }
 .alert-warning { background: var(--amber-light); color: #92400e; border-color: #fcd34d; }
 .alert-info { background: var(--blue-light); color: #1e40af; border-color: #93c5fd; }
+
+/* --- Bulk workspace --- */
+.batch-workspace-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.batch-rule-builder {
+    margin-top: 4px;
+    margin-bottom: 12px;
+}
+
+#batchIntervalInputs,
+#batchRelativeInputs {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.batch-preview-panel {
+    margin-top: 12px;
+}
+
+.batch-template-drafts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.batch-template-card {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--blue);
+    border-radius: var(--r-md);
+    background: #fbfdff;
+    padding: 12px 14px;
+}
+
+.batch-template-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.batch-template-header strong {
+    font-size: 13px;
+}
+
+.batch-template-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.batch-template-meta .variable-badge,
+.batch-template-meta .validation-count {
+    margin-left: 0;
+}
+
+.batch-template-scope {
+    color: var(--text-2);
+    font-size: 12px;
+}
+
+.batch-template-description {
+    color: var(--text-2);
+    font-size: 12px;
+    margin: 0;
+}
 
 /* --- Validation rules (current validations list) --- */
 .validation-rule {
@@ -342,6 +420,13 @@ body {
 }
 
 .rule-builder .text-connector { color: var(--text-3); font-size: 13px; }
+
+#intervalDirection,
+#batchIntervalDirection {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
 
 .rule-builder select,
 .rule-builder input[type="number"] {
@@ -578,8 +663,9 @@ code {
     gap: 10px;
     padding: 10px 16px;
     border-radius: var(--r-md);
-    background: var(--nav-bg);
-    color: #fff;
+    background: var(--toast-bg);
+    color: var(--toast-text);
+    border: 1px solid rgba(255,255,255,0.08);
     font-size: 13px;
     font-weight: 500;
     box-shadow: 0 4px 20px rgba(0,0,0,0.25);
