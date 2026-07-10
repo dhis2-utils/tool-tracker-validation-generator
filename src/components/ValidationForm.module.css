@@ -1,0 +1,63 @@
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp12);
+}
+
+.ruleBuilder {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacers-dp8);
+    padding: var(--spacers-dp12);
+    background: var(--colors-grey100);
+    border: 1px solid var(--colors-grey300);
+    border-radius: 4px;
+}
+
+.varName {
+    font-weight: 600;
+    color: var(--colors-grey900);
+}
+
+.connector {
+    color: var(--colors-grey600);
+}
+
+.inlineSelect {
+    min-inline-size: 200px;
+}
+
+.inlineUnit {
+    min-inline-size: 110px;
+}
+
+.inlineNumber {
+    inline-size: 100px;
+}
+
+.inlineDate {
+    inline-size: 170px;
+}
+
+.previewPanel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp4);
+    padding: var(--spacers-dp12);
+    background: var(--colors-blue050);
+    border: 1px solid var(--colors-blue200);
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.previewLabel {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--colors-blue700);
+}
+
+.actionTypeRow {
+    max-inline-size: 320px;
+}

@@ -1,0 +1,418 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: i18next-conv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1)\n"
+"POT-Creation-Date: 2026-07-10T20:23:54.581Z\n"
+"PO-Revision-Date: 2026-07-10T20:23:54.582Z\n"
+
+msgid "Tracker Validation Tool"
+msgstr "Tracker Validation Tool"
+
+msgid "Select a tracker programme..."
+msgstr "Select a tracker programme..."
+
+msgid "No programmes match the filter"
+msgstr "No programmes match the filter"
+
+msgid "Programme settings"
+msgstr "Programme settings"
+
+msgid "Error — block save"
+msgstr "Error — block save"
+
+msgid "Warning — allow save"
+msgstr "Warning — allow save"
+
+msgid "Error on complete"
+msgstr "Error on complete"
+
+msgid "Warning on complete"
+msgstr "Warning on complete"
+
+msgid "Configure programme settings before adding bulk rules."
+msgstr "Configure programme settings before adding bulk rules."
+
+msgid "Choose a programme stage for this bulk rule."
+msgstr "Choose a programme stage for this bulk rule."
+
+msgid "Complete the bulk rule before adding it to the queue."
+msgstr "Complete the bulk rule before adding it to the queue."
+
+msgid "That bulk rule is already queued."
+msgstr "That bulk rule is already queued."
+
+msgid "Bulk rule added to the queue."
+msgstr "Bulk rule added to the queue."
+
+msgid "Bulk rules for unvalidated variables"
+msgstr "Bulk rules for unvalidated variables"
+
+msgid ""
+"Queue reusable baseline rules here, then apply all queued rules in one go "
+"to variables that currently have no validations."
+msgstr ""
+"Queue reusable baseline rules here, then apply all queued rules in one go "
+"to variables that currently have no validations."
+
+msgid "Variable type"
+msgstr "Variable type"
+
+msgid "Date"
+msgstr "Date"
+
+msgid "Numeric"
+msgstr "Numeric"
+
+msgid "Apply within"
+msgstr "Apply within"
+
+msgid "Whole programme"
+msgstr "Whole programme"
+
+msgid "One programme stage"
+msgstr "One programme stage"
+
+msgid "Programme stage"
+msgstr "Programme stage"
+
+msgid "Choose stage..."
+msgstr "Choose stage..."
+
+msgid "Any unvalidated date"
+msgstr "Any unvalidated date"
+
+msgid "should be"
+msgstr "should be"
+
+msgid "Choose relationship..."
+msgstr "Choose relationship..."
+
+msgid "before"
+msgstr "before"
+
+msgid "after"
+msgstr "after"
+
+msgid "on or after"
+msgstr "on or after"
+
+msgid "on or before"
+msgstr "on or before"
+
+msgid "within ... before"
+msgstr "within ... before"
+
+msgid "within ... after"
+msgstr "within ... after"
+
+msgid "days"
+msgstr "days"
+
+msgid "weeks"
+msgstr "weeks"
+
+msgid "months"
+msgstr "months"
+
+msgid "years"
+msgstr "years"
+
+msgid "a fixed date"
+msgstr "a fixed date"
+
+msgid "the current date"
+msgstr "the current date"
+
+msgid "relative to the current date"
+msgstr "relative to the current date"
+
+msgid "offset by"
+msgstr "offset by"
+
+msgid "in the past"
+msgstr "in the past"
+
+msgid "in the future"
+msgstr "in the future"
+
+msgid "Any unvalidated number"
+msgstr "Any unvalidated number"
+
+msgid "Choose operator..."
+msgstr "Choose operator..."
+
+msgid "less than"
+msgstr "less than"
+
+msgid "less than or equal to"
+msgstr "less than or equal to"
+
+msgid "greater than"
+msgstr "greater than"
+
+msgid "greater than or equal to"
+msgstr "greater than or equal to"
+
+msgid "equal to"
+msgstr "equal to"
+
+msgid "not equal to"
+msgstr "not equal to"
+
+msgid "a fixed value of"
+msgstr "a fixed value of"
+
+msgid "Action type"
+msgstr "Action type"
+
+msgid "Template preview"
+msgstr "Template preview"
+
+msgid "Configure a bulk rule template to preview it here."
+msgstr "Configure a bulk rule template to preview it here."
+
+msgid "Add to bulk queue"
+msgstr "Add to bulk queue"
+
+msgid "No queued bulk rules yet."
+msgstr "No queued bulk rules yet."
+
+msgid "Remove"
+msgstr "Remove"
+
+msgid ""
+"These rules are applied only to variables that are currently unvalidated "
+"when you click Apply queued rules."
+msgstr ""
+"These rules are applied only to variables that are currently unvalidated "
+"when you click Apply queued rules."
+
+msgid "Unknown stage"
+msgstr "Unknown stage"
+
+msgid "Apply queued rules"
+msgstr "Apply queued rules"
+
+msgid "Clear queue"
+msgstr "Clear queue"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Rule ID"
+msgstr "Rule ID"
+
+msgid "Condition"
+msgstr "Condition"
+
+msgid "Message"
+msgstr "Message"
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Program rule name prefix"
+msgstr "Program rule name prefix"
+
+msgid "e.g. EIR"
+msgstr "e.g. EIR"
+
+msgid "Added to all program rule names created by this tool"
+msgstr "Added to all program rule names created by this tool"
+
+msgid "Program rule variable prefix"
+msgstr "Program rule variable prefix"
+
+msgid "Added to all program rule variable names (use underscores only)"
+msgstr "Added to all program rule variable names (use underscores only)"
+
+msgid "Save settings"
+msgstr "Save settings"
+
+msgid "Settings required"
+msgstr "Settings required"
+
+msgid ""
+"Please configure programme settings first (using the Programme settings "
+"button above)."
+msgstr ""
+"Please configure programme settings first (using the Programme settings "
+"button above)."
+
+msgid "another tracked date"
+msgstr "another tracked date"
+
+msgid "Choose date..."
+msgstr "Choose date..."
+
+msgid "a fixed value"
+msgstr "a fixed value"
+
+msgid "another field"
+msgstr "another field"
+
+msgid "e.g. 100"
+msgstr "e.g. 100"
+
+msgid "Choose field..."
+msgstr "Choose field..."
+
+msgid "Preview"
+msgstr "Preview"
+
+msgid "Configure the validation above to see a preview"
+msgstr "Configure the validation above to see a preview"
+
+msgid "Rule name"
+msgstr "Rule name"
+
+msgid "e.g. Birth date must be before enrollment date"
+msgstr "e.g. Birth date must be before enrollment date"
+
+msgid "A descriptive name for administrators to identify this rule"
+msgstr "A descriptive name for administrators to identify this rule"
+
+msgid "Rule description (optional)"
+msgstr "Rule description (optional)"
+
+msgid "Additional details about this validation rule for administrators"
+msgstr "Additional details about this validation rule for administrators"
+
+msgid "Validation message"
+msgstr "Validation message"
+
+msgid "e.g. Birth date cannot be after enrollment date"
+msgstr "e.g. Birth date cannot be after enrollment date"
+
+msgid "Message shown to users when validation fails"
+msgstr "Message shown to users when validation fails"
+
+msgid "How DHIS2 should respond when validation fails"
+msgstr "How DHIS2 should respond when validation fails"
+
+msgid "Update validation rule"
+msgstr "Update validation rule"
+
+msgid "Create validation rule"
+msgstr "Create validation rule"
+
+msgid "Cancel editing"
+msgstr "Cancel editing"
+
+msgid "1 rule"
+msgstr "1 rule"
+
+msgid "Enrollment & programme dates"
+msgstr "Enrollment & programme dates"
+
+msgid "No date or numeric variables at enrollment level."
+msgstr "No date or numeric variables at enrollment level."
+
+msgid "Settings saved successfully"
+msgstr "Settings saved successfully"
+
+msgid "Programme metadata is not loaded yet"
+msgstr "Programme metadata is not loaded yet"
+
+msgid "Validation rule created successfully"
+msgstr "Validation rule created successfully"
+
+msgid "Validation rule updated successfully"
+msgstr "Validation rule updated successfully"
+
+msgid "Validation rule deleted successfully"
+msgstr "Validation rule deleted successfully"
+
+msgid "Created 1 validation rule from the queued bulk rules"
+msgstr "Created 1 validation rule from the queued bulk rules"
+
+msgid "Error loading programme"
+msgstr "Error loading programme"
+
+msgid "An unknown error occurred"
+msgstr "An unknown error occurred"
+
+msgid "Variable not found"
+msgstr "Variable not found"
+
+msgid "The requested variable does not exist in this programme."
+msgstr "The requested variable does not exist in this programme."
+
+msgid "Back to overview"
+msgstr "Back to overview"
+
+msgid "No editable action found for this rule"
+msgstr "No editable action found for this rule"
+
+msgid "Cannot parse rule condition for editing"
+msgstr "Cannot parse rule condition for editing"
+
+msgid "Current validations"
+msgstr "Current validations"
+
+msgid "No validations configured for this variable."
+msgstr "No validations configured for this variable."
+
+msgid "Other program rules using this variable"
+msgstr "Other program rules using this variable"
+
+msgid "Edit program rule"
+msgstr "Edit program rule"
+
+msgid "Add new validation"
+msgstr "Add new validation"
+
+msgid "Delete validation rule"
+msgstr "Delete validation rule"
+
+msgid "Remove batch rules?"
+msgstr "Remove batch rules?"
+
+msgid "Remove batch rules"
+msgstr "Remove batch rules"
+
+msgid ""
+"This variable already has a batch rule. Remove it since you now have a "
+"specific rule?"
+msgstr ""
+"This variable already has a batch rule. Remove it since you now have a "
+"specific rule?"
+
+msgid "Loading programme metadata..."
+msgstr "Loading programme metadata..."
+
+msgid "Variables"
+msgstr "Variables"
+
+msgid ""
+"Please configure programme settings (using the Programme settings button "
+"above) before creating validation rules."
+msgstr ""
+"Please configure programme settings (using the Programme settings button "
+"above) before creating validation rules."
+
+msgid "Select a programme"
+msgstr "Select a programme"
+
+msgid ""
+"Choose a tracker programme in the bar above to view its date and numeric "
+"variables and manage validation rules."
+msgstr ""
+"Choose a tracker programme in the bar above to view its date and numeric "
+"variables and manage validation rules."
+
+msgctxt "Application title"
+msgid "__MANIFEST_APP_TITLE"
+msgstr "Tracker Validation Tool"
+
+msgctxt "Application description"
+msgid "__MANIFEST_APP_DESCRIPTION"
+msgstr ""
+"Configure and manage validation program rules (dates and numeric values) in "
+"DHIS2 tracker programmes"

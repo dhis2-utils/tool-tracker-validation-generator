@@ -1,0 +1,60 @@
+.shell {
+    min-height: 100vh;
+    background: var(--colors-grey100);
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacers-dp12);
+    padding: var(--spacers-dp8) var(--spacers-dp16);
+    background: var(--colors-white);
+    border-block-end: 1px solid var(--colors-grey400);
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 10;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: var(--spacers-dp8);
+    white-space: nowrap;
+}
+
+.brandIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 28px;
+    block-size: 28px;
+    border-radius: 6px;
+    background: var(--theme-primary600);
+    color: var(--colors-white);
+    font-weight: 700;
+}
+
+.brandName {
+    font-weight: 600;
+    color: var(--colors-grey900);
+}
+
+.programSelect {
+    inline-size: 320px;
+    max-inline-size: 40vw;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.main {
+    flex: 1;
+    inline-size: 100%;
+    max-inline-size: 1080px;
+    margin-inline: auto;
+    padding: var(--spacers-dp16);
+    box-sizing: border-box;
+}
