@@ -78,15 +78,26 @@ export function getConfigurationSignature(variable1, variable2, config) {
 export function findDuplicateRule(programMetadata, variable, config) {
     if (!programMetadata || !variable || !config) return null;
     
-    const { comparisonDate } = config;
-    const [compareType, compareId, compareStageId] = comparisonDate.split(":");
-    
-    // Create comparison variable object
-    const compareVariable = {
-        type: compareType,
-        id: compareId,
-        stageId: compareStageId
-    };
+    let compareVariable;
+    const comparisonMode = config.comparisonDateMode || "variable";
+    if (comparisonMode === "fixed") {
+        compareVariable = { type: "fixed_date", id: config.fixedComparisonDate };
+    } else if (comparisonMode === "current") {
+        compareVariable = { type: "current_date", id: "current_date" };
+    } else if (comparisonMode === "relative") {
+        compareVariable = {
+            type: "relative_current_date",
+            id: `current_date_${config.relativeComparisonDirection || "past"}_${Math.abs(config.relativeComparisonAmount)}_${config.relativeComparisonUnit || "days"}`
+        };
+    } else {
+        const { comparisonDate } = config;
+        const [compareType, compareId, compareStageId] = comparisonDate.split(":");
+        compareVariable = {
+            type: compareType,
+            id: compareId,
+            stageId: compareStageId
+        };
+    }
     
     // Look for existing rules that target the same variables regardless of who created them
     const existingValidations = prGetExisting(programMetadata, variable);
@@ -126,33 +137,79 @@ const NUMERIC_OP_REVERSE_MAP = {
     "==": "equal_to", "!=" : "not_equal_to"
 };
 
+function parseBetweenExpression(condition) {
+    const trimmed = condition.trim();
+    const fnMatch = trimmed.match(/^d2:(days|weeks|months|years)Between\(/);
+    if (!fnMatch) return null;
+
+    const unit = fnMatch[1];
+    let index = fnMatch[0].length;
+    let depth = 0;
+    let inQuote = false;
+    let splitIndex = -1;
+    let closeIndex = -1;
+
+    while (index < trimmed.length) {
+        const char = trimmed[index];
+        if (char === "'" && trimmed[index - 1] !== "\\") {
+            inQuote = !inQuote;
+        } else if (!inQuote) {
+            if (char === "(") depth++;
+            if (char === ")") {
+                if (depth === 0) {
+                    closeIndex = index;
+                    break;
+                }
+                depth--;
+            }
+            if (char === "," && depth === 0 && splitIndex === -1) {
+                splitIndex = index;
+            }
+        }
+        index++;
+    }
+
+    if (splitIndex === -1 || closeIndex === -1) return null;
+
+    const ref1 = trimmed.slice(fnMatch[0].length, splitIndex).trim();
+    const ref2 = trimmed.slice(splitIndex + 1, closeIndex).trim();
+    const remainder = trimmed.slice(closeIndex + 1).trim();
+    const comparatorMatch = remainder.match(/^(>=|<=|>|<|==|!=)\s*(-?\d+)$/);
+    if (!comparatorMatch) return null;
+
+    return {
+        unit,
+        ref1,
+        ref2,
+        op: comparatorMatch[1],
+        value: parseInt(comparatorMatch[2], 10)
+    };
+}
+
 export function parseRuleCondition(condition, programMetadata, targetVariable = null) {
     // Strip leading d2:hasValue() guard before parsing
     const strippedCondition = condition.replace(/^d2:hasValue\([^)]+\)\s*&&\s*/, "");
     condition = strippedCondition;
     
+    const betweenExpression = parseBetweenExpression(condition);
+
     // Parse d2:daysBetween date comparison conditions (robust)
-    const daysBetweenMatch = condition.match(/d2:daysBetween\(([^,]+),\s*([^)]+)\)\s*(>=|<=|>|<)\s*(-?\d+)/);
-    if (daysBetweenMatch) {
-        const [, ref1, ref2, op, value] = daysBetweenMatch;
-        // Clean up variable references
-        const var1Ref = ref1.trim().replace(/^V\{|\}$/g, "");
-        const var2Ref = ref2.trim().replace(/^V\{|\}$/g, "");
-        const variable1 = parseVariableReference(var1Ref, programMetadata);
-        const variable2 = parseVariableReference(var2Ref, programMetadata);
+    if (betweenExpression && betweenExpression.unit === "days") {
+        const variable1 = parseVariableReference(betweenExpression.ref1, programMetadata);
+        const variable2 = parseVariableReference(betweenExpression.ref2, programMetadata);
         if (!variable1 || !variable2) return null;
         let operator;
-        const numValue = parseInt(value);
+        const numValue = betweenExpression.value;
         // Support all valid patterns
-        if (op === "<" && numValue === 0) {
+        if (betweenExpression.op === "<" && numValue === 0) {
             operator = "before";
-        } else if (op === ">" && numValue === 0) {
+        } else if (betweenExpression.op === ">" && numValue === 0) {
             operator = "after";
-        } else if (op === ">=" && numValue === 0) {
+        } else if (betweenExpression.op === ">=" && numValue === 0) {
             operator = "on_or_after";
-        } else if (op === "<=" && numValue === 0) {
+        } else if (betweenExpression.op === "<=" && numValue === 0) {
             operator = "on_or_before";
-        } else if (op === ">" && numValue > 0) {
+        } else if (betweenExpression.op === ">" && numValue > 0) {
             // This could be an interval condition - check if we have targetVariable context
             if (targetVariable) {
                 const ref2IsTarget = variable2.id === targetVariable.id && variable2.type === targetVariable.type;
@@ -160,7 +217,7 @@ export function parseRuleCondition(condition, programMetadata, targetVariable = 
             } else {
                 operator = "within_after"; // default
             }
-        } else if (op === "<" && numValue < 0) {
+        } else if (betweenExpression.op === "<" && numValue < 0) {
             // This could be an interval condition - check if we have targetVariable context
             if (targetVariable) {
                 const ref2IsTarget = variable2.id === targetVariable.id && variable2.type === targetVariable.type;
@@ -187,14 +244,9 @@ export function parseRuleCondition(condition, programMetadata, targetVariable = 
     }
     
     // Parse interval-based conditions (d2:daysBetween/d2:weeksBetween/etc with amounts > 0)
-    const intervalMatch = condition.match(/d2:(days|weeks|months|years)Between\(([^,]+),\s*([^)]+)\)\s*(>=|<=|>|<|==|!=)\s*(-?\d+)/);
-    if (intervalMatch) {
-        const [, unit, ref1, ref2, amount] = intervalMatch;
-        // Clean up variable references
-        const var1Ref = ref1.trim().replace(/^V\{|\}$/g, "");
-        const var2Ref = ref2.trim().replace(/^V\{|\}$/g, "");
-        const parsedRef1 = parseVariableReference(var1Ref, programMetadata);
-        const parsedRef2 = parseVariableReference(var2Ref, programMetadata);
+    if (betweenExpression) {
+        const parsedRef1 = parseVariableReference(betweenExpression.ref1, programMetadata);
+        const parsedRef2 = parseVariableReference(betweenExpression.ref2, programMetadata);
         if (!parsedRef1 || !parsedRef2) return null;
 
         // Determine direction using targetVariable context:
@@ -218,8 +270,8 @@ export function parseRuleCondition(condition, programMetadata, targetVariable = 
             variable2,
             config: {
                 operator,
-                intervalAmount: parseInt(amount),
-                intervalUnit: unit
+                intervalAmount: betweenExpression.value,
+                intervalUnit: betweenExpression.unit
             }
         };
     }
@@ -249,14 +301,38 @@ export function parseRuleCondition(condition, programMetadata, targetVariable = 
 }
 
 function parseVariableReference(varRef, programMetadata) {
+    if (!varRef) return null;
+    if (/^'\d{4}-\d{2}-\d{2}'$/.test(varRef)) {
+        const dateValue = varRef.slice(1, -1);
+        return { type: "fixed_date", id: dateValue, name: dateValue };
+    }
+
+    const relativeCurrentMatch = varRef.match(/^d2:add(Days|Months|Years)\(V\{current_date\},\s*(-?\d+)\)$/);
+    if (relativeCurrentMatch) {
+        const unit = relativeCurrentMatch[1].toLowerCase();
+        const rawAmount = parseInt(relativeCurrentMatch[2], 10);
+        const relativeAmount = Math.abs(rawAmount);
+        const relativeDirection = rawAmount < 0 ? "past" : "future";
+        const label = `${relativeAmount} ${unit} ${relativeDirection === "past" ? "before" : "after"} current date`;
+        return {
+            type: "relative_current_date",
+            id: `current_date_${relativeDirection}_${relativeAmount}_${unit}`,
+            name: label,
+            relativeAmount,
+            relativeUnit: unit,
+            relativeDirection
+        };
+    }
+
+    const cleanVarRef = varRef.trim().replace(/^V\{|\}$/g, "");
     // Handle system variables
-    if (varRef === "enrollment_date") return { type: "enrollment", id: "enrollment_date" };
-    if (varRef === "incident_date") return { type: "incident", id: "incident_date" };
-    if (varRef === "event_date") return { type: "event_date", id: "event_date" };
-    if (varRef === "current_date") return { type: "current_date", id: "current_date" };
+    if (cleanVarRef === "enrollment_date") return { type: "enrollment", id: "enrollment_date", name: "Enrollment date" };
+    if (cleanVarRef === "incident_date") return { type: "incident", id: "incident_date", name: "Incident date" };
+    if (cleanVarRef === "event_date") return { type: "event_date", id: "event_date", name: "Event date" };
+    if (cleanVarRef === "current_date") return { type: "current_date", id: "current_date", name: "Current date" };
     
     // Handle program rule variables (data elements and attributes)
-    const prvName = varRef.replace(/[#{}]/g, "");
+    const prvName = cleanVarRef.replace(/[#{}]/g, "");
     // Only match by PRV name
     const prv = programMetadata.programRuleVariables?.find(v => v.name === prvName);
     if (!prv) return null;

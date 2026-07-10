@@ -1,7 +1,7 @@
 // Pure functions for building rule expressions and labels
 
 export function isSystemVariable(variable) {
-    return ["enrollment", "incident", "event_date", "due_date", "current_date"].includes(variable?.type);
+    return ["enrollment", "incident", "event_date", "due_date", "current_date", "fixed_date", "relative_current_date"].includes(variable?.type);
 }
 
 export function getVariableReference(variable) {
@@ -12,6 +12,17 @@ export function getVariableReference(variable) {
     case "event_date": return "V{event_date}";
     case "due_date": return "V{due_date}";
     case "current_date": return "V{current_date}";
+    case "fixed_date":
+        return `'${variable.id}'`;
+    case "relative_current_date": {
+        const unitFn = variable.relativeUnit === "days" ? "d2:addDays"
+            : variable.relativeUnit === "months" ? "d2:addMonths"
+                : "d2:addYears";
+        const amount = variable.relativeDirection === "past"
+            ? -Math.abs(variable.relativeAmount)
+            : Math.abs(variable.relativeAmount);
+        return `${unitFn}(V{current_date}, ${amount})`;
+    }
     case "dataElement":
     case "trackedEntityAttribute":
         return `#{${variable.prvName || variable.name || variable.id}}`;
@@ -58,6 +69,14 @@ export function generateRuleName(variable1, variable2, validationType, customNam
         // Don't add signature to the name, just return the custom name
         return customName;
     }
+
+    const getDisplayName = variable => {
+        if (!variable) return "";
+        if (variable.stageName && ["dataElement", "event_date", "due_date"].includes(variable.type)) {
+            return `${variable.name} (${variable.stageName})`;
+        }
+        return variable.name;
+    };
     
     const labels = {
         before: "should be before",
@@ -70,7 +89,7 @@ export function generateRuleName(variable1, variable2, validationType, customNam
         difference_more_equal: "difference should be more than or equal to"
     };
     const label = labels[validationType] || validationType;
-    return `Date validation: ${variable1?.name} ${label} ${variable2?.name}`;
+    return `Date validation: ${getDisplayName(variable1)} ${label} ${getDisplayName(variable2)}`;
 }
 
 export function generateValidationMessage(variable1, variable2, validationType, differenceValue, differenceUnit) {

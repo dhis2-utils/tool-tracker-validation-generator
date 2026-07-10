@@ -26,6 +26,22 @@ describe("parseRuleCondition — date comparisons", () => {
         const result = parseRuleCondition("d2:daysBetween(V{event_date}, V{enrollment_date}) >= 0", mockMeta);
         expect(result.config.operator).toBe("on_or_after");
     });
+
+    it("parses fixed date literals as comparison targets", () => {
+        const result = parseRuleCondition("d2:daysBetween(#{EIR_VACCINATION_DATE}, '1900-01-01') > 0", mockMeta);
+        expect(result.variable2.type).toBe("fixed_date");
+        expect(result.variable2.id).toBe("1900-01-01");
+        expect(result.config.operator).toBe("after");
+    });
+
+    it("parses relative current-date offsets as comparison targets", () => {
+        const result = parseRuleCondition("d2:daysBetween(#{EIR_VACCINATION_DATE}, d2:addYears(V{current_date}, -100)) >= 0", mockMeta);
+        expect(result.variable2.type).toBe("relative_current_date");
+        expect(result.variable2.relativeDirection).toBe("past");
+        expect(result.variable2.relativeAmount).toBe(100);
+        expect(result.variable2.relativeUnit).toBe("years");
+        expect(result.config.operator).toBe("on_or_after");
+    });
 });
 
 describe("parseRuleCondition — interval direction", () => {
