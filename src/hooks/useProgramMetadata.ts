@@ -47,11 +47,14 @@ export const useProgramMetadata = (programId: string | undefined) => {
                     id: programId as string,
                     params: { fields: PROGRAM_FIELDS },
                 },
+                // Actions are fetched nested under their rules: filtering
+                // programRuleActions by programRule.program.id returns 400 on
+                // DHIS2 2.43 (the nested filter attribute no longer resolves).
                 rules: {
                     resource: 'programRules',
                     params: {
                         filter: `program.id:eq:${programId}`,
-                        fields: ':owner',
+                        fields: ':owner,programRuleActions[:owner]',
                         paging: false,
                     },
                 },
@@ -63,14 +66,6 @@ export const useProgramMetadata = (programId: string | undefined) => {
                         paging: false,
                     },
                 },
-                actions: {
-                    resource: 'programRuleActions',
-                    params: {
-                        filter: `programRule.program.id:eq:${programId}`,
-                        fields: ':owner',
-                        paging: false,
-                    },
-                },
             })) as {
                 program: Omit<
                     ProgramMetadata,
@@ -78,16 +73,22 @@ export const useProgramMetadata = (programId: string | undefined) => {
                     | 'programRuleVariables'
                     | 'programRuleActions'
                 >
-                rules: { programRules?: ProgramRule[] }
+                rules: {
+                    programRules?: (ProgramRule & {
+                        programRuleActions?: ProgramRuleAction[]
+                    })[]
+                }
                 variables: { programRuleVariables?: ProgramRuleVariable[] }
-                actions: { programRuleActions?: ProgramRuleAction[] }
             }
+            const rules = response.rules.programRules || []
             return {
                 ...response.program,
-                programRules: response.rules.programRules || [],
+                programRules: rules,
                 programRuleVariables:
                     response.variables.programRuleVariables || [],
-                programRuleActions: response.actions.programRuleActions || [],
+                programRuleActions: rules.flatMap(
+                    (rule) => rule.programRuleActions || []
+                ),
             }
         },
     })
