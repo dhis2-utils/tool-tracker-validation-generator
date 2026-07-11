@@ -1,8 +1,10 @@
-.tmp
-compiled
-build
-manifest.webapp
+# DHIS2 Platform
 node_modules
+.d2
+src/locales
+build
+compiled
+.tmp
 .vscode
-bin
-d2auth.json
+.DS_Store
+.pnpm-store

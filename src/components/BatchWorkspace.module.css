@@ -1,0 +1,137 @@
+.cardHeader {
+    padding: var(--spacers-dp12) var(--spacers-dp16);
+    border-block-end: 1px solid var(--colors-grey300);
+}
+
+.cardHeader h3 {
+    margin: 0;
+    font-size: 15px;
+    color: var(--colors-grey900);
+}
+
+.cardBody {
+    padding: var(--spacers-dp12) var(--spacers-dp16) var(--spacers-dp16);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp12);
+}
+
+.helperText {
+    margin: 0;
+    color: var(--colors-grey600);
+    font-size: 13px;
+}
+
+.templateGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacers-dp12);
+}
+
+.templateGrid > * {
+    min-inline-size: 220px;
+}
+
+.ruleBuilder {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacers-dp8);
+    padding: var(--spacers-dp12);
+    background: var(--colors-grey100);
+    border: 1px solid var(--colors-grey300);
+    border-radius: 4px;
+}
+
+.varName {
+    font-weight: 600;
+    color: var(--colors-grey900);
+}
+
+.connector {
+    color: var(--colors-grey600);
+}
+
+.inlineSelect {
+    min-inline-size: 190px;
+}
+
+.inlineUnit {
+    min-inline-size: 110px;
+}
+
+.inlineNumber {
+    inline-size: 90px;
+}
+
+.inlineDate {
+    inline-size: 170px;
+}
+
+.actionTypeRow {
+    max-inline-size: 320px;
+}
+
+.previewPanel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp4);
+    padding: var(--spacers-dp12);
+    background: var(--colors-teal050);
+    border: 1px solid var(--colors-teal200);
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.previewLabel {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--colors-teal700);
+}
+
+.drafts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp8);
+}
+
+.draftCard {
+    border: 1px solid var(--colors-grey300);
+    border-radius: 4px;
+    padding: var(--spacers-dp12);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp8);
+}
+
+.draftHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacers-dp8);
+}
+
+.draftDescription {
+    margin: 0;
+    color: var(--colors-grey600);
+    font-size: 13px;
+}
+
+.draftMeta {
+    display: flex;
+    gap: var(--spacers-dp8);
+    flex-wrap: wrap;
+}
+
+.emptyState {
+    color: var(--colors-grey600);
+    font-style: italic;
+    margin: 0;
+}
+
+.applyStatus {
+    color: var(--colors-grey600);
+    font-size: 13px;
+    min-block-size: 18px;
+}

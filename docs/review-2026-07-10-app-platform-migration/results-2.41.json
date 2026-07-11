@@ -1,0 +1,61 @@
+{
+  "results": [
+    [
+      "app loads with empty state",
+      "PASS",
+      ""
+    ],
+    [
+      "program selection loads overview",
+      "PASS",
+      ""
+    ],
+    [
+      "overview shows variables, stages expand, settings warning",
+      "PASS",
+      ""
+    ],
+    [
+      "settings saved to dataStore",
+      "PASS",
+      "{\"programRulePrefix\": \"TVT\", \"programRuleVariablePrefix\": \"TVT\"}"
+    ],
+    [
+      "create date rule (UI + API condition)",
+      "PASS",
+      "d2:daysBetween(V{enrollment_date}, V{current_date}) <= 0"
+    ],
+    [
+      "edit rule changes action type",
+      "PASS",
+      "['SHOWWARNING']"
+    ],
+    [
+      "create numeric rule + prefixed PRV",
+      "PASS",
+      "d2:hasValue(#{TVT_BIRTH_MCH_WEIGHT_G}) && #{TVT_BIRTH_MCH_WEIGHT_G} > 300"
+    ],
+    [
+      "batch apply creates rules for unvalidated dates",
+      "PASS",
+      "batch rules=5; alert='Created 5 validation rules from the queued bulk rules'"
+    ],
+    [
+      "batch-rule cleanup offer removes generic rule",
+      "PASS",
+      "remaining=0"
+    ],
+    [
+      "delete rule via UI",
+      "PASS",
+      "7->6"
+    ],
+    [
+      "overview shows rule-count tags",
+      "PASS",
+      ""
+    ]
+  ],
+  "console_errors": [],
+  "page_errors": []
+}

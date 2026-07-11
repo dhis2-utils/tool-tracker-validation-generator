@@ -1,0 +1,21 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp16);
+}
+
+.heading {
+    margin: 0;
+    font-size: 18px;
+    color: var(--colors-grey900);
+}
+
+.loadingContainer {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacers-dp12);
+    min-block-size: 300px;
+    color: var(--colors-grey600);
+}
