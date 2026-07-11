@@ -202,6 +202,11 @@ export function getUnvalidatedVariables(
         if (v.category !== category) {
             return false
         }
+        // "Current date" is a comparison-only pseudo-variable — rules cannot
+        // meaningfully validate it.
+        if (v.type === 'current_date') {
+            return false
+        }
         if (
             excludeVariable &&
             v.id === excludeVariable.id &&

@@ -8,7 +8,7 @@ import {
     SingleSelectOption,
     Tag,
 } from '@dhis2/ui'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import styles from './BatchWorkspace.module.css'
 import { useBatchQueue } from '@/components/BatchQueueContext'
 import { useFeedback } from '@/hooks/useFeedback'
@@ -79,11 +79,21 @@ export const BatchWorkspace = ({
     )
     const [numericValue, setNumericValue] = useState('')
 
+    // The overview stays mounted when the header switches programme — a
+    // stage picked for the previous programme must not leak into this one.
+    useEffect(() => {
+        setStageId(undefined)
+    }, [programMetadata.id])
+
+    const stageExists = (programMetadata.programStages || []).some(
+        (stage) => stage.id === stageId
+    )
+
     const isInterval =
         operator === 'within_before' || operator === 'within_after'
 
     const collectTemplate = (): BatchTemplate | null => {
-        if (scope === 'stage' && !stageId) {
+        if (scope === 'stage' && (!stageId || !stageExists)) {
             return null
         }
         if (category === 'numeric') {
@@ -144,7 +154,7 @@ export const BatchWorkspace = ({
             )
             return
         }
-        if (scope === 'stage' && !stageId) {
+        if (scope === 'stage' && (!stageId || !stageExists)) {
             showError(i18n.t('Choose a programme stage for this bulk rule.'))
             return
         }
@@ -254,7 +264,7 @@ export const BatchWorkspace = ({
                             dense
                             label={i18n.t('Programme stage')}
                             placeholder={i18n.t('Choose stage...')}
-                            selected={stageId}
+                            selected={stageExists ? stageId : undefined}
                             onChange={({ selected }: { selected: string }) =>
                                 setStageId(selected)
                             }

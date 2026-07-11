@@ -8,10 +8,12 @@ import {
     generateNumericFieldCondition,
     generateRuleName,
 } from '@/lib/builder'
+import { prGetExisting } from '@/lib/detector'
 import {
     addAppSignature,
     addBatchSignature,
     findDuplicateRule,
+    parseRuleCondition,
 } from '@/lib/signature'
 import type {
     BatchTemplate,
@@ -399,7 +401,8 @@ export async function createDateValidationForVariable(
     }
     if (
         (targetVariable.type === 'dataElement' ||
-            targetVariable.type === 'event_date') &&
+            targetVariable.type === 'event_date' ||
+            targetVariable.type === 'due_date') &&
         targetVariable.stageId
     ) {
         programRule.programStage = { id: targetVariable.stageId }
@@ -425,7 +428,7 @@ export async function createNumericValidationForVariable(
     targetVariable: Variable,
     signatureFn: SignatureFn = addAppSignature
 ): Promise<ProgramRule> {
-    const { programId, config: programConfig, variables } = ctx
+    const { metadata, programId, config: programConfig, variables } = ctx
     let compareField: Variable | null = null
     if (config.numericComparisonType === 'field') {
         compareField = findVariableByKey(
@@ -436,6 +439,31 @@ export async function createNumericValidationForVariable(
             throw new Error('Comparison field not found')
         }
     }
+
+    // Duplicate pre-check (mirrors the date path): same variable, operator
+    // and comparison target already covered by an existing rule.
+    for (const existing of prGetExisting(metadata, targetVariable)) {
+        const parsed = parseRuleCondition(
+            existing.rule.condition,
+            metadata,
+            targetVariable
+        )
+        if (!parsed || parsed.config.operator !== config.numericOperator) {
+            continue
+        }
+        const sameComparison =
+            config.numericComparisonType === 'field'
+                ? parsed.config.comparisonType === 'field' &&
+                  parsed.variable2?.id === compareField?.id
+                : parsed.config.comparisonType === 'value' &&
+                  parsed.config.value === config.numericValue
+        if (sameComparison) {
+            throw new Error(
+                `Duplicate rule already exists: "${existing.rule.name}"`
+            )
+        }
+    }
+
     const variable1Prv = await ensureProgramRuleVariable(ctx, targetVariable)
     const variable1WithPrv = { ...targetVariable, prvName: variable1Prv.name }
     let ruleCondition: string

@@ -1,5 +1,6 @@
 // Program rule signature and edit detection utilities
 import { prGetExisting } from './detector'
+import { parseBetweenExpression, stripNullGuard } from './expression'
 import type {
     ParsedRuleCondition,
     ProgramMetadata,
@@ -152,21 +153,21 @@ export function findDuplicateRule(
             continue
         }
 
+        // Parsed references take stage from the PRV, which this app doesn't
+        // stage-scope — treat a missing stage on either side as a match.
+        const sameStage = (a?: string, b?: string) => !a || !b || a === b
+        const sameVar = (a: Partial<Variable>, b: Partial<Variable>) =>
+            a.type === b.type &&
+            a.id === b.id &&
+            sameStage(a.stageId, b.stageId)
+
         // Check if this rule uses the same two variables AND the same operator
         const sameVariables =
-            (ruleConfig.variable1.type === variable.type &&
-                ruleConfig.variable1.id === variable.id &&
-                ruleConfig.variable1.stageId === variable.stageId &&
-                ruleConfig.variable2.type === compareVariable.type &&
-                ruleConfig.variable2.id === compareVariable.id &&
-                ruleConfig.variable2.stageId === compareVariable.stageId) ||
+            (sameVar(ruleConfig.variable1, variable) &&
+                sameVar(ruleConfig.variable2, compareVariable)) ||
             // Also check reversed order
-            (ruleConfig.variable1.type === compareVariable.type &&
-                ruleConfig.variable1.id === compareVariable.id &&
-                ruleConfig.variable1.stageId === compareVariable.stageId &&
-                ruleConfig.variable2.type === variable.type &&
-                ruleConfig.variable2.id === variable.id &&
-                ruleConfig.variable2.stageId === variable.stageId)
+            (sameVar(ruleConfig.variable1, compareVariable) &&
+                sameVar(ruleConfig.variable2, variable))
         const sameOperator = ruleConfig.config?.operator === config.operator
         if (sameVariables && sameOperator) {
             return rule
@@ -185,82 +186,13 @@ const NUMERIC_OP_REVERSE_MAP: Record<string, string> = {
     '!=': 'not_equal_to',
 }
 
-interface BetweenExpression {
-    unit: string
-    ref1: string
-    ref2: string
-    op: string
-    value: number
-}
-
-function parseBetweenExpression(condition: string): BetweenExpression | null {
-    const trimmed = condition.trim()
-    const fnMatch = trimmed.match(/^d2:(days|weeks|months|years)Between\(/)
-    if (!fnMatch) {
-        return null
-    }
-
-    const unit = fnMatch[1]
-    let index = fnMatch[0].length
-    let depth = 0
-    let inQuote = false
-    let splitIndex = -1
-    let closeIndex = -1
-
-    while (index < trimmed.length) {
-        const char = trimmed[index]
-        if (char === "'" && trimmed[index - 1] !== '\\') {
-            inQuote = !inQuote
-        } else if (!inQuote) {
-            if (char === '(') {
-                depth++
-            }
-            if (char === ')') {
-                if (depth === 0) {
-                    closeIndex = index
-                    break
-                }
-                depth--
-            }
-            if (char === ',' && depth === 0 && splitIndex === -1) {
-                splitIndex = index
-            }
-        }
-        index++
-    }
-
-    if (splitIndex === -1 || closeIndex === -1) {
-        return null
-    }
-
-    const ref1 = trimmed.slice(fnMatch[0].length, splitIndex).trim()
-    const ref2 = trimmed.slice(splitIndex + 1, closeIndex).trim()
-    const remainder = trimmed.slice(closeIndex + 1).trim()
-    const comparatorMatch = remainder.match(/^(>=|<=|>|<|==|!=)\s*(-?\d+)$/)
-    if (!comparatorMatch) {
-        return null
-    }
-
-    return {
-        unit,
-        ref1,
-        ref2,
-        op: comparatorMatch[1],
-        value: parseInt(comparatorMatch[2], 10),
-    }
-}
-
 export function parseRuleCondition(
     condition: string,
     programMetadata: ProgramMetadata,
     targetVariable: Variable | null = null
 ): ParsedRuleCondition | null {
     // Strip leading d2:hasValue() guard before parsing
-    const strippedCondition = condition.replace(
-        /^d2:hasValue\([^)]+\)\s*&&\s*/,
-        ''
-    )
-    condition = strippedCondition
+    condition = stripNullGuard(condition)
 
     const betweenExpression = parseBetweenExpression(condition)
 

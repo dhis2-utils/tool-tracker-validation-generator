@@ -6,7 +6,7 @@ import {
     IconArrowLeft24,
     NoticeBox,
 } from '@dhis2/ui'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import styles from './DetailsPage.module.css'
 import { ConfirmModal } from '@/components/ConfirmModal'
@@ -48,6 +48,15 @@ export const DetailsPage = () => {
             findVariableByComponents(variables, id ?? '', type ?? '', stageId),
         [variables, id, type, stageId]
     )
+
+    // The same route element serves every variable, so param-only navigation
+    // (e.g. browser back) keeps this component mounted — clear any in-flight
+    // edit/confirm state so it can't be applied to a different variable.
+    useEffect(() => {
+        setEditing(null)
+        setDeleteCandidate(null)
+        setCleanupCandidates(null)
+    }, [type, id, stageId])
 
     const {
         createValidation,
@@ -129,34 +138,46 @@ export const DetailsPage = () => {
         })
     }
 
+    // Mutation failures are reported through the hook's error alerts; the
+    // try/catch here only prevents unhandled promise rejections and keeps
+    // the form state for the user to correct.
     const handleSubmit = async (validationConfig: ValidationConfig) => {
-        if (editing) {
-            await updateValidationRule({
-                ruleId: editing.ruleId,
-                config: validationConfig,
-                variable,
-            })
-            setEditing(null)
+        try {
+            if (editing) {
+                await updateValidationRule({
+                    ruleId: editing.ruleId,
+                    config: validationConfig,
+                    variable,
+                })
+                setEditing(null)
+                setFormResetKey((k) => k + 1)
+                return
+            }
+            // Capture existing batch rules before creating: once the specific
+            // rule exists we offer to remove the generic batch-generated ones.
+            const batchRules = prGetExisting(programMetadata, variable).filter(
+                (v) => isBatchGenerated(v.rule)
+            )
+            await createValidation({ config: validationConfig, variable })
             setFormResetKey((k) => k + 1)
-            return
-        }
-        // Capture existing batch rules before creating: once the specific
-        // rule exists we offer to remove the generic batch-generated ones.
-        const batchRules = prGetExisting(programMetadata, variable).filter(
-            (v) => isBatchGenerated(v.rule)
-        )
-        await createValidation({ config: validationConfig, variable })
-        setFormResetKey((k) => k + 1)
-        if (batchRules.length > 0) {
-            setCleanupCandidates(batchRules)
+            if (batchRules.length > 0) {
+                setCleanupCandidates(batchRules)
+            }
+        } catch {
+            // error alert already shown by useValidationActions
         }
     }
 
     const handleCleanupConfirm = async () => {
-        for (const validation of cleanupCandidates ?? []) {
-            await deleteValidation(validation)
+        try {
+            for (const validation of cleanupCandidates ?? []) {
+                await deleteValidation(validation)
+            }
+        } catch {
+            // error alert already shown by useValidationActions
+        } finally {
+            setCleanupCandidates(null)
         }
-        setCleanupCandidates(null)
     }
 
     const busy = isCreating || isUpdating || isDeleting
@@ -235,8 +256,8 @@ export const DetailsPage = () => {
                 <div className={styles.cardBody}>
                     <ValidationForm
                         key={`${variable.type}:${variable.id}:${
-                            editing?.ruleId ?? 'new'
-                        }:${formResetKey}`}
+                            variable.stageId ?? ''
+                        }:${editing?.ruleId ?? 'new'}:${formResetKey}`}
                         variable={variable}
                         variables={variables}
                         programConfig={config}
@@ -257,7 +278,11 @@ export const DetailsPage = () => {
                     busy={isDeleting}
                     onCancel={() => setDeleteCandidate(null)}
                     onConfirm={async () => {
-                        await deleteValidation(deleteCandidate)
+                        try {
+                            await deleteValidation(deleteCandidate)
+                        } catch {
+                            // error alert already shown by useValidationActions
+                        }
                         setDeleteCandidate(null)
                     }}
                 >

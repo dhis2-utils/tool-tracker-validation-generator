@@ -433,3 +433,21 @@ describe('batch templates', () => {
         )
     })
 })
+
+describe('getUnvalidatedVariables — pseudo-variables', () => {
+    it('never targets the synthetic current-date variable', () => {
+        const currentDate = makeVariable({
+            type: 'current_date',
+            id: 'current_date',
+            name: 'Current date',
+            category: 'date',
+        })
+        const result = getUnvalidatedVariables(
+            makeMeta(),
+            [currentDate, enrollment],
+            'date',
+            null
+        )
+        expect(result).toEqual([enrollment])
+    })
+})
