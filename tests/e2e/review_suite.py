@@ -14,6 +14,7 @@ All created objects are deleted at the end (API-level cleanup), regardless of
 pass/fail. Exit code 0 = all steps passed.
 """
 import base64
+import re
 import json
 import os
 import sys
@@ -104,14 +105,19 @@ def find_root(page):
     raise RuntimeError(f"app root not found; frames={[f.url for f in page.frames]}")
 
 
-def choose(root, page, trigger_text, option_label):
-    """Open the SingleSelect whose visible text contains trigger_text and pick an option."""
-    sel = root.locator("[data-test='dhis2-uicore-singleselect']").filter(
+def choose(scope, page, trigger_text, option_label, root=None):
+    """Open the SingleSelect (within scope) showing trigger_text, pick an option.
+
+    Options render through a portal at the document/frame level, NOT inside
+    the trigger's DOM subtree — always resolve them against the frame root.
+    """
+    root = root or scope
+    sel = scope.locator("[data-test='dhis2-uicore-singleselect']").filter(
         has_text=trigger_text).first
     sel.scroll_into_view_if_needed()
     sel.click()
     opt = root.locator("[data-test='dhis2-uicore-singleselectoption']").filter(
-        has_text=option_label).first
+        has_text=re.compile(rf"^{re.escape(option_label)}$")).first
     opt.click()
     page.wait_for_timeout(300)
 
@@ -129,8 +135,10 @@ def wait_alert(root, page, substr, timeout=30000):
     return text
 
 
-def fill_field(root, label, value):
-    field = root.get_by_label(label, exact=False).first
+def fill_field(root, placeholder, value, nth=0):
+    # NOTE: @dhis2/ui InputField labels are not programmatically associated
+    # with their inputs (no for/id pairing), so get_by_label() cannot be used.
+    field = root.get_by_placeholder(placeholder).nth(nth)
     field.fill(value)
 
 
@@ -175,8 +183,7 @@ def main():
             root.get_by_text("Settings required").first.wait_for(timeout=10000)
             enr = root.get_by_text("Date of enrollment (enrollment date)")
             enr.first.wait_for(timeout=10000)
-            birth_toggle = root.get_by_role("button", name="Birth").first
-            birth_toggle.click()
+            root.get_by_role("heading", name="Birth", exact=True).click()
             root.get_by_text("MCH Weight (g)").first.wait_for(timeout=5000)
             record("overview shows variables, stages expand, settings warning", True)
         except Exception as e:
@@ -188,8 +195,8 @@ def main():
             root.get_by_role("button", name="Programme settings").click()
             modal = root.locator("[data-test='dhis2-uicore-modal']")
             modal.wait_for(timeout=10000)
-            fill_field(modal, "Program rule name prefix", "TVT")
-            fill_field(modal, "Program rule variable prefix", "TVT")
+            fill_field(modal, "e.g. EIR", "TVT", nth=0)
+            fill_field(modal, "e.g. EIR", "TVT", nth=1)
             modal.get_by_role("button", name="Save settings").click()
             wait_alert(root, page, "Settings saved")
             root.get_by_text("Settings required").first.wait_for(state="detached",
@@ -249,7 +256,7 @@ def main():
         try:
             root.get_by_role("button", name="Back to overview").click()
             root.get_by_text("Bulk rules for unvalidated variables").wait_for(timeout=10000)
-            root.get_by_role("button", name="Birth").first.click()
+            root.get_by_role("heading", name="Birth", exact=True).click()
             root.get_by_text("MCH Weight (g)").first.click()
             root.get_by_text("Add new validation").wait_for(timeout=10000)
             choose(root, page, "Choose operator", "greater than")
@@ -277,7 +284,7 @@ def main():
             batch_card = root.locator("[data-test='dhis2-uicore-card']").filter(
                 has_text="Bulk rules for unvalidated variables").first
             batch_card.wait_for(timeout=10000)
-            choose(batch_card, page, "Choose relationship", "before")
+            choose(batch_card, page, "Choose relationship", "before", root=root)
             batch_card.locator("input[type='date']").fill("2030-01-01")
             batch_card.get_by_text(
                 "Any unvalidated date should be before 2030-01-01").wait_for(timeout=5000)

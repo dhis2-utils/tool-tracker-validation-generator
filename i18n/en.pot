@@ -5,8 +5,8 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"POT-Creation-Date: 2026-07-10T20:23:54.581Z\n"
-"PO-Revision-Date: 2026-07-10T20:23:54.582Z\n"
+"POT-Creation-Date: 2026-07-11T06:27:51.028Z\n"
+"PO-Revision-Date: 2026-07-11T06:27:51.028Z\n"
 
 msgid "Tracker Validation Tool"
 msgstr "Tracker Validation Tool"
@@ -317,9 +317,6 @@ msgstr "No date or numeric variables at enrollment level."
 msgid "Settings saved successfully"
 msgstr "Settings saved successfully"
 
-msgid "Programme metadata is not loaded yet"
-msgstr "Programme metadata is not loaded yet"
-
 msgid "Validation rule created successfully"
 msgstr "Validation rule created successfully"
 
@@ -328,6 +325,9 @@ msgstr "Validation rule updated successfully"
 
 msgid "Validation rule deleted successfully"
 msgstr "Validation rule deleted successfully"
+
+msgid "Programme metadata is not loaded yet"
+msgstr "Programme metadata is not loaded yet"
 
 msgid "Created 1 validation rule from the queued bulk rules"
 msgstr "Created 1 validation rule from the queued bulk rules"

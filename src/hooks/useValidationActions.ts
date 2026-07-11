@@ -1,8 +1,7 @@
-import { useDataEngine } from '@dhis2/app-runtime'
+import { useAlert, useDataEngine } from '@dhis2/app-runtime'
 import i18n from '@dhis2/d2-i18n'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useFeedback } from './useFeedback'
 import { programMetadataQueryKey } from './useProgramMetadata'
 import type {
     BatchTemplate,
@@ -41,7 +40,54 @@ export const useValidationActions = ({
 }: UseValidationActionsInput) => {
     const engine = useDataEngine()
     const queryClient = useQueryClient()
-    const { showSuccess, showError } = useFeedback()
+    // One useAlert instance per outcome: app-runtime's useAlert manages a
+    // single alert per instance and silently ignores show() while that alert
+    // is still visible — a shared instance would swallow e.g. the "deleted"
+    // confirmation that immediately follows a "created" one.
+    const { show: showCreated } = useAlert(
+        i18n.t('Validation rule created successfully'),
+        { success: true }
+    )
+    const { show: showUpdated } = useAlert(
+        i18n.t('Validation rule updated successfully'),
+        { success: true }
+    )
+    const { show: showDeleted } = useAlert(
+        i18n.t('Validation rule deleted successfully'),
+        { success: true }
+    )
+    const { show: showBatchDone } = useAlert(
+        ({ message }: { message: string }) => message,
+        { success: true }
+    )
+    const { show: showCreateError } = useAlert(
+        ({ message }: { message: string }) =>
+            i18n.t('Error creating validation rule: {{message}}', {
+                message,
+                nsSeparator: undefined,
+            }),
+        { critical: true }
+    )
+    const { show: showUpdateError } = useAlert(
+        ({ message }: { message: string }) =>
+            i18n.t('Error updating validation rule: {{message}}', {
+                message,
+                nsSeparator: undefined,
+            }),
+        { critical: true }
+    )
+    const { show: showDeleteError } = useAlert(
+        ({ message }: { message: string }) =>
+            i18n.t('Error deleting validation rule: {{message}}', {
+                message,
+                nsSeparator: undefined,
+            }),
+        { critical: true }
+    )
+    const { show: showBatchError } = useAlert(
+        ({ message }: { message: string }) => message,
+        { critical: true }
+    )
     const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(
         null
     )
@@ -78,16 +124,11 @@ export const useValidationActions = ({
         },
         {
             onSuccess: () => {
-                showSuccess(i18n.t('Validation rule created successfully'))
+                showCreated()
                 invalidateMetadata()
             },
             onError: (error) => {
-                showError(
-                    i18n.t('Error creating validation rule: {{message}}', {
-                        message: error.message,
-                        nsSeparator: undefined,
-                    })
-                )
+                showCreateError({ message: error.message })
             },
         }
     )
@@ -106,16 +147,11 @@ export const useValidationActions = ({
         },
         {
             onSuccess: () => {
-                showSuccess(i18n.t('Validation rule updated successfully'))
+                showUpdated()
                 invalidateMetadata()
             },
             onError: (error) => {
-                showError(
-                    i18n.t('Error updating validation rule: {{message}}', {
-                        message: error.message,
-                        nsSeparator: undefined,
-                    })
-                )
+                showUpdateError({ message: error.message })
             },
         }
     )
@@ -124,16 +160,11 @@ export const useValidationActions = ({
         (validation) => deleteRule(engine, validation),
         {
             onSuccess: () => {
-                showSuccess(i18n.t('Validation rule deleted successfully'))
+                showDeleted()
                 invalidateMetadata()
             },
             onError: (error) => {
-                showError(
-                    i18n.t('Error deleting validation rule: {{message}}', {
-                        message: error.message,
-                        nsSeparator: undefined,
-                    })
-                )
+                showDeleteError({ message: error.message })
             },
         }
     )
@@ -160,8 +191,8 @@ export const useValidationActions = ({
             },
             onSuccess: (result) => {
                 if (result.errors.length > 0) {
-                    showError(
-                        i18n.t(
+                    showBatchError({
+                        message: i18n.t(
                             'Created {{count}} rule(s). {{skipped}} skipped: {{errors}}',
                             {
                                 count: result.createdCount,
@@ -169,32 +200,30 @@ export const useValidationActions = ({
                                 errors: result.errors.join('; '),
                                 nsSeparator: undefined,
                             }
-                        )
-                    )
+                        ),
+                    })
                 } else if (result.createdCount === 1) {
-                    showSuccess(
-                        i18n.t(
+                    showBatchDone({
+                        message: i18n.t(
                             'Created 1 validation rule from the queued bulk rules'
-                        )
-                    )
+                        ),
+                    })
                 } else {
-                    showSuccess(
-                        i18n.t(
+                    showBatchDone({
+                        message: i18n.t(
                             'Created {{count}} validation rules from the queued bulk rules',
-                            {
-                                count: result.createdCount,
-                            }
-                        )
-                    )
+                            { count: result.createdCount }
+                        ),
+                    })
                 }
             },
             onError: (error) => {
-                showError(
-                    i18n.t('Error applying bulk rules: {{message}}', {
+                showBatchError({
+                    message: i18n.t('Error applying bulk rules: {{message}}', {
                         message: error.message,
                         nsSeparator: undefined,
-                    })
-                )
+                    }),
+                })
             },
         }
     )
