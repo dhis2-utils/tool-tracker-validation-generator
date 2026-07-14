@@ -7,15 +7,38 @@ imported through the DHIS2 tracker API. It is version/DB agnostic: it AUTO-DISCO
 a suitable tracker programme (one exposing at least one numeric field and one date
 field) so the same script runs against Laos, Sierra Leone, etc.
 
-Rule formats reproduced verbatim from src/lib/builder.ts
+Rule formats reproduced verbatim from src/lib/builder.ts (POST-FIX forms). A
+SHOWERROR rule fires when its condition is TRUE, so the condition expresses the
+VIOLATION -- the value the admin means to REJECT. The two "between" rules used to
+be logically INVERTED (fired when the value SATISFIED the constraint); the forms
+below are the corrected ones and the violate/valid values in this suite are chosen
+by SEMANTICS (see "SEMANTIC / regression-guard note" below), so the old inverted
+forms would now FAIL.
 ------------------------------------------------------------------
 * date "before current date":  d2:daysBetween(<ref>, V{current_date}) < 0
-* date "between" L..U (incl.):  d2:daysBetween(<ref>, <L>) <= 0 && d2:daysBetween(<ref>, <U>) >= 0
-                                 where L = d2:addYears(V{current_date}, -1), U = V{current_date}
+                                 (fires when the date is in the FUTURE -> violation)
+* date "between" L..U (incl.):  d2:hasValue(<ref>) &&
+                                 (d2:daysBetween(<ref>, <L>) > 0 || d2:daysBetween(<ref>, <U>) < 0)
+                                 (fires when the date is OUTSIDE [L,U] -> violation)
 * numeric comparison:          d2:hasValue(#{PRV}) && #{PRV} > 120
-* numeric "between":           d2:hasValue(#{PRV}) && #{PRV} >= 0 && #{PRV} <= 115
+                                 (fires when value > 120 -> violation of "must be <= 120")
+* numeric "between":           d2:hasValue(#{PRV}) && (#{PRV} < 0 || #{PRV} > 115)
+                                 (fires when value is OUTSIDE [0,115] -> violation)
 For a data element / attribute date field, builder prepends a null guard
 `d2:hasValue(<ref>) && ...`; we reproduce that too.
+
+SEMANTIC / regression-guard note
+------------------------------------------------------------------
+For every rule, VIOLATE = a value the admin means to REJECT (must FIRE our rule's
+E1300 and block the import); VALID = a value the admin means to ACCEPT (must NOT
+fire our rule's E1300). Crucially, for the "between" rules the VALID case is an
+IN-RANGE value and the VIOLATE case is an OUT-OF-RANGE value:
+  * numeric between [0,115]:  VIOLATE = 200 (above max -> fires); VALID = 50 (in range -> silent)
+  * date between [L,U]:       VIOLATE = a date OUTSIDE the window (fires); VALID = a date INSIDE (silent)
+The IN-RANGE / VALID case staying SILENT is the REGRESSION GUARD for the previously
+inverted logic: the old inverted forms (`#{PRV} >= 0 && #{PRV} <= 115`,
+`daysBetween <= 0 && >= 0`) fired on in-range values, so with these semantic labels
+they would FAIL the "VALID import does NOT fire" assertion.
 
 How SHOWERROR effects surface on POST /api/tracker (async=false), verified against
 2.43: a met SHOWERROR condition yields status=ERROR + validationReport.errorReports[]
@@ -105,23 +128,29 @@ def record(rule_key, ok, note=""):
 # Value calendar (relative to today, so nothing is hardcoded to a given year).
 # ---------------------------------------------------------------------------
 TODAY = datetime.date.today()
-FUTURE_DATE = (TODAY + datetime.timedelta(days=4 * 365)).isoformat()   # clearly future
-RECENT_DATE = (TODAY - datetime.timedelta(days=30)).isoformat()        # within last year
-OLD_DATE = (TODAY - datetime.timedelta(days=3 * 365)).isoformat()      # >1yr ago, past
+FUTURE_DATE = (TODAY + datetime.timedelta(days=4 * 365)).isoformat()   # clearly future (after window upper)
+RECENT_DATE = (TODAY - datetime.timedelta(days=30)).isoformat()        # within last year (INSIDE window)
+OLD_DATE = (TODAY - datetime.timedelta(days=3 * 365)).isoformat()      # >1yr ago, past (BEFORE window lower)
 # fixed inclusive window [now-1y, now] expressed as date literals (a tool output when
 # the user picks fixed_date bounds); the relative equivalent uses d2:addYears (see findings)
 WIN_LOWER = (TODAY - datetime.timedelta(days=365)).isoformat()
 WIN_UPPER = TODAY.isoformat()
 
-NUM_CMP_THRESHOLD = 120     # numeric comparison rule: fires when value > 120
+NUM_CMP_THRESHOLD = 120     # numeric comparison rule "value must be <= 120": fires when value > 120
 NUM_BETWEEN_MIN = 0
-NUM_BETWEEN_MAX = 115       # numeric-between rule: fires when 0 <= value <= 115
+NUM_BETWEEN_MAX = 115       # numeric-between rule "value must be within [0,115]": fires when OUTSIDE
 
-# universal-valid values: fire NONE of the four rules
-#   num 118  -> not >120 (cmp) and not in [0,115] (between)
-#   date OLD -> not future (before) and not in [now-1y, now] (between)
-VALID_NUM = "118"
-VALID_DATE = OLD_DATE
+# Per-rule VIOLATE numbers (semantically REJECTED values that MUST fire our rule):
+NUM_CMP_VIOLATE = "150"     # > 120  -> violates "<= 120"
+NUM_BETWEEN_VIOLATE = "200" # > 115 (above max, so valid even for INTEGER_ZERO_OR_POSITIVE) -> outside [0,115]
+
+# universal-VALID values: semantically ACCEPTED, so they must fire NONE of the four rules.
+#   num 50   -> not >120 (cmp OK) AND inside [0,115] (between: must stay SILENT -> regression guard)
+#   date RECENT (30d ago) -> not future (before OK) AND inside [now-1y, now] (between: SILENT -> regression guard)
+# NOTE: with the OLD inverted between forms these in-range values would WRONGLY fire, so
+# the "VALID import does NOT fire" assertions below are the regression guard for the inversion.
+VALID_NUM = "50"
+VALID_DATE = RECENT_DATE
 
 
 # ---------------------------------------------------------------------------
@@ -413,37 +442,42 @@ def build_rules(prog):
         "violate": {"num": VALID_NUM, "date": FUTURE_DATE},
     }
 
-    # 2. date "between" lower..upper (inclusive). Same daysBetween structure the tool
-    #    emits; bounds here are fixed date literals so the rule is fully evaluable on
-    #    every version (the relative addYears/addMonths form is exercised separately in
-    #    run_findings, where it is shown NOT to fire).
+    # 2. date "between" [L,U] (inclusive). CORRECTED form: the SHOWERROR condition
+    #    expresses the VIOLATION, so it fires when the date is OUTSIDE the window
+    #    (ref < L  OR  ref > U). Bounds are fixed date literals so the rule is fully
+    #    evaluable on every version (the relative addYears/addMonths form is exercised
+    #    separately in run_findings). VIOLATE = OLD_DATE (before L -> outside -> fires);
+    #    VALID = RECENT_DATE (inside window -> must stay SILENT: regression guard).
     cond = (f"d2:hasValue({date_ref}) && "
-            f"d2:daysBetween({date_ref}, '{WIN_LOWER}') <= 0 && "
-            f"d2:daysBetween({date_ref}, '{WIN_UPPER}') >= 0")
-    rid = make_rule(prog, f"RBT {LABEL} date between {WIN_LOWER} and {WIN_UPPER}",
-                    cond, "RBT date must be outside the configured window")
+            f"(d2:daysBetween({date_ref}, '{WIN_LOWER}') > 0 || "
+            f"d2:daysBetween({date_ref}, '{WIN_UPPER}') < 0)")
+    rid = make_rule(prog, f"RBT {LABEL} date outside {WIN_LOWER}..{WIN_UPPER}",
+                    cond, "RBT date must be within the configured window")
     rules["date_between"] = {
         "ruleId": rid, "condition": cond,
-        "violate": {"num": VALID_NUM, "date": RECENT_DATE},
+        "violate": {"num": VALID_NUM, "date": OLD_DATE},
     }
 
-    # 3. numeric comparison  value > 120
+    # 3. numeric comparison  value > 120  (violation of "must be <= 120")
     cond = f"d2:hasValue({num_ref}) && {num_ref} > {NUM_CMP_THRESHOLD}"
     rid = make_rule(prog, f"RBT {LABEL} numeric greater than {NUM_CMP_THRESHOLD}",
                     cond, f"RBT value must not exceed {NUM_CMP_THRESHOLD}")
     rules["numeric_compare"] = {
         "ruleId": rid, "condition": cond,
-        "violate": {"num": "150", "date": VALID_DATE},
+        "violate": {"num": NUM_CMP_VIOLATE, "date": VALID_DATE},
     }
 
-    # 4. numeric "between" [0 .. 115]
-    cond = (f"d2:hasValue({num_ref}) && {num_ref} >= {NUM_BETWEEN_MIN} && "
-            f"{num_ref} <= {NUM_BETWEEN_MAX}")
-    rid = make_rule(prog, f"RBT {LABEL} numeric between {NUM_BETWEEN_MIN} and {NUM_BETWEEN_MAX}",
-                    cond, f"RBT value must be outside [{NUM_BETWEEN_MIN},{NUM_BETWEEN_MAX}]")
+    # 4. numeric "between" [0 .. 115]. CORRECTED form: fires when value is OUTSIDE the
+    #    range (value < 0 OR value > 115). VIOLATE = 200 (above max -> outside -> fires;
+    #    an above-max value works even for INTEGER_ZERO_OR_POSITIVE fields);
+    #    VALID = 50 (in range -> must stay SILENT: regression guard for the inversion).
+    cond = (f"d2:hasValue({num_ref}) && "
+            f"({num_ref} < {NUM_BETWEEN_MIN} || {num_ref} > {NUM_BETWEEN_MAX})")
+    rid = make_rule(prog, f"RBT {LABEL} numeric outside [{NUM_BETWEEN_MIN},{NUM_BETWEEN_MAX}]",
+                    cond, f"RBT value must be within [{NUM_BETWEEN_MIN},{NUM_BETWEEN_MAX}]")
     rules["numeric_between"] = {
         "ruleId": rid, "condition": cond,
-        "violate": {"num": "30", "date": VALID_DATE},
+        "violate": {"num": NUM_BETWEEN_VIOLATE, "date": VALID_DATE},
     }
 
     log(f"Created {len(rules)} SHOWERROR rules + {len(created_meta['prvs'])} PRVs "
@@ -532,8 +566,10 @@ def reset_attempt():
 # ---------------------------------------------------------------------------
 def run_findings(prog):
     date_ref = f"#{{{PRV_DATE_NAME}}}"  # PRV already created in build_rules
-    # A date inside the [now-1y, now] window; a correct "between" rule must fire on it.
-    inside = RECENT_DATE
+    # A date OUTSIDE the [now-1y, now] window; a correct "between" rule (which fires on
+    # OUT-OF-window values) must fire on it -- iff the engine actually evaluates the
+    # relative lower bound. OLD_DATE is >1y ago, i.e. before the lower bound.
+    outside = OLD_DATE
     variants = {
         "addYears": f"d2:addYears(V{{current_date}}, -1)",
         "addMonths": f"d2:addMonths(V{{current_date}}, -12)",
@@ -542,11 +578,11 @@ def run_findings(prog):
     outcomes = {}
     for name, lower in variants.items():
         cond = (f"d2:hasValue({date_ref}) && "
-                f"d2:daysBetween({date_ref}, {lower}) <= 0 && "
-                f"d2:daysBetween({date_ref}, V{{current_date}}) >= 0")
+                f"(d2:daysBetween({date_ref}, {lower}) > 0 || "
+                f"d2:daysBetween({date_ref}, V{{current_date}}) < 0)")
         rid = make_rule(prog, f"RBT {LABEL} relBetween {name}", cond,
                         f"RBT relative-between {name}")
-        report, tei = import_tracker(prog, {"num": VALID_NUM, "date": inside})
+        report, tei = import_tracker(prog, {"num": VALID_NUM, "date": outside})
         fired = rid in our_rule_errors(report)
         outcomes[name] = fired
         log(f"  relative-between via d2:{name}: "
@@ -558,7 +594,7 @@ def run_findings(prog):
             "Tool's relative 'between' bounds silently never fire",
             "src/lib/builder.ts emits d2:addYears / d2:addMonths for a relative "
             "current-date bound (UI default unit = 'years'). On this instance those "
-            "program rules DO NOT fire for a value inside the window, while the "
+            "program rules DO NOT fire for a value OUTSIDE the window, while the "
             "equivalent d2:addDays and fixed-date-literal forms DO fire "
             f"(observed: addYears={outcomes.get('addYears')}, "
             f"addMonths={outcomes.get('addMonths')}, addDays={outcomes.get('addDays')}). "
