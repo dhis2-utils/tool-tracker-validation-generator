@@ -66,6 +66,33 @@ helper is a thin projection of its `suggested*` fields. It handles date and
 numeric, all operators, and the correct "between … and … (inclusive)" phrasing —
 fixing both between-naming bugs as a side effect.
 
+**Stage-aware names (uniqueness).** The old bulk generator appended stage
+context to the *name* (`"Vacc date (Stage A) must be …"`) so that same-named
+fields in different stages get distinct, unique rule names (DHIS2 rejects
+duplicate names). `getValidationPreview` currently uses the raw variable name, so
+the unification must preserve stage-awareness for the **name only**. Add a small
+helper and use it when building `suggestedRuleName`:
+
+```ts
+export function getVariableDisplayName(variable: Variable): string {
+    if (
+        variable.stageName &&
+        ['dataElement', 'event_date', 'due_date'].includes(variable.type)
+    ) {
+        return `${variable.name} (${variable.stageName})`
+    }
+    return variable.name
+}
+```
+
+This applies to date and numeric names alike (also closing a latent
+cross-stage collision for numeric bulk rules, whose old generator had no stage
+context). The `preview` field and `suggestedMessage`/`suggestedDescription` keep
+the raw name: `preview` must stay raw so `RulesPage` grouping (which strips the
+leading `variable.name`) still works, and messages/descriptions need no
+uniqueness. Only variables that carry a `stageName` get a suffix, so existing
+enrollment/attribute names are unchanged.
+
 Note: `getValidationPreview` returns empty strings for an incomplete config. The
 create/update paths only run with complete, validated configs, so
 `config.ruleX || suggested.x` always yields non-empty text there.
