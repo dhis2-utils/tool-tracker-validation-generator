@@ -1,6 +1,6 @@
 import i18n from '@dhis2/d2-i18n'
-import { CircularLoader, NoticeBox } from '@dhis2/ui'
-import { useParams } from 'react-router-dom'
+import { Button, CircularLoader, NoticeBox } from '@dhis2/ui'
+import { Link, useParams } from 'react-router-dom'
 import styles from './OverviewPage.module.css'
 import { BatchWorkspace } from '@/components/BatchWorkspace'
 import { VariableList } from '@/components/VariableList'
@@ -47,7 +47,17 @@ export const OverviewPage = () => {
 
     return (
         <div className={styles.page}>
-            <h2 className={styles.heading}>{i18n.t('Variables')}</h2>
+            <div className={styles.headingRow}>
+                <h2 className={styles.heading}>{i18n.t('Variables')}</h2>
+                <Link
+                    to={`/${programId}/rules`}
+                    className={styles.manageRulesLink}
+                >
+                    <Button small secondary>
+                        {i18n.t('Manage all rules')}
+                    </Button>
+                </Link>
+            </div>
             {!settingsConfigured && (
                 <NoticeBox warning title={i18n.t('Settings required')}>
                     {i18n.t(

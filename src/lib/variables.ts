@@ -10,6 +10,18 @@ export const NUMERIC_VALUE_TYPES = new Set([
     'PERCENTAGE',
 ])
 
+/** Human-readable labels for numeric value types, shown in the variable list
+ * so admins can see the constraint (e.g. only positive integers) that may
+ * influence which validation rules are relevant. */
+export const VALUE_TYPE_LABELS: Record<string, string> = {
+    INTEGER: 'Integer',
+    INTEGER_POSITIVE: 'Positive integer',
+    INTEGER_ZERO_OR_POSITIVE: '0 or positive integer',
+    INTEGER_NEGATIVE: 'Negative integer',
+    NUMBER: 'Number (decimal)',
+    PERCENTAGE: 'Percentage',
+}
+
 export function buildVariablesArray(
     programMetadata: ProgramMetadata | null
 ): Variable[] {
@@ -84,7 +96,10 @@ export function buildVariablesArray(
                     stageId: stage.id,
                     stageName: stage.name,
                 })
-            } else if (NUMERIC_VALUE_TYPES.has(de.valueType)) {
+            } else if (NUMERIC_VALUE_TYPES.has(de.valueType) && !de.optionSet) {
+                // Skip numeric fields bound to an option set: the option set
+                // already constrains the accepted values, so a numeric range
+                // rule is redundant (and would fight the option list).
                 list.push({
                     id: de.id,
                     name: de.name,
@@ -111,7 +126,8 @@ export function buildVariablesArray(
                 category: 'date',
                 valueType: 'DATE',
             })
-        } else if (NUMERIC_VALUE_TYPES.has(tea.valueType)) {
+        } else if (NUMERIC_VALUE_TYPES.has(tea.valueType) && !tea.optionSet) {
+            // See note above: option-set numerics are excluded.
             list.push({
                 id: tea.id,
                 name: tea.name,

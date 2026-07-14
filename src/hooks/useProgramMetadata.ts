@@ -17,9 +17,9 @@ const PROGRAM_FIELDS = [
     'incidentDateLabel',
     'displayIncidentDate',
     'ignoreOverdueEvents',
-    'programStages[id,name,executionDateLabel,hideDueDate,programStageDataElements[dataElement[id,name,valueType]]]',
-    'trackedEntityType[trackedEntityTypeAttributes[id,name,valueType]]',
-    'programTrackedEntityAttributes[trackedEntityAttribute[id,name,valueType]]',
+    'programStages[id,name,executionDateLabel,hideDueDate,programStageDataElements[dataElement[id,name,valueType,optionSet[id]]]]',
+    'trackedEntityType[trackedEntityTypeAttributes[id,name,valueType,optionSet[id]]]',
+    'programTrackedEntityAttributes[trackedEntityAttribute[id,name,valueType,optionSet[id]]]',
 ].join(',')
 
 export const programMetadataQueryKey = (programId: string | undefined) => [

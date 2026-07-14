@@ -171,4 +171,38 @@ describe('buildVariablesArray — numeric variables', () => {
         expect(dates.length).toBeGreaterThan(0)
         dates.forEach((v) => expect(v.valueType).toBe('DATE'))
     })
+
+    it('excludes numeric fields bound to an option set', () => {
+        const meta = makeMeta({
+            programStages: [
+                {
+                    id: 'stage001AAAAA',
+                    name: 'Stage 1',
+                    programStageDataElements: [
+                        {
+                            dataElement: {
+                                id: 'deOptNum01AA',
+                                name: 'Coded score',
+                                valueType: 'INTEGER',
+                                optionSet: { id: 'optSet01AAAA' },
+                            },
+                        },
+                    ],
+                },
+            ],
+            programTrackedEntityAttributes: [
+                {
+                    trackedEntityAttribute: {
+                        id: 'teaOptNum01A',
+                        name: 'Coded age band',
+                        valueType: 'INTEGER_POSITIVE',
+                        optionSet: { id: 'optSet02AAAA' },
+                    },
+                },
+            ],
+        })
+        const vars = buildVariablesArray(meta)
+        expect(vars.find((x) => x.id === 'deOptNum01AA')).toBeUndefined()
+        expect(vars.find((x) => x.id === 'teaOptNum01A')).toBeUndefined()
+    })
 })

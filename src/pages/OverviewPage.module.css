@@ -4,10 +4,21 @@
     gap: var(--spacers-dp16);
 }
 
+.headingRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacers-dp16);
+}
+
 .heading {
     margin: 0;
     font-size: 18px;
     color: var(--colors-grey900);
+}
+
+.manageRulesLink {
+    text-decoration: none;
 }
 
 .loadingContainer {

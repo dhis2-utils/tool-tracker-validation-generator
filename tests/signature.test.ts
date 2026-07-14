@@ -69,6 +69,39 @@ describe('parseRuleCondition — date comparisons', () => {
     })
 })
 
+describe('parseRuleCondition — between', () => {
+    it('parses a numeric between (min && max) on the same field', () => {
+        const result = parseRuleCondition(
+            'd2:hasValue(#{EIR_DOB}) && #{EIR_DOB} >= 0 && #{EIR_DOB} <= 115',
+            mockMeta
+        )
+        expect(result?.config.operator).toBe('between')
+        expect(result?.config.value).toBe(0)
+        expect(result?.config.valueMax).toBe(115)
+    })
+
+    it('parses a date between into distinct lower and upper bounds', () => {
+        const result = parseRuleCondition(
+            'd2:daysBetween(V{enrollment_date}, d2:addYears(V{current_date}, -1)) <= 0 && ' +
+                'd2:daysBetween(V{enrollment_date}, V{current_date}) >= 0',
+            mockMeta
+        )
+        expect(result?.config.operator).toBe('between')
+        expect(result?.variable2?.type).toBe('relative_current_date')
+        expect(result?.variable2?.relativeAmount).toBe(1)
+        expect(result?.variable2?.relativeDirection).toBe('past')
+        expect(result?.variable3?.type).toBe('current_date')
+    })
+
+    it('does not misparse a single comparison as between', () => {
+        const result = parseRuleCondition(
+            'd2:daysBetween(V{event_date}, V{enrollment_date}) < 0',
+            mockMeta
+        )
+        expect(result?.config.operator).toBe('before')
+    })
+})
+
 describe('parseRuleCondition — interval direction', () => {
     it('detects within_after when target is first arg', () => {
         // within_after: d2:*Between(targetRef, compareRef)

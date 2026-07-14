@@ -1,0 +1,89 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp16);
+}
+
+.heading {
+    margin: 0;
+    font-size: 18px;
+    color: var(--colors-grey900);
+}
+
+.backLink {
+    text-decoration: none;
+}
+
+.cardHeader {
+    padding: var(--spacers-dp12) var(--spacers-dp16);
+    border-block-end: 1px solid var(--colors-grey300);
+}
+
+.cardHeader h3 {
+    margin: 0;
+    font-size: 15px;
+    color: var(--colors-grey900);
+}
+
+.subtle {
+    margin: var(--spacers-dp4) 0 0;
+    font-size: 13px;
+    color: var(--colors-grey600);
+}
+
+.cardBody {
+    padding: var(--spacers-dp12) var(--spacers-dp16) var(--spacers-dp16);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp16);
+}
+
+.group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp8);
+    padding: var(--spacers-dp8);
+    border: 1px solid var(--colors-grey300);
+    border-radius: 4px;
+}
+
+.groupHeader {
+    display: flex;
+    align-items: center;
+    gap: var(--spacers-dp8);
+}
+
+.collapseToggle {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--colors-grey700);
+}
+
+.groupTitle {
+    font-weight: 500;
+    color: var(--colors-grey900);
+}
+
+.groupEdit {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacers-dp12);
+    padding: var(--spacers-dp8);
+    background: var(--colors-grey050);
+    border-radius: 4px;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.loadingContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-block-size: 300px;
+}

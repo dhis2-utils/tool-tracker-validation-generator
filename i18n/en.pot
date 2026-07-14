@@ -5,8 +5,8 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"POT-Creation-Date: 2026-07-11T06:27:51.028Z\n"
-"PO-Revision-Date: 2026-07-11T06:27:51.028Z\n"
+"POT-Creation-Date: 2026-07-13T12:48:54.476Z\n"
+"PO-Revision-Date: 2026-07-13T12:48:54.476Z\n"
 
 msgid "Tracker Validation Tool"
 msgstr "Tracker Validation Tool"
@@ -202,6 +202,12 @@ msgstr "Clear queue"
 msgid "Cancel"
 msgstr "Cancel"
 
+msgid "another tracked date"
+msgstr "another tracked date"
+
+msgid "Choose date..."
+msgstr "Choose date..."
+
 msgid "Rule ID"
 msgstr "Rule ID"
 
@@ -245,11 +251,17 @@ msgstr ""
 "Please configure programme settings first (using the Programme settings "
 "button above)."
 
-msgid "another tracked date"
-msgstr "another tracked date"
+msgid "between"
+msgstr "between"
 
-msgid "Choose date..."
-msgstr "Choose date..."
+msgid "and"
+msgstr "and"
+
+msgid "min"
+msgstr "min"
+
+msgid "max"
+msgstr "max"
 
 msgid "a fixed value"
 msgstr "a fixed value"
@@ -295,6 +307,9 @@ msgstr "Message shown to users when validation fails"
 
 msgid "How DHIS2 should respond when validation fails"
 msgstr "How DHIS2 should respond when validation fails"
+
+msgid "Complete these fields before saving"
+msgstr "Complete these fields before saving"
 
 msgid "Update validation rule"
 msgstr "Update validation rule"
@@ -390,12 +405,56 @@ msgstr "Loading programme metadata..."
 msgid "Variables"
 msgstr "Variables"
 
+msgid "Manage all rules"
+msgstr "Manage all rules"
+
 msgid ""
 "Please configure programme settings (using the Programme settings button "
 "above) before creating validation rules."
 msgstr ""
 "Please configure programme settings (using the Programme settings button "
 "above) before creating validation rules."
+
+msgid "All validation rules created by this tool"
+msgstr "All validation rules created by this tool"
+
+msgid "No rules yet"
+msgstr "No rules yet"
+
+msgid "This tool has not created any validation rules in this programme yet."
+msgstr "This tool has not created any validation rules in this programme yet."
+
+msgid "Bulk rules"
+msgstr "Bulk rules"
+
+msgid ""
+"Rules created from a bulk template, grouped by template. Each can still be "
+"edited or removed per variable."
+msgstr ""
+"Rules created from a bulk template, grouped by template. Each can still be "
+"edited or removed per variable."
+
+msgid "(rule)"
+msgstr "(rule)"
+
+msgid "Edit all in group"
+msgstr "Edit all in group"
+
+msgid "Delete all in group"
+msgstr "Delete all in group"
+
+msgid ""
+"Changes below apply to every rule in this group. Each rule keeps its own "
+"variable; names and messages are regenerated per variable."
+msgstr ""
+"Changes below apply to every rule in this group. Each rule keeps its own "
+"variable; names and messages are regenerated per variable."
+
+msgid "Individual rules"
+msgstr "Individual rules"
+
+msgid "Delete validation rule(s)"
+msgstr "Delete validation rule(s)"
 
 msgid "Select a programme"
 msgstr "Select a programme"

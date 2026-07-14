@@ -5,6 +5,7 @@ import { createHashRouter, RouterProvider } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { DetailsPage } from '@/pages/DetailsPage'
 import { OverviewPage } from '@/pages/OverviewPage'
+import { RulesPage } from '@/pages/RulesPage'
 import { SelectProgramPage } from '@/pages/SelectProgramPage'
 import { SyncUrlWithGlobalShell } from '@/utils/SyncUrlWithGlobalShell'
 
@@ -26,6 +27,7 @@ const router = createHashRouter([
                 children: [
                     { path: '/', element: <SelectProgramPage /> },
                     { path: '/:programId', element: <OverviewPage /> },
+                    { path: '/:programId/rules', element: <RulesPage /> },
                     {
                         path: '/:programId/variable/:type/:id/:stageId?',
                         element: <DetailsPage />,

@@ -9,15 +9,21 @@ import {
     TextAreaField,
 } from '@dhis2/ui'
 import { useState } from 'react'
+import { DateComparisonPicker } from './DateComparisonPicker'
 import styles from './ValidationForm.module.css'
-import type { RelativeDirection, ValidationConfig, Variable } from '@/lib/types'
+import type {
+    ComparisonDateMode,
+    RelativeDirection,
+    ValidationConfig,
+    Variable,
+} from '@/lib/types'
 import {
     getDateComparisonOptions,
+    getMissingFieldLabels,
     getNumericFieldOptions,
     getValidationPreview,
-    isConfigComplete,
 } from '@/lib/validation'
-import { getVariableKey } from '@/lib/variables'
+import { getVariableKey, VALUE_TYPE_LABELS } from '@/lib/variables'
 import type { ProgramConfig } from '@/services/rules'
 
 const ACTION_TYPE_OPTIONS = [
@@ -37,6 +43,11 @@ interface ValidationFormProps {
     busy: boolean
     onSubmit: (config: ValidationConfig) => void
     onCancelEdit?: () => void
+    /** Hide the per-rule name/description/message fields (used for group edits
+     * where those are regenerated per variable). */
+    hideRuleFields?: boolean
+    /** Override the submit button label. */
+    submitLabel?: string
 }
 
 export const ValidationForm = ({
@@ -48,6 +59,8 @@ export const ValidationForm = ({
     busy,
     onSubmit,
     onCancelEdit,
+    hideRuleFields = false,
+    submitLabel,
 }: ValidationFormProps) => {
     const isNumeric = variable.category === 'numeric'
 
@@ -70,7 +83,7 @@ export const ValidationForm = ({
             : ''
     )
     const [relativeUnit, setRelativeUnit] = useState(
-        initialConfig?.relativeComparisonUnit || 'years'
+        initialConfig?.relativeComparisonUnit || 'days'
     )
     const [relativeDirection, setRelativeDirection] =
         useState<RelativeDirection>(
@@ -98,6 +111,34 @@ export const ValidationForm = ({
     const [numericComparisonField, setNumericComparisonField] = useState(
         initialConfig?.numericComparisonField || ''
     )
+    const [numericValueMax, setNumericValueMax] = useState(
+        initialConfig?.numericValueMax != null
+            ? String(initialConfig.numericValueMax)
+            : ''
+    )
+    // upper bound for a date "between" (lower bound reuses the state above)
+    const [upperComparisonDateMode, setUpperComparisonDateMode] =
+        useState<ComparisonDateMode>(
+            initialConfig?.upperComparisonDateMode || 'current'
+        )
+    const [upperComparisonDate, setUpperComparisonDate] = useState(
+        initialConfig?.upperComparisonDate || ''
+    )
+    const [upperFixedComparisonDate, setUpperFixedComparisonDate] = useState(
+        initialConfig?.upperFixedComparisonDate || ''
+    )
+    const [upperRelativeAmount, setUpperRelativeAmount] = useState(
+        initialConfig?.upperRelativeComparisonAmount != null
+            ? String(initialConfig.upperRelativeComparisonAmount)
+            : ''
+    )
+    const [upperRelativeUnit, setUpperRelativeUnit] = useState(
+        initialConfig?.upperRelativeComparisonUnit || 'days'
+    )
+    const [upperRelativeDirection, setUpperRelativeDirection] =
+        useState<RelativeDirection>(
+            initialConfig?.upperRelativeComparisonDirection || 'past'
+        )
 
     // Name/description/message: null = follow the generated suggestion
     const [ruleName, setRuleName] = useState<string | null>(
@@ -131,7 +172,17 @@ export const ValidationForm = ({
         numericOperator,
         numericComparisonType,
         numericValue: numericValue !== '' ? parseFloat(numericValue) : null,
+        numericValueMax:
+            numericValueMax !== '' ? parseFloat(numericValueMax) : null,
         numericComparisonField,
+        upperComparisonDateMode,
+        upperComparisonDate,
+        upperFixedComparisonDate,
+        upperRelativeComparisonAmount: upperRelativeAmount
+            ? parseInt(upperRelativeAmount, 10)
+            : null,
+        upperRelativeComparisonUnit: upperRelativeUnit,
+        upperRelativeComparisonDirection: upperRelativeDirection,
     }
 
     const suggestions = getValidationPreview(variable, builderConfig, variables)
@@ -158,8 +209,8 @@ export const ValidationForm = ({
     const settingsConfigured = Boolean(
         programConfig?.programRuleVariablePrefix?.trim()
     )
-    const isValid =
-        settingsConfigured && isConfigComplete(variable, finalConfig)
+    const missingFields = getMissingFieldLabels(variable, finalConfig)
+    const isValid = settingsConfigured && missingFields.length === 0
 
     const dateOptions = getDateComparisonOptions(variable, variables)
     const numericFieldOptions = getNumericFieldOptions(variable, variables)
@@ -176,7 +227,12 @@ export const ValidationForm = ({
 
             {!isNumeric ? (
                 <div className={styles.ruleBuilder}>
-                    <span className={styles.varName}>{variable.name}</span>
+                    <span className={styles.varName}>
+                        {variable.name}
+                        {VALUE_TYPE_LABELS[variable.valueType ?? '']
+                            ? ` (${VALUE_TYPE_LABELS[variable.valueType ?? '']})`
+                            : ''}
+                    </span>
                     <span className={styles.connector}>
                         {i18n.t('should be')}
                     </span>
@@ -212,6 +268,10 @@ export const ValidationForm = ({
                         <SingleSelectOption
                             value="within_after"
                             label={i18n.t('within ... after')}
+                        />
+                        <SingleSelectOption
+                            value="between"
+                            label={i18n.t('between')}
                         />
                     </SingleSelectField>
                     {isInterval && (
@@ -261,141 +321,54 @@ export const ValidationForm = ({
                             </span>
                         </>
                     )}
-                    <SingleSelectField
-                        dense
-                        className={styles.inlineSelect}
-                        selected={comparisonDateMode}
-                        onChange={({ selected }: { selected: string }) =>
-                            setComparisonDateMode(
-                                selected as
-                                    | 'variable'
-                                    | 'fixed'
-                                    | 'current'
-                                    | 'relative'
-                            )
-                        }
-                    >
-                        <SingleSelectOption
-                            value="variable"
-                            label={i18n.t('another tracked date')}
-                        />
-                        <SingleSelectOption
-                            value="fixed"
-                            label={i18n.t('a fixed date')}
-                        />
-                        <SingleSelectOption
-                            value="current"
-                            label={i18n.t('the current date')}
-                        />
-                        <SingleSelectOption
-                            value="relative"
-                            label={i18n.t('relative to the current date')}
-                        />
-                    </SingleSelectField>
-                    {comparisonDateMode === 'variable' && (
-                        <SingleSelectField
-                            dense
-                            className={styles.inlineSelect}
-                            placeholder={i18n.t('Choose date...')}
-                            selected={
-                                dateOptions.some(
-                                    (v) => getVariableKey(v) === comparisonDate
-                                )
-                                    ? comparisonDate
-                                    : undefined
-                            }
-                            onChange={({ selected }: { selected: string }) =>
-                                setComparisonDate(selected)
-                            }
-                        >
-                            {dateOptions.map((option) => (
-                                <SingleSelectOption
-                                    key={getVariableKey(option)}
-                                    value={getVariableKey(option)}
-                                    label={option.name}
-                                />
-                            ))}
-                        </SingleSelectField>
-                    )}
-                    {comparisonDateMode === 'fixed' && (
-                        <InputField
-                            dense
-                            className={styles.inlineDate}
-                            type="date"
-                            value={fixedComparisonDate}
-                            onChange={({ value }: { value?: string }) =>
-                                setFixedComparisonDate(value ?? '')
-                            }
-                        />
-                    )}
-                    {comparisonDateMode === 'relative' && (
+                    <DateComparisonPicker
+                        mode={comparisonDateMode}
+                        onModeChange={setComparisonDateMode}
+                        comparisonDate={comparisonDate}
+                        onComparisonDateChange={setComparisonDate}
+                        fixedDate={fixedComparisonDate}
+                        onFixedDateChange={setFixedComparisonDate}
+                        relativeAmount={relativeAmount}
+                        onRelativeAmountChange={setRelativeAmount}
+                        relativeUnit={relativeUnit}
+                        onRelativeUnitChange={setRelativeUnit}
+                        relativeDirection={relativeDirection}
+                        onRelativeDirectionChange={setRelativeDirection}
+                        dateOptions={dateOptions}
+                    />
+                    {operator === 'between' && (
                         <>
                             <span className={styles.connector}>
-                                {i18n.t('offset by')}
+                                {i18n.t('and')}
                             </span>
-                            <InputField
-                                dense
-                                className={styles.inlineNumber}
-                                type="number"
-                                min="1"
-                                placeholder="1"
-                                value={relativeAmount}
-                                onChange={({ value }: { value?: string }) =>
-                                    setRelativeAmount(value ?? '')
+                            <DateComparisonPicker
+                                mode={upperComparisonDateMode}
+                                onModeChange={setUpperComparisonDateMode}
+                                comparisonDate={upperComparisonDate}
+                                onComparisonDateChange={setUpperComparisonDate}
+                                fixedDate={upperFixedComparisonDate}
+                                onFixedDateChange={setUpperFixedComparisonDate}
+                                relativeAmount={upperRelativeAmount}
+                                onRelativeAmountChange={setUpperRelativeAmount}
+                                relativeUnit={upperRelativeUnit}
+                                onRelativeUnitChange={setUpperRelativeUnit}
+                                relativeDirection={upperRelativeDirection}
+                                onRelativeDirectionChange={
+                                    setUpperRelativeDirection
                                 }
+                                dateOptions={dateOptions}
                             />
-                            <SingleSelectField
-                                dense
-                                className={styles.inlineUnit}
-                                selected={relativeUnit}
-                                onChange={({
-                                    selected,
-                                }: {
-                                    selected: string
-                                }) => setRelativeUnit(selected)}
-                            >
-                                <SingleSelectOption
-                                    value="days"
-                                    label={i18n.t('days')}
-                                />
-                                <SingleSelectOption
-                                    value="months"
-                                    label={i18n.t('months')}
-                                />
-                                <SingleSelectOption
-                                    value="years"
-                                    label={i18n.t('years')}
-                                />
-                            </SingleSelectField>
-                            <SingleSelectField
-                                dense
-                                className={styles.inlineUnit}
-                                selected={relativeDirection}
-                                onChange={({
-                                    selected,
-                                }: {
-                                    selected: string
-                                }) =>
-                                    setRelativeDirection(
-                                        selected as RelativeDirection
-                                    )
-                                }
-                            >
-                                <SingleSelectOption
-                                    value="past"
-                                    label={i18n.t('in the past')}
-                                />
-                                <SingleSelectOption
-                                    value="future"
-                                    label={i18n.t('in the future')}
-                                />
-                            </SingleSelectField>
                         </>
                     )}
                 </div>
             ) : (
                 <div className={styles.ruleBuilder}>
-                    <span className={styles.varName}>{variable.name}</span>
+                    <span className={styles.varName}>
+                        {variable.name}
+                        {VALUE_TYPE_LABELS[variable.valueType ?? '']
+                            ? ` (${VALUE_TYPE_LABELS[variable.valueType ?? '']})`
+                            : ''}
+                    </span>
                     <span className={styles.connector}>
                         {i18n.t('should be')}
                     </span>
@@ -432,64 +405,108 @@ export const ValidationForm = ({
                             value="not_equal_to"
                             label={i18n.t('not equal to')}
                         />
-                    </SingleSelectField>
-                    <SingleSelectField
-                        dense
-                        className={styles.inlineSelect}
-                        selected={numericComparisonType}
-                        onChange={({ selected }: { selected: string }) =>
-                            setNumericComparisonType(
-                                selected as 'value' | 'field'
-                            )
-                        }
-                    >
                         <SingleSelectOption
-                            value="value"
-                            label={i18n.t('a fixed value')}
-                        />
-                        <SingleSelectOption
-                            value="field"
-                            label={i18n.t('another field')}
+                            value="between"
+                            label={i18n.t('between')}
                         />
                     </SingleSelectField>
-                    {numericComparisonType === 'value' ? (
-                        <InputField
-                            dense
-                            className={styles.inlineNumber}
-                            type="number"
-                            step="0.01"
-                            placeholder={i18n.t('e.g. 100')}
-                            value={numericValue}
-                            onChange={({ value }: { value?: string }) =>
-                                setNumericValue(value ?? '')
-                            }
-                        />
+                    {numericOperator === 'between' ? (
+                        <>
+                            <InputField
+                                dense
+                                className={styles.inlineNumber}
+                                type="number"
+                                step="0.01"
+                                placeholder={i18n.t('min')}
+                                error={numericValue === ''}
+                                value={numericValue}
+                                onChange={({ value }: { value?: string }) =>
+                                    setNumericValue(value ?? '')
+                                }
+                            />
+                            <span className={styles.connector}>
+                                {i18n.t('and')}
+                            </span>
+                            <InputField
+                                dense
+                                className={styles.inlineNumber}
+                                type="number"
+                                step="0.01"
+                                placeholder={i18n.t('max')}
+                                error={numericValueMax === ''}
+                                value={numericValueMax}
+                                onChange={({ value }: { value?: string }) =>
+                                    setNumericValueMax(value ?? '')
+                                }
+                            />
+                        </>
                     ) : (
-                        <SingleSelectField
-                            dense
-                            className={styles.inlineSelect}
-                            placeholder={i18n.t('Choose field...')}
-                            selected={
-                                numericFieldOptions.some(
-                                    (v) =>
-                                        getVariableKey(v) ===
-                                        numericComparisonField
-                                )
-                                    ? numericComparisonField
-                                    : undefined
-                            }
-                            onChange={({ selected }: { selected: string }) =>
-                                setNumericComparisonField(selected)
-                            }
-                        >
-                            {numericFieldOptions.map((option) => (
+                        <>
+                            <SingleSelectField
+                                dense
+                                className={styles.inlineSelect}
+                                selected={numericComparisonType}
+                                onChange={({
+                                    selected,
+                                }: {
+                                    selected: string
+                                }) =>
+                                    setNumericComparisonType(
+                                        selected as 'value' | 'field'
+                                    )
+                                }
+                            >
                                 <SingleSelectOption
-                                    key={getVariableKey(option)}
-                                    value={getVariableKey(option)}
-                                    label={option.name}
+                                    value="value"
+                                    label={i18n.t('a fixed value')}
                                 />
-                            ))}
-                        </SingleSelectField>
+                                <SingleSelectOption
+                                    value="field"
+                                    label={i18n.t('another field')}
+                                />
+                            </SingleSelectField>
+                            {numericComparisonType === 'value' ? (
+                                <InputField
+                                    dense
+                                    className={styles.inlineNumber}
+                                    type="number"
+                                    step="0.01"
+                                    placeholder={i18n.t('e.g. 100')}
+                                    value={numericValue}
+                                    onChange={({ value }: { value?: string }) =>
+                                        setNumericValue(value ?? '')
+                                    }
+                                />
+                            ) : (
+                                <SingleSelectField
+                                    dense
+                                    className={styles.inlineSelect}
+                                    placeholder={i18n.t('Choose field...')}
+                                    selected={
+                                        numericFieldOptions.some(
+                                            (v) =>
+                                                getVariableKey(v) ===
+                                                numericComparisonField
+                                        )
+                                            ? numericComparisonField
+                                            : undefined
+                                    }
+                                    onChange={({
+                                        selected,
+                                    }: {
+                                        selected: string
+                                    }) => setNumericComparisonField(selected)}
+                                >
+                                    {numericFieldOptions.map((option) => (
+                                        <SingleSelectOption
+                                            key={getVariableKey(option)}
+                                            value={getVariableKey(option)}
+                                            label={option.name}
+                                        />
+                                    ))}
+                                </SingleSelectField>
+                            )}
+                        </>
                     )}
                 </div>
             )}
@@ -504,44 +521,48 @@ export const ValidationForm = ({
                 </span>
             </div>
 
-            <InputField
-                label={i18n.t('Rule name')}
-                placeholder={i18n.t(
-                    'e.g. Birth date must be before enrollment date'
-                )}
-                helpText={i18n.t(
-                    'A descriptive name for administrators to identify this rule'
-                )}
-                required
-                value={effectiveRuleName}
-                onChange={({ value }: { value?: string }) =>
-                    setRuleName(value ?? '')
-                }
-            />
-            <TextAreaField
-                label={i18n.t('Rule description (optional)')}
-                placeholder={i18n.t(
-                    'Additional details about this validation rule for administrators'
-                )}
-                value={effectiveDescription}
-                onChange={({ value }: { value?: string }) =>
-                    setRuleDescription(value ?? '')
-                }
-            />
-            <TextAreaField
-                label={i18n.t('Validation message')}
-                placeholder={i18n.t(
-                    'e.g. Birth date cannot be after enrollment date'
-                )}
-                helpText={i18n.t(
-                    'Message shown to users when validation fails'
-                )}
-                required
-                value={effectiveMessage}
-                onChange={({ value }: { value?: string }) =>
-                    setRuleMessage(value ?? '')
-                }
-            />
+            {!hideRuleFields && (
+                <>
+                    <InputField
+                        label={i18n.t('Rule name')}
+                        placeholder={i18n.t(
+                            'e.g. Birth date must be before enrollment date'
+                        )}
+                        helpText={i18n.t(
+                            'A descriptive name for administrators to identify this rule'
+                        )}
+                        required
+                        value={effectiveRuleName}
+                        onChange={({ value }: { value?: string }) =>
+                            setRuleName(value ?? '')
+                        }
+                    />
+                    <TextAreaField
+                        label={i18n.t('Rule description (optional)')}
+                        placeholder={i18n.t(
+                            'Additional details about this validation rule for administrators'
+                        )}
+                        value={effectiveDescription}
+                        onChange={({ value }: { value?: string }) =>
+                            setRuleDescription(value ?? '')
+                        }
+                    />
+                    <TextAreaField
+                        label={i18n.t('Validation message')}
+                        placeholder={i18n.t(
+                            'e.g. Birth date cannot be after enrollment date'
+                        )}
+                        helpText={i18n.t(
+                            'Message shown to users when validation fails'
+                        )}
+                        required
+                        value={effectiveMessage}
+                        onChange={({ value }: { value?: string }) =>
+                            setRuleMessage(value ?? '')
+                        }
+                    />
+                </>
+            )}
             <div className={styles.actionTypeRow}>
                 <SingleSelectField
                     dense
@@ -564,6 +585,15 @@ export const ValidationForm = ({
                 </SingleSelectField>
             </div>
 
+            {settingsConfigured && missingFields.length > 0 && (
+                <NoticeBox
+                    warning
+                    title={i18n.t('Complete these fields before saving')}
+                >
+                    {missingFields.join(', ')}
+                </NoticeBox>
+            )}
+
             <ButtonStrip>
                 <Button
                     primary
@@ -571,9 +601,10 @@ export const ValidationForm = ({
                     loading={busy}
                     onClick={() => onSubmit(finalConfig)}
                 >
-                    {editing
-                        ? i18n.t('Update validation rule')
-                        : i18n.t('Create validation rule')}
+                    {submitLabel ??
+                        (editing
+                            ? i18n.t('Update validation rule')
+                            : i18n.t('Create validation rule'))}
                 </Button>
                 {editing && onCancelEdit && (
                     <Button secondary onClick={onCancelEdit} disabled={busy}>

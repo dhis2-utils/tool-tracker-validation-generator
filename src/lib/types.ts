@@ -68,6 +68,9 @@ export interface DataElementRef {
     id: string
     name: string
     valueType: string
+    /** Present when the field is bound to an option set (its values are then
+     * constrained to the option list, so numeric range validation is moot). */
+    optionSet?: { id: string } | null
 }
 
 export interface ProgramStage {
@@ -100,6 +103,7 @@ export type DateOperator =
     | 'on_or_before'
     | 'within_before'
     | 'within_after'
+    | 'between'
 
 export type NumericOperator =
     | 'greater_than'
@@ -108,6 +112,7 @@ export type NumericOperator =
     | 'less_than_or_equal'
     | 'equal_to'
     | 'not_equal_to'
+    | 'between'
 
 export type ComparisonDateMode = 'variable' | 'fixed' | 'current' | 'relative'
 
@@ -128,10 +133,20 @@ export interface ValidationConfig {
     relativeComparisonDirection?: RelativeDirection
     intervalAmount?: number | null
     intervalUnit?: string
+    // date "between": the lower bound reuses the comparison* fields above;
+    // the upper bound uses this parallel set.
+    upperComparisonDateMode?: ComparisonDateMode
+    upperComparisonDate?: string
+    upperFixedComparisonDate?: string
+    upperRelativeComparisonAmount?: number | null
+    upperRelativeComparisonUnit?: string
+    upperRelativeComparisonDirection?: RelativeDirection
     // numeric
     numericOperator?: NumericOperator | string
     numericComparisonType?: 'value' | 'field'
     numericValue?: number | null
+    /** upper bound for numeric "between" (numericValue is the lower bound) */
+    numericValueMax?: number | null
     /** "type:id[:stageId]" key of the comparison field (type "field") */
     numericComparisonField?: string
     // rule fields
@@ -157,5 +172,11 @@ export interface ExistingValidation {
 export interface ParsedRuleCondition {
     variable1: Variable
     variable2: Variable | null
-    config: ValidationConfig & { value?: number; comparisonType?: string }
+    /** upper bound for "between" rules (variable2 is then the lower bound) */
+    variable3?: Variable | null
+    config: ValidationConfig & {
+        value?: number
+        valueMax?: number
+        comparisonType?: string
+    }
 }

@@ -8,6 +8,7 @@ import {
     createBatchTemplateKey,
     getBatchTemplateSummary,
     getDateComparisonOptions,
+    getMissingFieldLabels,
     getUnvalidatedVariables,
     getValidationPreview,
     isConfigComplete,
@@ -195,6 +196,57 @@ describe('getDateComparisonOptions', () => {
     })
 })
 
+describe('getMissingFieldLabels', () => {
+    const base = { ruleName: 'Rule', ruleMessage: 'Message' }
+
+    it('flags a relative comparison with no offset amount', () => {
+        // The reported bug: editing a rule into "relative to current date"
+        // but leaving the offset blank left Save silently disabled.
+        expect(
+            getMissingFieldLabels(enrollment, {
+                ...base,
+                operator: 'after',
+                comparisonDateMode: 'relative',
+                relativeComparisonAmount: null,
+                relativeComparisonUnit: 'years',
+                relativeComparisonDirection: 'past',
+            })
+        ).toEqual(['Offset amount'])
+    })
+
+    it('returns an empty array for a complete config', () => {
+        expect(
+            getMissingFieldLabels(enrollment, {
+                ...base,
+                operator: 'after',
+                comparisonDateMode: 'relative',
+                relativeComparisonAmount: 1,
+            })
+        ).toEqual([])
+    })
+
+    it('flags missing rule name and message', () => {
+        const missing = getMissingFieldLabels(enrollment, {
+            operator: 'after',
+            comparisonDateMode: 'current',
+        })
+        expect(missing).toContain('Rule name')
+        expect(missing).toContain('Validation message')
+    })
+
+    it('stays consistent with isConfigComplete', () => {
+        const incomplete = {
+            ...base,
+            operator: 'after',
+            comparisonDateMode: 'relative' as const,
+            relativeComparisonAmount: null,
+        }
+        expect(getMissingFieldLabels(enrollment, incomplete).length > 0).toBe(
+            !isConfigComplete(enrollment, incomplete)
+        )
+    })
+})
+
 describe('isConfigComplete', () => {
     const base = { ruleName: 'Rule', ruleMessage: 'Message' }
 
@@ -379,6 +431,100 @@ describe('buildEditConfig', () => {
         expect(config.numericOperator).toBe('greater_than_or_equal')
         expect(config.numericComparisonType).toBe('value')
         expect(config.numericValue).toBe(0)
+    })
+
+    it('round-trips a numeric between into min/max form config', () => {
+        const numericMeta = makeMeta({
+            programRuleVariables: [
+                {
+                    id: 'prvAge01AAA',
+                    name: 'PRV_AGE',
+                    dataElement: { id: 'deAge01AAAAA' },
+                    programStage: { id: 'stg01' },
+                },
+            ],
+        })
+        const rule = makeRule({
+            condition:
+                'd2:hasValue(#{PRV_AGE}) && #{PRV_AGE} >= 0 && #{PRV_AGE} <= 115',
+        })
+        const parsed = parseRuleCondition(
+            rule.condition,
+            numericMeta,
+            numericDE
+        )
+        const config = buildEditConfig(parsed!, rule, action, numericDE)
+        expect(config.numericOperator).toBe('between')
+        expect(config.numericValue).toBe(0)
+        expect(config.numericValueMax).toBe(115)
+    })
+
+    it('round-trips a date between into lower and upper bound config', () => {
+        const rule = makeRule({
+            condition:
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '2000-01-01') <= 0 && " +
+                'd2:daysBetween(#{PRV_VACC}, V{current_date}) >= 0',
+        })
+        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const config = buildEditConfig(parsed!, rule, action, dateDE)
+        expect(config.operator).toBe('between')
+        expect(config.comparisonDateMode).toBe('fixed')
+        expect(config.fixedComparisonDate).toBe('2000-01-01')
+        expect(config.upperComparisonDateMode).toBe('current')
+    })
+})
+
+describe('between — preview and completeness', () => {
+    it('previews a numeric between', () => {
+        const preview = getValidationPreview(
+            numericDE,
+            {
+                numericOperator: 'between',
+                numericValue: 0,
+                numericValueMax: 115,
+            },
+            allVariables
+        )
+        expect(preview.preview).toBe('Age should be between 0 and 115')
+    })
+
+    it('previews a date between with both bounds', () => {
+        const preview = getValidationPreview(
+            enrollment,
+            {
+                operator: 'between',
+                comparisonDateMode: 'relative',
+                relativeComparisonAmount: 1,
+                relativeComparisonUnit: 'years',
+                relativeComparisonDirection: 'past',
+                upperComparisonDateMode: 'current',
+            },
+            allVariables
+        )
+        expect(preview.preview).toBe(
+            'Enrollment date should be between 1 years before current date and Current date'
+        )
+    })
+
+    it('flags a numeric between missing its maximum', () => {
+        const missing = getMissingFieldLabels(numericDE, {
+            ruleName: 'R',
+            ruleMessage: 'M',
+            numericOperator: 'between',
+            numericValue: 0,
+        })
+        expect(missing).toEqual(['Maximum value'])
+    })
+
+    it('flags a date between missing its upper bound', () => {
+        const missing = getMissingFieldLabels(enrollment, {
+            ruleName: 'R',
+            ruleMessage: 'M',
+            operator: 'between',
+            comparisonDateMode: 'current',
+            upperComparisonDateMode: 'variable',
+        })
+        expect(missing).toEqual(['Upper comparison date field'])
     })
 })
 

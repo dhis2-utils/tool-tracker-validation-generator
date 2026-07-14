@@ -1,4 +1,4 @@
-import { useAlert, useDataEngine } from '@dhis2/app-runtime'
+import { useAlert, useConfig, useDataEngine } from '@dhis2/app-runtime'
 import i18n from '@dhis2/d2-i18n'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -39,6 +39,7 @@ export const useValidationActions = ({
     variables,
 }: UseValidationActionsInput) => {
     const engine = useDataEngine()
+    const { baseUrl } = useConfig()
     const queryClient = useQueryClient()
     // One useAlert instance per outcome: app-runtime's useAlert manages a
     // single alert per instance and silently ignores show() while that alert
@@ -92,6 +93,34 @@ export const useValidationActions = ({
         null
     )
 
+    // Validate a condition against DHIS2 before a rule is posted. The endpoint
+    // consumes a text/plain body, which the app-runtime data engine can't send,
+    // so this uses a direct fetch against the configured baseUrl (with session
+    // credentials). Fails open: if validation can't run (network/endpoint
+    // issue), rule creation proceeds rather than being blocked by the check.
+    const validateCondition = async (
+        condition: string
+    ): Promise<{ valid: boolean; message?: string }> => {
+        try {
+            const res = await fetch(
+                `${baseUrl}/api/programRules/condition/description?programId=${programId}`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: condition,
+                }
+            )
+            const body = await res.json()
+            const message = [body.message, body.description]
+                .filter(Boolean)
+                .join(': ')
+            return { valid: body.status !== 'ERROR', message }
+        } catch {
+            return { valid: true }
+        }
+    }
+
     const buildCtx = (): RuleServiceContext => {
         if (!programMetadata) {
             throw new Error(i18n.t('Programme metadata is not loaded yet'))
@@ -102,6 +131,7 @@ export const useValidationActions = ({
             programId,
             config,
             variables,
+            validateCondition,
         }
     }
 

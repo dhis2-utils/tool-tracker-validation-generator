@@ -68,7 +68,7 @@ export const BatchWorkspace = ({
     >('fixed')
     const [fixedDate, setFixedDate] = useState('')
     const [relativeAmount, setRelativeAmount] = useState('')
-    const [relativeUnit, setRelativeUnit] = useState('years')
+    const [relativeUnit, setRelativeUnit] = useState('days')
     const [relativeDirection, setRelativeDirection] =
         useState<RelativeDirection>('past')
     const [intervalAmount, setIntervalAmount] = useState('')
@@ -421,6 +421,8 @@ export const BatchWorkspace = ({
                                         setRelativeAmount(value ?? '')
                                     }
                                 />
+                                {/* days only: the rule engine has d2:addDays
+                                    but not d2:addYears/d2:addMonths */}
                                 <SingleSelectField
                                     dense
                                     className={styles.inlineUnit}
@@ -434,14 +436,6 @@ export const BatchWorkspace = ({
                                     <SingleSelectOption
                                         value="days"
                                         label={i18n.t('days')}
-                                    />
-                                    <SingleSelectOption
-                                        value="months"
-                                        label={i18n.t('months')}
-                                    />
-                                    <SingleSelectOption
-                                        value="years"
-                                        label={i18n.t('years')}
                                     />
                                 </SingleSelectField>
                                 <SingleSelectField

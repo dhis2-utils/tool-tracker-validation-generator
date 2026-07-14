@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { makeMeta, makeVariable } from './helpers'
 import type { ProgramRuleVariable } from '@/lib/types'
 import {
+    createValidationForVariable,
     DataEngine,
     ensureProgramRuleVariable,
     RuleServiceContext,
+    updateValidation,
 } from '@/services/rules'
 
 const uidEngine = (overrides: Partial<DataEngine> = {}): DataEngine => {
@@ -65,6 +67,69 @@ describe('ensureProgramRuleVariable', () => {
         expect(reused.id).toBe(created.id)
         expect(engine.mutate).toHaveBeenCalledTimes(1)
         expect(ctx.metadata.programRuleVariables).toHaveLength(1)
+    })
+
+    it('reuses an existing current-event PRV for the same data element', async () => {
+        const engine = uidEngine()
+        const ctx = buildCtx(engine)
+        ctx.metadata.programRuleVariables = [
+            {
+                id: 'prvCurr0001',
+                name: 'EXISTING_CURRENT',
+                program: { id: 'prog1234567' },
+                programRuleVariableSourceType: 'DATAELEMENT_CURRENT_EVENT',
+                dataElement: { id: 'de123456789' },
+                valueType: 'NUMBER',
+            },
+        ]
+        const variable = makeVariable({
+            type: 'dataElement',
+            id: 'de123456789',
+            name: 'Age',
+            valueType: 'NUMBER',
+        })
+
+        const result = (await ensureProgramRuleVariable(
+            ctx,
+            variable
+        )) as ProgramRuleVariable
+
+        expect(result.id).toBe('prvCurr0001')
+        expect(engine.mutate).not.toHaveBeenCalled()
+    })
+
+    it('does NOT reuse a PRV for the same data element with a different source type', async () => {
+        const engine = uidEngine()
+        const ctx = buildCtx(engine)
+        ctx.metadata.programRuleVariables = [
+            {
+                id: 'prvPrev0001',
+                name: 'EXISTING_PREVIOUS',
+                program: { id: 'prog1234567' },
+                programRuleVariableSourceType: 'DATAELEMENT_PREVIOUS_EVENT',
+                dataElement: { id: 'de123456789' },
+                valueType: 'NUMBER',
+            },
+        ]
+        const variable = makeVariable({
+            type: 'dataElement',
+            id: 'de123456789',
+            name: 'Age',
+            valueType: 'NUMBER',
+        })
+
+        const result = (await ensureProgramRuleVariable(
+            ctx,
+            variable
+        )) as ProgramRuleVariable
+
+        // Must create a fresh current-event PRV rather than reuse the
+        // previous-event one (which would evaluate against the wrong value).
+        expect(result.id).not.toBe('prvPrev0001')
+        expect(result.programRuleVariableSourceType).toBe(
+            'DATAELEMENT_CURRENT_EVENT'
+        )
+        expect(engine.mutate).toHaveBeenCalledTimes(1)
     })
 
     it('includes stage context in new PRV names for stage data elements', async () => {
@@ -201,5 +266,160 @@ describe('ensureProgramRuleVariable', () => {
         expect(ctx.metadata.programRuleVariables).toEqual([
             expect.objectContaining({ id: created.id }),
         ])
+    })
+})
+
+describe('condition validation gate', () => {
+    it('aborts creation and posts no rule when the validator rejects the condition', async () => {
+        const engine = uidEngine()
+        const ctx = buildCtx(engine)
+        ctx.validateCondition = async () => ({
+            valid: false,
+            message: "Unknown function or constant: 'd2:addYears'",
+        })
+        const variable = makeVariable({
+            type: 'dataElement',
+            id: 'de123456789',
+            name: 'Date of birth',
+            valueType: 'DATE',
+            category: 'date',
+        })
+
+        await expect(
+            createValidationForVariable(
+                ctx,
+                {
+                    operator: 'before',
+                    comparisonDateMode: 'current',
+                    ruleName: 'X',
+                    ruleMessage: 'm',
+                    actionType: 'SHOWERROR',
+                },
+                variable
+            )
+        ).rejects.toThrow(/rejected the rule condition/i)
+
+        const ruleCreates = (
+            engine.mutate as unknown as {
+                mock: { calls: [{ resource: string; type: string }][] }
+            }
+        ).mock.calls
+            .map((c) => c[0])
+            .filter((m) => m.resource === 'programRules' && m.type === 'create')
+        expect(ruleCreates.length).toBe(0)
+    })
+
+    it('creates normally when no validator is injected (unit-test default)', async () => {
+        const engine = uidEngine()
+        const ctx = buildCtx(engine)
+        const variable = makeVariable({
+            type: 'enrollment',
+            id: 'enrollment_date',
+            name: 'Enrollment date',
+            category: 'date',
+        })
+        await expect(
+            createValidationForVariable(
+                ctx,
+                {
+                    operator: 'before',
+                    comparisonDateMode: 'current',
+                    ruleName: 'X',
+                    ruleMessage: 'm',
+                    actionType: 'SHOWERROR',
+                },
+                variable
+            )
+        ).resolves.toBeTruthy()
+    })
+})
+
+describe('updateValidation — group/bulk edits', () => {
+    it('keeps the [DVT-BATCH] tag and regenerates a stage-aware name', async () => {
+        const engine = uidEngine()
+        const currentVariable = makeVariable({
+            type: 'dataElement',
+            id: 'de1AAAAAAAA',
+            name: 'Vacc date',
+            stageName: 'Stage A',
+            stageId: 'stgAAAAAAAA',
+            valueType: 'DATE',
+            category: 'date',
+        })
+        const ctx: RuleServiceContext = {
+            engine,
+            programId: 'prog1234567',
+            config: { programRuleVariablePrefix: 'TRE', programRulePrefix: '' },
+            variables: [currentVariable],
+            metadata: makeMeta({
+                programRuleVariables: [
+                    {
+                        id: 'prv1AAAAAAA',
+                        name: 'TRE_STAGE_A_VACC_DATE',
+                        program: { id: 'prog1234567' },
+                        programRuleVariableSourceType:
+                            'DATAELEMENT_CURRENT_EVENT',
+                        dataElement: { id: 'de1AAAAAAAA' },
+                        valueType: 'DATE',
+                    },
+                ],
+                programRules: [
+                    {
+                        id: 'rule1AAAAAA',
+                        name: 'Date validation: Vacc date (Stage A) should be before Current date',
+                        description:
+                            '[DVT] [DVT-BATCH] Validates that Vacc date is entered before Current date',
+                        condition:
+                            'd2:hasValue(#{TRE_STAGE_A_VACC_DATE}) && d2:daysBetween(#{TRE_STAGE_A_VACC_DATE}, V{current_date}) < 0',
+                        program: { id: 'prog1234567' },
+                    },
+                ],
+                programRuleActions: [
+                    {
+                        id: 'act1AAAAAAA',
+                        programRule: { id: 'rule1AAAAAA' },
+                        programRuleActionType: 'SHOWERROR',
+                        content: 'old message',
+                    },
+                ],
+            }),
+        }
+
+        // A group edit: change "before" → "on or before", no name supplied.
+        await updateValidation(ctx, {
+            ruleId: 'rule1AAAAAA',
+            currentVariable,
+            config: {
+                operator: 'on_or_before',
+                comparisonDateMode: 'current',
+                ruleMessage: 'new message',
+            },
+        })
+
+        const ruleUpdate = (
+            engine.mutate as unknown as {
+                mock: {
+                    calls: [
+                        {
+                            resource: string
+                            type: string
+                            data: ProgramRuleVariable & {
+                                name: string
+                                description: string
+                                condition: string
+                            }
+                        },
+                    ][]
+                }
+            }
+        ).mock.calls
+            .map((c) => c[0])
+            .find((m) => m.resource === 'programRules' && m.type === 'update')
+
+        expect(ruleUpdate?.data.description).toContain('[DVT-BATCH]')
+        expect(ruleUpdate?.data.name).toBe(
+            'Date validation: Vacc date (Stage A) should be on or before Current date'
+        )
+        expect(ruleUpdate?.data.condition).toContain('<= 0')
     })
 })

@@ -196,6 +196,57 @@ export function parseRuleCondition(
 
     const betweenExpression = parseBetweenExpression(condition)
 
+    // "between": two clauses joined by && (checked before single-clause forms).
+    const clauses = condition.split('&&').map((clause) => clause.trim())
+    if (clauses.length === 2) {
+        // numeric between: #{X} >= min && #{X} <= max
+        const lo = clauses[0].match(/^#{([^}]+)}\s*>=\s*(-?\d+(?:\.\d+)?)$/)
+        const hi = clauses[1].match(/^#{([^}]+)}\s*<=\s*(-?\d+(?:\.\d+)?)$/)
+        if (lo && hi && lo[1] === hi[1]) {
+            const variable1 = parseVariableReference(lo[1], programMetadata)
+            if (variable1) {
+                return {
+                    variable1,
+                    variable2: null,
+                    config: {
+                        operator: 'between',
+                        comparisonType: 'value',
+                        value: parseFloat(lo[2]),
+                        valueMax: parseFloat(hi[2]),
+                    },
+                }
+            }
+        }
+        // date between: daysBetween(v, lower) <= 0 && daysBetween(v, upper) >= 0
+        const c1 = parseBetweenExpression(clauses[0])
+        const c2 = parseBetweenExpression(clauses[1])
+        if (
+            c1 &&
+            c2 &&
+            c1.unit === 'days' &&
+            c2.unit === 'days' &&
+            c1.value === 0 &&
+            c2.value === 0 &&
+            c1.ref1 === c2.ref1 &&
+            ((c1.op === '<=' && c2.op === '>=') ||
+                (c1.op === '>=' && c2.op === '<='))
+        ) {
+            const variable1 = parseVariableReference(c1.ref1, programMetadata)
+            const lowerRef = c1.op === '<=' ? c1.ref2 : c2.ref2
+            const upperRef = c1.op === '<=' ? c2.ref2 : c1.ref2
+            const lower = parseVariableReference(lowerRef, programMetadata)
+            const upper = parseVariableReference(upperRef, programMetadata)
+            if (variable1 && lower && upper) {
+                return {
+                    variable1,
+                    variable2: lower,
+                    variable3: upper,
+                    config: { operator: 'between' },
+                }
+            }
+        }
+    }
+
     // Parse d2:daysBetween date comparison conditions (robust)
     if (betweenExpression && betweenExpression.unit === 'days') {
         const variable1 = parseVariableReference(

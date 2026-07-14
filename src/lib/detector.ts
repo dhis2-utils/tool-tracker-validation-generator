@@ -129,6 +129,36 @@ function isVariablePrimaryTarget(
 ): boolean {
     const stripped = stripNullGuard(condition)
 
+    // "between": two clauses joined by &&. The validated variable is the first
+    // argument of each d2:daysBetween clause (dates) or the #{} operand
+    // (numeric). Checked before the single-clause forms.
+    const clauses = stripped.split('&&').map((clause) => clause.trim())
+    if (clauses.length === 2) {
+        for (const clause of clauses) {
+            const clauseBetween = parseBetweenExpression(clause)
+            if (
+                clauseBetween &&
+                refMatchesVariable(
+                    clauseBetween.ref1,
+                    variable,
+                    relatedPrvs,
+                    rule
+                )
+            ) {
+                return true
+            }
+            const numeric = clause.match(/^#{([^}]+)}\s*(>=|<=|>|<|==|!=)/)
+            if (
+                numeric &&
+                (variable.type === 'dataElement' ||
+                    variable.type === 'trackedEntityAttribute') &&
+                relatedPrvs.some((prv) => prv.name === numeric[1])
+            ) {
+                return true
+            }
+        }
+    }
+
     const between = parseBetweenExpression(stripped)
     if (between) {
         // Comparison conditions (op against 0) put the validated variable

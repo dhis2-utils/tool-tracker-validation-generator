@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import styles from './VariableList.module.css'
 import { prGetExisting } from '@/lib/detector'
 import type { ProgramMetadata, Variable } from '@/lib/types'
+import { VALUE_TYPE_LABELS } from '@/lib/variables'
 
 const TYPE_LABELS: Record<string, string> = {
     enrollment: 'Enrollment date',
@@ -51,7 +52,8 @@ const VariableRow = ({
             )}
             <Tag neutral={variable.category !== 'numeric'}>
                 {variable.category === 'numeric'
-                    ? i18n.t('Numeric')
+                    ? VALUE_TYPE_LABELS[variable.valueType ?? ''] ||
+                      i18n.t('Numeric')
                     : i18n.t('Date')}
             </Tag>
         </button>

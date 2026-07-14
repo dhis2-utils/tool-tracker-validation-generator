@@ -3,6 +3,7 @@ import { prGetExisting } from './detector'
 import { removeAppSignature } from './signature'
 import type {
     BatchTemplate,
+    ComparisonDateMode,
     ParsedRuleCondition,
     ProgramMetadata,
     ProgramRule,
@@ -21,6 +22,7 @@ export const DATE_OPERATOR_LABELS: Record<string, string> = {
     on_or_before: 'on or before',
     within_before: 'within',
     within_after: 'within',
+    between: 'between',
 }
 
 export const NUMERIC_OPERATOR_LABELS: Record<string, string> = {
@@ -30,6 +32,7 @@ export const NUMERIC_OPERATOR_LABELS: Record<string, string> = {
     less_than_or_equal: 'less than or equal to',
     equal_to: 'equal to',
     not_equal_to: 'not equal to',
+    between: 'between',
 }
 
 export function buildRelativeDateTarget(
@@ -56,19 +59,28 @@ export function buildRelativeDateTarget(
     }
 }
 
-export function resolveDateComparisonTarget(
-    config: ValidationConfig,
+interface DateTargetFields {
+    mode?: ComparisonDateMode
+    comparisonDate?: string
+    fixedComparisonDate?: string
+    relativeAmount?: number | null
+    relativeUnit?: string
+    relativeDirection?: RelativeDirection
+}
+
+function resolveDateTarget(
+    fields: DateTargetFields,
     variables: Variable[] | null
 ): Variable | null {
-    const comparisonMode = config.comparisonDateMode || 'variable'
+    const comparisonMode = fields.mode || 'variable'
     if (comparisonMode === 'fixed') {
-        if (!config.fixedComparisonDate) {
+        if (!fields.fixedComparisonDate) {
             return null
         }
         return {
             type: 'fixed_date',
-            id: config.fixedComparisonDate,
-            name: config.fixedComparisonDate,
+            id: fields.fixedComparisonDate,
+            name: fields.fixedComparisonDate,
         }
     }
     if (comparisonMode === 'current') {
@@ -80,15 +92,50 @@ export function resolveDateComparisonTarget(
     }
     if (comparisonMode === 'relative') {
         return buildRelativeDateTarget(
-            config.relativeComparisonAmount,
-            config.relativeComparisonUnit,
-            config.relativeComparisonDirection
+            fields.relativeAmount,
+            fields.relativeUnit,
+            fields.relativeDirection
         )
     }
-    if (!config.comparisonDate) {
+    if (!fields.comparisonDate) {
         return null
     }
-    return findVariableByKey(variables, config.comparisonDate)
+    return findVariableByKey(variables, fields.comparisonDate)
+}
+
+export function resolveDateComparisonTarget(
+    config: ValidationConfig,
+    variables: Variable[] | null
+): Variable | null {
+    return resolveDateTarget(
+        {
+            mode: config.comparisonDateMode,
+            comparisonDate: config.comparisonDate,
+            fixedComparisonDate: config.fixedComparisonDate,
+            relativeAmount: config.relativeComparisonAmount,
+            relativeUnit: config.relativeComparisonUnit,
+            relativeDirection: config.relativeComparisonDirection,
+        },
+        variables
+    )
+}
+
+/** Resolve the upper bound of a date "between" rule. */
+export function resolveUpperDateComparisonTarget(
+    config: ValidationConfig,
+    variables: Variable[] | null
+): Variable | null {
+    return resolveDateTarget(
+        {
+            mode: config.upperComparisonDateMode,
+            comparisonDate: config.upperComparisonDate,
+            fixedComparisonDate: config.upperFixedComparisonDate,
+            relativeAmount: config.upperRelativeComparisonAmount,
+            relativeUnit: config.upperRelativeComparisonUnit,
+            relativeDirection: config.upperRelativeComparisonDirection,
+        },
+        variables
+    )
 }
 
 /**
@@ -237,29 +284,63 @@ const EMPTY_PREVIEW: PreviewTexts = {
     suggestedDescription: '',
 }
 
-export function getDateComparisonLabel(
-    config: ValidationConfig,
+function dateTargetLabel(
+    fields: DateTargetFields,
     variables: Variable[] | null
 ): string {
-    const mode = config.comparisonDateMode || 'variable'
+    const mode = fields.mode || 'variable'
     if (mode === 'fixed') {
-        return config.fixedComparisonDate || ''
+        return fields.fixedComparisonDate || ''
     }
     if (mode === 'current') {
         return 'Current date'
     }
     if (mode === 'relative') {
-        const amount = config.relativeComparisonAmount
-        const unit = config.relativeComparisonUnit || 'days'
-        const direction = config.relativeComparisonDirection || 'past'
+        const amount = fields.relativeAmount
+        const unit = fields.relativeUnit || 'days'
+        const direction = fields.relativeDirection || 'past'
         return amount
             ? `${amount} ${unit} ${direction === 'past' ? 'before' : 'after'} current date`
             : ''
     }
-    if (!config.comparisonDate) {
+    if (!fields.comparisonDate) {
         return ''
     }
-    return findVariableByKey(variables, config.comparisonDate)?.name ?? ''
+    return findVariableByKey(variables, fields.comparisonDate)?.name ?? ''
+}
+
+export function getDateComparisonLabel(
+    config: ValidationConfig,
+    variables: Variable[] | null
+): string {
+    return dateTargetLabel(
+        {
+            mode: config.comparisonDateMode,
+            comparisonDate: config.comparisonDate,
+            fixedComparisonDate: config.fixedComparisonDate,
+            relativeAmount: config.relativeComparisonAmount,
+            relativeUnit: config.relativeComparisonUnit,
+            relativeDirection: config.relativeComparisonDirection,
+        },
+        variables
+    )
+}
+
+export function getUpperDateComparisonLabel(
+    config: ValidationConfig,
+    variables: Variable[] | null
+): string {
+    return dateTargetLabel(
+        {
+            mode: config.upperComparisonDateMode,
+            comparisonDate: config.upperComparisonDate,
+            fixedComparisonDate: config.upperFixedComparisonDate,
+            relativeAmount: config.upperRelativeComparisonAmount,
+            relativeUnit: config.upperRelativeComparisonUnit,
+            relativeDirection: config.upperRelativeComparisonDirection,
+        },
+        variables
+    )
 }
 
 export function getValidationPreview(
@@ -268,8 +349,26 @@ export function getValidationPreview(
     variables: Variable[] | null
 ): PreviewTexts {
     if (currentVariable.category === 'numeric') {
-        const opLabel = NUMERIC_OPERATOR_LABELS[config.numericOperator ?? '']
         const varName = currentVariable.name
+        if (config.numericOperator === 'between') {
+            const min = config.numericValue
+            const max = config.numericValueMax
+            if (
+                min === null ||
+                min === undefined ||
+                max === null ||
+                max === undefined
+            ) {
+                return EMPTY_PREVIEW
+            }
+            return {
+                preview: `${varName} should be between ${min} and ${max}`,
+                suggestedRuleName: `${varName} must be between ${min} and ${max}`,
+                suggestedMessage: `${varName} must be between ${min} and ${max}`,
+                suggestedDescription: `Validates that ${varName} is between ${min} and ${max}`,
+            }
+        }
+        const opLabel = NUMERIC_OPERATOR_LABELS[config.numericOperator ?? '']
         if (!config.numericOperator || !opLabel) {
             return EMPTY_PREVIEW
         }
@@ -300,11 +399,24 @@ export function getValidationPreview(
     }
 
     const operator = config.operator
+    const variableName = currentVariable.name
+    if (operator === 'between') {
+        const lower = getDateComparisonLabel(config, variables)
+        const upper = getUpperDateComparisonLabel(config, variables)
+        if (!lower || !upper) {
+            return EMPTY_PREVIEW
+        }
+        return {
+            preview: `${variableName} should be between ${lower} and ${upper}`,
+            suggestedRuleName: `${variableName} must be between ${lower} and ${upper}`,
+            suggestedMessage: `${variableName} must be between ${lower} and ${upper}`,
+            suggestedDescription: `Validates that ${variableName} is between ${lower} and ${upper}`,
+        }
+    }
     const comparisonName = getDateComparisonLabel(config, variables)
     if (!operator || !comparisonName) {
         return EMPTY_PREVIEW
     }
-    const variableName = currentVariable.name
     switch (operator) {
         case 'before':
         case 'after':
@@ -352,59 +464,95 @@ export function getValidationPreview(
     }
 }
 
+/**
+ * Returns the human-readable labels of fields that still need a value before a
+ * rule can be saved. Empty array = the config is complete. `isConfigComplete`
+ * is defined in terms of this so the two never drift apart; the form renders
+ * the list so a disabled "Save" button always has a visible reason.
+ */
+export function getMissingFieldLabels(
+    currentVariable: Variable,
+    config: ValidationConfig
+): string[] {
+    const missing: string[] = []
+    const isMissing = (value: number | null | undefined) =>
+        value === null || value === undefined
+    if (currentVariable.category === 'numeric') {
+        if (!config.numericOperator) {
+            missing.push('Relationship')
+        }
+        if (config.numericOperator === 'between') {
+            if (isMissing(config.numericValue)) {
+                missing.push('Minimum value')
+            }
+            if (isMissing(config.numericValueMax)) {
+                missing.push('Maximum value')
+            }
+        } else {
+            if (
+                config.numericComparisonType !== 'field' &&
+                isMissing(config.numericValue)
+            ) {
+                missing.push('Comparison value')
+            }
+            if (
+                config.numericComparisonType === 'field' &&
+                !config.numericComparisonField
+            ) {
+                missing.push('Comparison field')
+            }
+        }
+    } else {
+        const comparisonMode = config.comparisonDateMode || 'variable'
+        if (!config.operator) {
+            missing.push('Relationship')
+        }
+        if (comparisonMode === 'variable' && !config.comparisonDate) {
+            missing.push('Comparison date field')
+        }
+        if (comparisonMode === 'fixed' && !config.fixedComparisonDate) {
+            missing.push('Comparison date')
+        }
+        if (comparisonMode === 'relative' && !config.relativeComparisonAmount) {
+            missing.push('Offset amount')
+        }
+        if (
+            (config.operator === 'within_before' ||
+                config.operator === 'within_after') &&
+            !config.intervalAmount
+        ) {
+            missing.push('Interval amount')
+        }
+        if (config.operator === 'between') {
+            const upperMode = config.upperComparisonDateMode || 'variable'
+            if (upperMode === 'variable' && !config.upperComparisonDate) {
+                missing.push('Upper comparison date field')
+            }
+            if (upperMode === 'fixed' && !config.upperFixedComparisonDate) {
+                missing.push('Upper comparison date')
+            }
+            if (
+                upperMode === 'relative' &&
+                !config.upperRelativeComparisonAmount
+            ) {
+                missing.push('Upper offset amount')
+            }
+        }
+    }
+    if (!config.ruleName) {
+        missing.push('Rule name')
+    }
+    if (!config.ruleMessage) {
+        missing.push('Validation message')
+    }
+    return missing
+}
+
 export function isConfigComplete(
     currentVariable: Variable,
     config: ValidationConfig
 ): boolean {
-    if (!config.ruleName || !config.ruleMessage) {
-        return false
-    }
-    if (currentVariable.category === 'numeric') {
-        if (!config.numericOperator) {
-            return false
-        }
-        if (
-            config.numericComparisonType !== 'field' &&
-            (config.numericValue === null || config.numericValue === undefined)
-        ) {
-            return false
-        }
-        if (
-            config.numericComparisonType === 'field' &&
-            !config.numericComparisonField
-        ) {
-            return false
-        }
-        return true
-    }
-    const comparisonMode = config.comparisonDateMode || 'variable'
-    if (!config.operator) {
-        return false
-    }
-    let hasComparisonTarget = false
-    if (comparisonMode === 'variable') {
-        hasComparisonTarget = Boolean(config.comparisonDate)
-    }
-    if (comparisonMode === 'fixed') {
-        hasComparisonTarget = Boolean(config.fixedComparisonDate)
-    }
-    if (comparisonMode === 'current') {
-        hasComparisonTarget = true
-    }
-    if (comparisonMode === 'relative') {
-        hasComparisonTarget = Boolean(config.relativeComparisonAmount)
-    }
-    if (!hasComparisonTarget) {
-        return false
-    }
-    if (
-        (config.operator === 'within_before' ||
-            config.operator === 'within_after') &&
-        !config.intervalAmount
-    ) {
-        return false
-    }
-    return true
+    return getMissingFieldLabels(currentVariable, config).length === 0
 }
 
 export function generateDefaultDescription(
@@ -493,45 +641,79 @@ export function buildEditConfig(
             numericComparisonType:
                 parsed.config.comparisonType === 'field' ? 'field' : 'value',
             numericValue: parsed.config.value ?? null,
+            numericValueMax: parsed.config.valueMax ?? null,
             numericComparisonField: parsed.variable2
                 ? getVariableKey(parsed.variable2)
                 : '',
         }
     }
 
-    const variable2 = parsed.variable2
-    let comparisonDateMode: ValidationConfig['comparisonDateMode'] = 'variable'
-    let comparisonDate = ''
-    let fixedComparisonDate = ''
-    let relativeComparisonAmount: number | null = null
-    let relativeComparisonUnit = 'years'
-    let relativeComparisonDirection: RelativeDirection = 'past'
-    if (variable2?.type === 'fixed_date') {
-        comparisonDateMode = 'fixed'
-        fixedComparisonDate = variable2.id
-    } else if (variable2?.type === 'current_date') {
-        comparisonDateMode = 'current'
-    } else if (variable2?.type === 'relative_current_date') {
-        comparisonDateMode = 'relative'
-        relativeComparisonAmount = variable2.relativeAmount ?? null
-        relativeComparisonUnit = variable2.relativeUnit || 'years'
-        relativeComparisonDirection = variable2.relativeDirection || 'past'
-    } else if (variable2) {
-        comparisonDate = getVariableKey(variable2)
+    const lower = mapDateVariableToFields(parsed.variable2)
+    if (parsed.config.operator === 'between') {
+        const upper = mapDateVariableToFields(parsed.variable3 ?? null)
+        return {
+            ...base,
+            operator: 'between',
+            comparisonDateMode: lower.mode,
+            comparisonDate: lower.comparisonDate,
+            fixedComparisonDate: lower.fixedComparisonDate,
+            relativeComparisonAmount: lower.relativeAmount,
+            relativeComparisonUnit: lower.relativeUnit,
+            relativeComparisonDirection: lower.relativeDirection,
+            upperComparisonDateMode: upper.mode,
+            upperComparisonDate: upper.comparisonDate,
+            upperFixedComparisonDate: upper.fixedComparisonDate,
+            upperRelativeComparisonAmount: upper.relativeAmount,
+            upperRelativeComparisonUnit: upper.relativeUnit,
+            upperRelativeComparisonDirection: upper.relativeDirection,
+        }
     }
 
     return {
         ...base,
         operator: parsed.config.operator,
-        comparisonDateMode,
-        comparisonDate,
-        fixedComparisonDate,
-        relativeComparisonAmount,
-        relativeComparisonUnit,
-        relativeComparisonDirection,
+        comparisonDateMode: lower.mode,
+        comparisonDate: lower.comparisonDate,
+        fixedComparisonDate: lower.fixedComparisonDate,
+        relativeComparisonAmount: lower.relativeAmount,
+        relativeComparisonUnit: lower.relativeUnit,
+        relativeComparisonDirection: lower.relativeDirection,
         intervalAmount: parsed.config.intervalAmount ?? null,
         intervalUnit: parsed.config.intervalUnit || 'days',
     }
+}
+
+/** Map a parsed comparison Variable back to the form's date-bound fields. */
+function mapDateVariableToFields(variable: Variable | null): {
+    mode: ComparisonDateMode
+    comparisonDate: string
+    fixedComparisonDate: string
+    relativeAmount: number | null
+    relativeUnit: string
+    relativeDirection: RelativeDirection
+} {
+    const fields = {
+        mode: 'variable' as ComparisonDateMode,
+        comparisonDate: '',
+        fixedComparisonDate: '',
+        relativeAmount: null as number | null,
+        relativeUnit: 'years',
+        relativeDirection: 'past' as RelativeDirection,
+    }
+    if (variable?.type === 'fixed_date') {
+        fields.mode = 'fixed'
+        fields.fixedComparisonDate = variable.id
+    } else if (variable?.type === 'current_date') {
+        fields.mode = 'current'
+    } else if (variable?.type === 'relative_current_date') {
+        fields.mode = 'relative'
+        fields.relativeAmount = variable.relativeAmount ?? null
+        fields.relativeUnit = variable.relativeUnit || 'years'
+        fields.relativeDirection = variable.relativeDirection || 'past'
+    } else if (variable) {
+        fields.comparisonDate = getVariableKey(variable)
+    }
+    return fields
 }
 
 export function createBatchTemplateKey(template: BatchTemplate): string {
@@ -542,11 +724,17 @@ export function createBatchTemplateKey(template: BatchTemplate): string {
         template.operator || '',
         template.numericOperator || '',
         template.numericValue ?? '',
+        template.numericValueMax ?? '',
         template.comparisonDateMode || '',
         template.fixedComparisonDate || '',
         template.relativeComparisonAmount || '',
         template.relativeComparisonUnit || '',
         template.relativeComparisonDirection || '',
+        template.upperComparisonDateMode || '',
+        template.upperFixedComparisonDate || '',
+        template.upperRelativeComparisonAmount || '',
+        template.upperRelativeComparisonUnit || '',
+        template.upperRelativeComparisonDirection || '',
         template.actionType || 'SHOWERROR',
     ].join('|')
 }

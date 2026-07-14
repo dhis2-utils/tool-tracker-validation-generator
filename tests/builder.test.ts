@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { makeVariable } from './helpers'
 import {
+    generateBetweenDateCondition,
     generateNewRuleCondition,
+    generateNumericBetweenCondition,
     generateNumericCondition,
     generateNumericFieldCondition,
     generateRuleName,
@@ -33,11 +35,42 @@ const fixedDate = makeVariable({
 })
 const relativeCurrentDate = makeVariable({
     type: 'relative_current_date',
-    id: 'current_date_past_100_years',
-    name: '100 years before current date',
+    id: 'current_date_past_100_days',
+    name: '100 days before current date',
     relativeAmount: 100,
-    relativeUnit: 'years',
+    relativeUnit: 'days',
     relativeDirection: 'past',
+})
+
+describe('between conditions', () => {
+    it('builds a numeric between as an inclusive compound condition', () => {
+        const numDE = makeVariable({
+            type: 'dataElement',
+            id: 'ageAbc',
+            prvName: 'EIR_AGE',
+        })
+        expect(generateNumericBetweenCondition(numDE, 0, 115)).toBe(
+            'd2:hasValue(#{EIR_AGE}) && #{EIR_AGE} >= 0 && #{EIR_AGE} <= 115'
+        )
+    })
+
+    it('builds a date between with lower <= 0 and upper >= 0 clauses', () => {
+        const currentDate = makeVariable({
+            type: 'current_date',
+            id: 'current_date',
+        })
+        // reporting date between (1 year ago) and today, inclusive
+        expect(
+            generateBetweenDateCondition(
+                enrollment,
+                relativeCurrentDate,
+                currentDate
+            )
+        ).toBe(
+            'd2:daysBetween(V{enrollment_date}, d2:addDays(V{current_date}, -100)) <= 0 && ' +
+                'd2:daysBetween(V{enrollment_date}, V{current_date}) >= 0'
+        )
+    })
 })
 
 describe('generateNewRuleCondition — null guards', () => {
@@ -131,7 +164,7 @@ describe('date literal and relative references', () => {
 
     it('renders a relative current date with a negative offset for past dates', () => {
         expect(getVariableReference(relativeCurrentDate)).toBe(
-            'd2:addYears(V{current_date}, -100)'
+            'd2:addDays(V{current_date}, -100)'
         )
     })
 
@@ -153,7 +186,7 @@ describe('date literal and relative references', () => {
             }
         )
         expect(condition).toBe(
-            'd2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, d2:addYears(V{current_date}, -100)) >= 0'
+            'd2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, d2:addDays(V{current_date}, -100)) >= 0'
         )
     })
 })

@@ -121,6 +121,26 @@ export function generateNewRuleCondition(
     return guard ? `${guard} && ${condition}` : condition
 }
 
+/**
+ * "date between lower and upper" (both inclusive), as a single compound
+ * condition. `d2:daysBetween(a, b)` is `b - a`, so `daysBetween(v, lower) <= 0`
+ * means `v >= lower` and `daysBetween(v, upper) >= 0` means `v <= upper`.
+ */
+export function generateBetweenDateCondition(
+    variable1: Variable,
+    lowerVariable: Variable,
+    upperVariable: Variable
+): string {
+    const varRef = getVariableReference(variable1)
+    const lowerRef = getVariableReference(lowerVariable)
+    const upperRef = getVariableReference(upperVariable)
+    const guard = buildNullGuard(variable1)
+    const body =
+        `d2:daysBetween(${varRef}, ${lowerRef}) <= 0 && ` +
+        `d2:daysBetween(${varRef}, ${upperRef}) >= 0`
+    return guard ? `${guard} && ${body}` : body
+}
+
 export function generateRuleName(
     variable1: Variable | null,
     variable2: Variable | null,
@@ -150,6 +170,7 @@ export function generateRuleName(
         on_or_before: 'should be on or before',
         after: 'should be after',
         on_or_after: 'should be on or after',
+        between: 'should be between',
         difference_less: 'difference should be less than',
         difference_less_equal: 'difference should be less than or equal to',
         difference_more: 'difference should be more than',
@@ -209,6 +230,15 @@ export function generateNumericCondition(
         throw new Error(`Unknown numeric operator: ${operator}`)
     }
     return `d2:hasValue(${varRef}) && ${varRef} ${op} ${value}`
+}
+
+export function generateNumericBetweenCondition(
+    variable: Variable,
+    min: number | string | null | undefined,
+    max: number | string | null | undefined
+): string {
+    const varRef = getVariableReference(variable)
+    return `d2:hasValue(${varRef}) && ${varRef} >= ${min} && ${varRef} <= ${max}`
 }
 
 export function generateNumericFieldCondition(

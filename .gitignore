@@ -8,3 +8,6 @@ compiled
 .vscode
 .DS_Store
 .pnpm-store
+
+# Python cache from e2e test scripts
+tests/e2e/__pycache__/

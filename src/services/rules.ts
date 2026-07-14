@@ -3,7 +3,9 @@
 // of the program metadata, which they extend with created objects so repeated
 // operations in one run (e.g. batch apply) reuse PRVs without refetching.
 import {
+    generateBetweenDateCondition,
     generateNewRuleCondition,
+    generateNumericBetweenCondition,
     generateNumericCondition,
     generateNumericFieldCondition,
     generateRuleName,
@@ -13,6 +15,7 @@ import {
     addAppSignature,
     addBatchSignature,
     findDuplicateRule,
+    isBatchGenerated,
     parseRuleCondition,
 } from '@/lib/signature'
 import type {
@@ -30,6 +33,7 @@ import {
     generateDefaultNumericDescription,
     generateDefaultNumericMessage,
     resolveDateComparisonTarget,
+    resolveUpperDateComparisonTarget,
 } from '@/lib/validation'
 import { findVariableByKey } from '@/lib/variables'
 
@@ -56,6 +60,15 @@ export interface RuleServiceContext {
     programId: string
     config: ProgramConfig | null
     variables: Variable[]
+    /**
+     * Optional: validate a rule condition against DHIS2 before it is posted,
+     * via `POST /api/programRules/condition/description`. Injected by the hook
+     * (needs baseUrl + a text/plain body the data engine can't send). When
+     * absent (e.g. in unit tests) validation is skipped.
+     */
+    validateCondition?: (
+        condition: string
+    ) => Promise<{ valid: boolean; message?: string }>
 }
 
 type SignatureFn = (
@@ -83,11 +96,20 @@ export function prvGetSet(
     nameFallback: string,
     valueType = 'DATE'
 ): ProgramRuleVariable {
+    // Reuse an existing PRV only when BOTH the field id AND the source type
+    // match what this tool needs (current-event value for data elements, the
+    // attribute value for TEAs). Matching on id alone could reuse e.g. a
+    // "previous event" PRV and silently evaluate the rule against the wrong
+    // value.
     const existing = (programMetadata.programRuleVariables || []).find(
         (prv) =>
-            (type === 'dataElement' && prv.dataElement?.id === id) ||
+            (type === 'dataElement' &&
+                prv.dataElement?.id === id &&
+                prv.programRuleVariableSourceType ===
+                    'DATAELEMENT_CURRENT_EVENT') ||
             (type === 'trackedEntityAttribute' &&
-                prv.trackedEntityAttribute?.id === id)
+                prv.trackedEntityAttribute?.id === id &&
+                prv.programRuleVariableSourceType === 'TEI_ATTRIBUTE')
     )
     if (existing) {
         return existing
@@ -322,11 +344,45 @@ async function createRuleWithActions(
     return rule
 }
 
+/** Validate a condition against DHIS2 (if the context provides a validator)
+ * and throw before posting if the engine would reject it — e.g. an unknown
+ * function slipping through. No-op when no validator is injected. */
+async function assertConditionValid(
+    ctx: RuleServiceContext,
+    condition: string
+): Promise<void> {
+    if (!ctx.validateCondition) {
+        return
+    }
+    const { valid, message } = await ctx.validateCondition(condition)
+    if (!valid) {
+        throw new Error(
+            `DHIS2 rejected the rule condition${
+                message ? `: ${message}` : ''
+            }. The rule was not created (its condition would never evaluate).`
+        )
+    }
+}
+
+/** Ensure a comparison date variable has a PRV when it needs one (data
+ * elements / attributes); system dates and literals are referenced directly. */
+async function ensureDateRefPrv(
+    ctx: RuleServiceContext,
+    variable: Variable
+): Promise<Variable> {
+    if (['dataElement', 'trackedEntityAttribute'].includes(variable.type)) {
+        const prv = await ensureProgramRuleVariable(ctx, variable)
+        return { ...variable, prvName: prv.name }
+    }
+    return variable
+}
+
 export async function createDateValidationForVariable(
     ctx: RuleServiceContext,
     config: ValidationConfig,
     targetVariable: Variable,
-    signatureFn: SignatureFn = addAppSignature
+    signatureFn: SignatureFn = addAppSignature,
+    validate = true
 ): Promise<ProgramRule> {
     const { metadata, programId, config: programConfig, variables } = ctx
     const compareDate = resolveDateComparisonTarget(config, variables)
@@ -355,18 +411,30 @@ export async function createDateValidationForVariable(
     }
 
     const variable1Prv = await ensureProgramRuleVariable(ctx, targetVariable)
-    let compareDateRef = compareDate
-    if (['dataElement', 'trackedEntityAttribute'].includes(compareDate.type)) {
-        const variable2Prv = await ensureProgramRuleVariable(ctx, compareDate)
-        compareDateRef = { ...compareDate, prvName: variable2Prv.name }
-    }
+    const targetRef = { ...targetVariable, prvName: variable1Prv.name }
 
     const prefix = programConfig?.programRulePrefix || ''
-    const ruleCondition = generateNewRuleCondition(
-        { ...targetVariable, prvName: variable1Prv.name },
-        compareDateRef,
-        config
-    )
+    let ruleCondition: string
+    if (config.operator === 'between') {
+        const upperDate = resolveUpperDateComparisonTarget(config, variables)
+        if (!upperDate) {
+            throw new Error('Upper bound date not found')
+        }
+        ruleCondition = generateBetweenDateCondition(
+            targetRef,
+            await ensureDateRefPrv(ctx, compareDate),
+            await ensureDateRefPrv(ctx, upperDate)
+        )
+    } else {
+        ruleCondition = generateNewRuleCondition(
+            targetRef,
+            await ensureDateRefPrv(ctx, compareDate),
+            config
+        )
+    }
+    if (validate) {
+        await assertConditionValid(ctx, ruleCondition)
+    }
 
     const actualName = generateRuleName(
         targetVariable,
@@ -426,7 +494,8 @@ export async function createNumericValidationForVariable(
     ctx: RuleServiceContext,
     config: ValidationConfig,
     targetVariable: Variable,
-    signatureFn: SignatureFn = addAppSignature
+    signatureFn: SignatureFn = addAppSignature,
+    validate = true
 ): Promise<ProgramRule> {
     const { metadata, programId, config: programConfig, variables } = ctx
     let compareField: Variable | null = null
@@ -455,8 +524,11 @@ export async function createNumericValidationForVariable(
             config.numericComparisonType === 'field'
                 ? parsed.config.comparisonType === 'field' &&
                   parsed.variable2?.id === compareField?.id
-                : parsed.config.comparisonType === 'value' &&
-                  parsed.config.value === config.numericValue
+                : config.numericOperator === 'between'
+                  ? parsed.config.value === config.numericValue &&
+                    parsed.config.valueMax === config.numericValueMax
+                  : parsed.config.comparisonType === 'value' &&
+                    parsed.config.value === config.numericValue
         if (sameComparison) {
             throw new Error(
                 `Duplicate rule already exists: "${existing.rule.name}"`
@@ -467,7 +539,13 @@ export async function createNumericValidationForVariable(
     const variable1Prv = await ensureProgramRuleVariable(ctx, targetVariable)
     const variable1WithPrv = { ...targetVariable, prvName: variable1Prv.name }
     let ruleCondition: string
-    if (config.numericComparisonType === 'field' && compareField) {
+    if (config.numericOperator === 'between') {
+        ruleCondition = generateNumericBetweenCondition(
+            variable1WithPrv,
+            config.numericValue,
+            config.numericValueMax
+        )
+    } else if (config.numericComparisonType === 'field' && compareField) {
         const variable2Prv = await ensureProgramRuleVariable(ctx, compareField)
         ruleCondition = generateNumericFieldCondition(
             variable1WithPrv,
@@ -483,6 +561,9 @@ export async function createNumericValidationForVariable(
             config.numericOperator,
             config.numericValue
         )
+    }
+    if (validate) {
+        await assertConditionValid(ctx, ruleCondition)
     }
     const prefix = programConfig?.programRulePrefix || ''
     const ruleNameBase =
@@ -541,20 +622,23 @@ export function createValidationForVariable(
     ctx: RuleServiceContext,
     config: ValidationConfig,
     targetVariable: Variable,
-    signatureFn: SignatureFn = addAppSignature
+    signatureFn: SignatureFn = addAppSignature,
+    validate = true
 ): Promise<ProgramRule> {
     return targetVariable.category === 'numeric'
         ? createNumericValidationForVariable(
               ctx,
               config,
               targetVariable,
-              signatureFn
+              signatureFn,
+              validate
           )
         : createDateValidationForVariable(
               ctx,
               config,
               targetVariable,
-              signatureFn
+              signatureFn,
+              validate
           )
 }
 
@@ -585,6 +669,11 @@ export async function updateValidation(
     if (!existingRule || !existingAction) {
         throw new Error('Rule or action not found for updating')
     }
+    // Preserve the rule's app/batch tagging so an edited bulk rule stays a bulk
+    // rule (keeps its [DVT-BATCH] tag) instead of reclassifying as individual.
+    const signatureFn = isBatchGenerated(existingRule)
+        ? addBatchSignature
+        : addAppSignature
 
     let updatedRule: ProgramRule
     if (currentVariable.category === 'numeric') {
@@ -607,7 +696,13 @@ export async function updateValidation(
             prvName: variable1Prv.name,
         }
         let ruleCondition: string
-        if (config.numericComparisonType === 'field' && compareField) {
+        if (config.numericOperator === 'between') {
+            ruleCondition = generateNumericBetweenCondition(
+                variable1WithPrv,
+                config.numericValue,
+                config.numericValueMax
+            )
+        } else if (config.numericComparisonType === 'field' && compareField) {
             const variable2Prv = await ensureProgramRuleVariable(
                 ctx,
                 compareField
@@ -625,9 +720,18 @@ export async function updateValidation(
             )
         }
         const prefix = programConfig?.programRulePrefix || ''
-        const ruleName = prefix
-            ? `${prefix} - ${config.ruleName}`
-            : (config.ruleName ?? '')
+        // Fall back to a generated name when none is supplied (e.g. group edits
+        // that regenerate per variable), mirroring the create path.
+        const ruleNameBase =
+            config.ruleName ||
+            generateDefaultNumericMessage(
+                currentVariable,
+                config.numericOperator,
+                config.numericComparisonType,
+                config.numericValue,
+                compareField
+            )
+        const ruleName = prefix ? `${prefix} - ${ruleNameBase}` : ruleNameBase
         const defaultDesc = generateDefaultNumericDescription(
             currentVariable,
             config.numericOperator,
@@ -635,7 +739,7 @@ export async function updateValidation(
             config.numericValue,
             compareField
         )
-        const { description } = addAppSignature(
+        const { description } = signatureFn(
             ruleName,
             config.ruleDescription || defaultDesc
         )
@@ -682,21 +786,28 @@ export async function updateValidation(
             ctx,
             currentVariable
         )
-        let compareDateRef = compareDate
-        if (
-            ['dataElement', 'trackedEntityAttribute'].includes(compareDate.type)
-        ) {
-            const variable2Prv = await ensureProgramRuleVariable(
-                ctx,
-                compareDate
+        const targetRef = { ...currentVariable, prvName: variable1Prv.name }
+        let ruleCondition: string
+        if (config.operator === 'between') {
+            const upperDate = resolveUpperDateComparisonTarget(
+                config,
+                variables
             )
-            compareDateRef = { ...compareDate, prvName: variable2Prv.name }
+            if (!upperDate) {
+                throw new Error('Upper bound date not found')
+            }
+            ruleCondition = generateBetweenDateCondition(
+                targetRef,
+                await ensureDateRefPrv(ctx, compareDate),
+                await ensureDateRefPrv(ctx, upperDate)
+            )
+        } else {
+            ruleCondition = generateNewRuleCondition(
+                targetRef,
+                await ensureDateRefPrv(ctx, compareDate),
+                config
+            )
         }
-        const ruleCondition = generateNewRuleCondition(
-            { ...currentVariable, prvName: variable1Prv.name },
-            compareDateRef,
-            config
-        )
 
         const ruleName = programConfig?.programRulePrefix
             ? `${programConfig.programRulePrefix} - ${finalRuleName}`
@@ -708,7 +819,7 @@ export async function updateValidation(
             config.intervalAmount,
             config.intervalUnit
         )
-        const { description } = addAppSignature(
+        const { description } = signatureFn(
             ruleName,
             config.ruleDescription || defaultDesc
         )
@@ -719,6 +830,8 @@ export async function updateValidation(
             condition: ruleCondition,
         }
     }
+
+    await assertConditionValid(ctx, updatedRule.condition)
 
     const updatedAction: ProgramRuleAction = {
         ...existingAction,
@@ -797,13 +910,16 @@ export async function applyBatchTemplates(
     onProgress?.({ completed: 0, total })
 
     for (const [index, { template, targets }] of templateTargets.entries()) {
-        for (const target of targets) {
+        for (const [targetIndex, target] of targets.entries()) {
             try {
+                // Validate the condition once per template (its first rule);
+                // sibling rules share the same condition shape.
                 await createValidationForVariable(
                     ctx,
                     template,
                     target,
-                    addBatchSignature
+                    addBatchSignature,
+                    targetIndex === 0
                 )
                 createdCount++
             } catch (error) {
