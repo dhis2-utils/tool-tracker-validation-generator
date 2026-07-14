@@ -762,25 +762,54 @@ export function createBatchTemplateKey(template: BatchTemplate): string {
     ].join('|')
 }
 
+function batchBoundLabel(
+    mode: ComparisonDateMode | undefined,
+    fixed: string | undefined,
+    amount: number | null | undefined,
+    unit: string | undefined,
+    direction: RelativeDirection | undefined
+): string {
+    if (mode === 'fixed') {
+        return fixed ?? ''
+    }
+    if (mode === 'current') {
+        return 'current date'
+    }
+    if (mode === 'relative') {
+        return `${amount} ${unit} ${
+            direction === 'past' ? 'before' : 'after'
+        } current date`
+    }
+    return 'another date'
+}
+
 export function getBatchTemplateSummary(template: BatchTemplate): string {
     if (template.category === 'numeric') {
+        if (template.numericOperator === 'between') {
+            return `Any unvalidated numeric variable should be between ${template.numericValue} and ${template.numericValueMax}`
+        }
         return `Any unvalidated numeric variable should be ${
             NUMERIC_OPERATOR_LABELS[template.numericOperator ?? ''] ||
             template.numericOperator
         } ${template.numericValue}`
     }
 
-    let comparisonLabel = 'another date'
-    if (template.comparisonDateMode === 'fixed') {
-        comparisonLabel = template.fixedComparisonDate ?? ''
-    }
-    if (template.comparisonDateMode === 'current') {
-        comparisonLabel = 'current date'
-    }
-    if (template.comparisonDateMode === 'relative') {
-        comparisonLabel = `${template.relativeComparisonAmount} ${
-            template.relativeComparisonUnit
-        } ${template.relativeComparisonDirection === 'past' ? 'before' : 'after'} current date`
+    const comparisonLabel = batchBoundLabel(
+        template.comparisonDateMode,
+        template.fixedComparisonDate,
+        template.relativeComparisonAmount,
+        template.relativeComparisonUnit,
+        template.relativeComparisonDirection
+    )
+    if (template.operator === 'between') {
+        const upperLabel = batchBoundLabel(
+            template.upperComparisonDateMode,
+            template.upperFixedComparisonDate,
+            template.upperRelativeComparisonAmount,
+            template.upperRelativeComparisonUnit,
+            template.upperRelativeComparisonDirection
+        )
+        return `Any unvalidated date should be between ${comparisonLabel} and ${upperLabel}`
     }
     if (
         template.operator === 'within_before' ||

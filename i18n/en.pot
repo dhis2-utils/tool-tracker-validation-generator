@@ -5,8 +5,8 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"POT-Creation-Date: 2026-07-14T08:58:44.126Z\n"
-"PO-Revision-Date: 2026-07-14T08:58:44.126Z\n"
+"POT-Creation-Date: 2026-07-14T09:10:42.498Z\n"
+"PO-Revision-Date: 2026-07-14T09:10:42.498Z\n"
 
 msgid "Tracker Validation Tool"
 msgstr "Tracker Validation Tool"
@@ -19,6 +19,27 @@ msgstr "No programmes match the filter"
 
 msgid "Programme settings"
 msgstr "Programme settings"
+
+msgid "a fixed date"
+msgstr "a fixed date"
+
+msgid "the current date"
+msgstr "the current date"
+
+msgid "relative to the current date"
+msgstr "relative to the current date"
+
+msgid "offset by"
+msgstr "offset by"
+
+msgid "days"
+msgstr "days"
+
+msgid "in the past"
+msgstr "in the past"
+
+msgid "in the future"
+msgstr "in the future"
 
 msgid "Error — block save"
 msgstr "Error — block save"
@@ -108,8 +129,8 @@ msgstr "within ... before"
 msgid "within ... after"
 msgstr "within ... after"
 
-msgid "days"
-msgstr "days"
+msgid "between"
+msgstr "between"
 
 msgid "weeks"
 msgstr "weeks"
@@ -120,23 +141,8 @@ msgstr "months"
 msgid "years"
 msgstr "years"
 
-msgid "a fixed date"
-msgstr "a fixed date"
-
-msgid "the current date"
-msgstr "the current date"
-
-msgid "relative to the current date"
-msgstr "relative to the current date"
-
-msgid "offset by"
-msgstr "offset by"
-
-msgid "in the past"
-msgstr "in the past"
-
-msgid "in the future"
-msgstr "in the future"
+msgid "and"
+msgstr "and"
 
 msgid "Any unvalidated number"
 msgstr "Any unvalidated number"
@@ -161,6 +167,12 @@ msgstr "equal to"
 
 msgid "not equal to"
 msgstr "not equal to"
+
+msgid "min"
+msgstr "min"
+
+msgid "max"
+msgstr "max"
 
 msgid "a fixed value of"
 msgstr "a fixed value of"
@@ -262,18 +274,6 @@ msgid ""
 msgstr ""
 "Please configure programme settings first (using the Programme settings "
 "button above)."
-
-msgid "between"
-msgstr "between"
-
-msgid "and"
-msgstr "and"
-
-msgid "min"
-msgstr "min"
-
-msgid "max"
-msgstr "max"
 
 msgid "a fixed value"
 msgstr "a fixed value"

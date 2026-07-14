@@ -11,6 +11,7 @@ import {
 } from '@dhis2/ui'
 import { useEffect, useState } from 'react'
 import styles from './BatchWorkspace.module.css'
+import { BatchDateBoundPicker } from '@/components/BatchDateBoundPicker'
 import { useBatchQueue } from '@/components/BatchQueueContext'
 import { useFeedback } from '@/hooks/useFeedback'
 import type {
@@ -70,16 +71,26 @@ export const BatchWorkspace = ({
     >('fixed')
     const [fixedDate, setFixedDate] = useState('')
     const [relativeAmount, setRelativeAmount] = useState('')
-    const [relativeUnit, setRelativeUnit] = useState('days')
+    // Relative bounds are always days (engine has d2:addDays only).
+    const [relativeUnit] = useState('days')
     const [relativeDirection, setRelativeDirection] =
         useState<RelativeDirection>('past')
     const [intervalAmount, setIntervalAmount] = useState('')
     const [intervalUnit, setIntervalUnit] = useState('days')
+    // date "between" upper bound (days-only relative, like the lower bound)
+    const [upperMode, setUpperMode] = useState<
+        'fixed' | 'current' | 'relative'
+    >('current')
+    const [upperFixedDate, setUpperFixedDate] = useState('')
+    const [upperRelativeAmount, setUpperRelativeAmount] = useState('')
+    const [upperRelativeDirection, setUpperRelativeDirection] =
+        useState<RelativeDirection>('past')
     // numeric template fields
     const [numericOperator, setNumericOperator] = useState<string | undefined>(
         undefined
     )
     const [numericValue, setNumericValue] = useState('')
+    const [numericValueMax, setNumericValueMax] = useState('')
 
     // The overview stays mounted when the header switches programme — a
     // stage picked for the previous programme must not leak into this one.
@@ -98,15 +109,33 @@ export const BatchWorkspace = ({
         if (scope === 'stage' && (!stageId || !stageExists)) {
             return null
         }
+        const common = {
+            category,
+            scope,
+            stageId: scope === 'stage' ? stageId : null,
+            actionType,
+        }
         if (category === 'numeric') {
-            if (!numericOperator || numericValue === '') {
+            if (!numericOperator) {
+                return null
+            }
+            if (numericOperator === 'between') {
+                if (numericValue === '' || numericValueMax === '') {
+                    return null
+                }
+                return {
+                    ...common,
+                    numericOperator: 'between',
+                    numericComparisonType: 'value',
+                    numericValue: parseFloat(numericValue),
+                    numericValueMax: parseFloat(numericValueMax),
+                }
+            }
+            if (numericValue === '') {
                 return null
             }
             return {
-                category,
-                scope,
-                stageId: scope === 'stage' ? stageId : null,
-                actionType,
+                ...common,
                 numericOperator,
                 numericComparisonType: 'value',
                 numericValue: parseFloat(numericValue),
@@ -124,12 +153,7 @@ export const BatchWorkspace = ({
         if (comparisonDateMode === 'relative' && !relativeAmount) {
             return null
         }
-        return {
-            category,
-            scope,
-            stageId: scope === 'stage' ? stageId : null,
-            actionType,
-            operator,
+        const lowerBound = {
             comparisonDateMode,
             comparisonDate: '',
             fixedComparisonDate:
@@ -140,6 +164,34 @@ export const BatchWorkspace = ({
                     : null,
             relativeComparisonUnit: relativeUnit,
             relativeComparisonDirection: relativeDirection,
+        }
+        if (operator === 'between') {
+            if (upperMode === 'fixed' && !upperFixedDate) {
+                return null
+            }
+            if (upperMode === 'relative' && !upperRelativeAmount) {
+                return null
+            }
+            return {
+                ...common,
+                operator: 'between',
+                ...lowerBound,
+                upperComparisonDateMode: upperMode,
+                upperComparisonDate: '',
+                upperFixedComparisonDate:
+                    upperMode === 'fixed' ? upperFixedDate : '',
+                upperRelativeComparisonAmount:
+                    upperMode === 'relative'
+                        ? parseInt(upperRelativeAmount, 10)
+                        : null,
+                upperRelativeComparisonUnit: 'days',
+                upperRelativeComparisonDirection: upperRelativeDirection,
+            }
+        }
+        return {
+            ...common,
+            operator,
+            ...lowerBound,
             intervalAmount: intervalAmount
                 ? parseInt(intervalAmount, 10)
                 : null,
@@ -341,6 +393,10 @@ export const BatchWorkspace = ({
                                 value="within_after"
                                 label={i18n.t('within ... after')}
                             />
+                            <SingleSelectOption
+                                value="between"
+                                label={i18n.t('between')}
+                            />
                         </SingleSelectField>
                         {isInterval && (
                             <>
@@ -389,96 +445,35 @@ export const BatchWorkspace = ({
                                 </span>
                             </>
                         )}
-                        <SingleSelectField
-                            dense
-                            className={styles.inlineSelect}
-                            selected={comparisonDateMode}
-                            onChange={({ selected }: { selected: string }) =>
-                                setComparisonDateMode(
-                                    selected as 'fixed' | 'current' | 'relative'
-                                )
-                            }
-                        >
-                            <SingleSelectOption
-                                value="fixed"
-                                label={i18n.t('a fixed date')}
-                            />
-                            <SingleSelectOption
-                                value="current"
-                                label={i18n.t('the current date')}
-                            />
-                            <SingleSelectOption
-                                value="relative"
-                                label={i18n.t('relative to the current date')}
-                            />
-                        </SingleSelectField>
-                        {comparisonDateMode === 'fixed' && (
-                            <InputField
-                                dense
-                                className={styles.inlineDate}
-                                type="date"
-                                value={fixedDate}
-                                onChange={({ value }: { value?: string }) =>
-                                    setFixedDate(value ?? '')
-                                }
-                            />
-                        )}
-                        {comparisonDateMode === 'relative' && (
+                        <BatchDateBoundPicker
+                            mode={comparisonDateMode}
+                            onModeChange={setComparisonDateMode}
+                            fixedDate={fixedDate}
+                            onFixedDateChange={setFixedDate}
+                            relativeAmount={relativeAmount}
+                            onRelativeAmountChange={setRelativeAmount}
+                            relativeDirection={relativeDirection}
+                            onRelativeDirectionChange={setRelativeDirection}
+                        />
+                        {operator === 'between' && (
                             <>
                                 <span className={styles.connector}>
-                                    {i18n.t('offset by')}
+                                    {i18n.t('and')}
                                 </span>
-                                <InputField
-                                    dense
-                                    className={styles.inlineNumber}
-                                    type="number"
-                                    min="1"
-                                    placeholder="1"
-                                    value={relativeAmount}
-                                    onChange={({ value }: { value?: string }) =>
-                                        setRelativeAmount(value ?? '')
+                                <BatchDateBoundPicker
+                                    mode={upperMode}
+                                    onModeChange={setUpperMode}
+                                    fixedDate={upperFixedDate}
+                                    onFixedDateChange={setUpperFixedDate}
+                                    relativeAmount={upperRelativeAmount}
+                                    onRelativeAmountChange={
+                                        setUpperRelativeAmount
+                                    }
+                                    relativeDirection={upperRelativeDirection}
+                                    onRelativeDirectionChange={
+                                        setUpperRelativeDirection
                                     }
                                 />
-                                {/* days only: the rule engine has d2:addDays
-                                    but not d2:addYears/d2:addMonths */}
-                                <SingleSelectField
-                                    dense
-                                    className={styles.inlineUnit}
-                                    selected={relativeUnit}
-                                    onChange={({
-                                        selected,
-                                    }: {
-                                        selected: string
-                                    }) => setRelativeUnit(selected)}
-                                >
-                                    <SingleSelectOption
-                                        value="days"
-                                        label={i18n.t('days')}
-                                    />
-                                </SingleSelectField>
-                                <SingleSelectField
-                                    dense
-                                    className={styles.inlineUnit}
-                                    selected={relativeDirection}
-                                    onChange={({
-                                        selected,
-                                    }: {
-                                        selected: string
-                                    }) =>
-                                        setRelativeDirection(
-                                            selected as RelativeDirection
-                                        )
-                                    }
-                                >
-                                    <SingleSelectOption
-                                        value="past"
-                                        label={i18n.t('in the past')}
-                                    />
-                                    <SingleSelectOption
-                                        value="future"
-                                        label={i18n.t('in the future')}
-                                    />
-                                </SingleSelectField>
                             </>
                         )}
                     </div>
@@ -523,20 +518,56 @@ export const BatchWorkspace = ({
                                 value="not_equal_to"
                                 label={i18n.t('not equal to')}
                             />
+                            <SingleSelectOption
+                                value="between"
+                                label={i18n.t('between')}
+                            />
                         </SingleSelectField>
-                        <span className={styles.connector}>
-                            {i18n.t('a fixed value of')}
-                        </span>
-                        <InputField
-                            dense
-                            className={styles.inlineNumber}
-                            type="number"
-                            step="0.01"
-                            value={numericValue}
-                            onChange={({ value }: { value?: string }) =>
-                                setNumericValue(value ?? '')
-                            }
-                        />
+                        {numericOperator === 'between' ? (
+                            <>
+                                <InputField
+                                    dense
+                                    className={styles.inlineNumber}
+                                    type="number"
+                                    step="0.01"
+                                    placeholder={i18n.t('min')}
+                                    value={numericValue}
+                                    onChange={({ value }: { value?: string }) =>
+                                        setNumericValue(value ?? '')
+                                    }
+                                />
+                                <span className={styles.connector}>
+                                    {i18n.t('and')}
+                                </span>
+                                <InputField
+                                    dense
+                                    className={styles.inlineNumber}
+                                    type="number"
+                                    step="0.01"
+                                    placeholder={i18n.t('max')}
+                                    value={numericValueMax}
+                                    onChange={({ value }: { value?: string }) =>
+                                        setNumericValueMax(value ?? '')
+                                    }
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <span className={styles.connector}>
+                                    {i18n.t('a fixed value of')}
+                                </span>
+                                <InputField
+                                    dense
+                                    className={styles.inlineNumber}
+                                    type="number"
+                                    step="0.01"
+                                    value={numericValue}
+                                    onChange={({ value }: { value?: string }) =>
+                                        setNumericValue(value ?? '')
+                                    }
+                                />
+                            </>
+                        )}
                     </div>
                 )}
 

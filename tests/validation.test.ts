@@ -590,6 +590,33 @@ describe('batch templates', () => {
         )
     })
 
+    it('summarises a date between template with both bounds', () => {
+        expect(
+            getBatchTemplateSummary({
+                ...template,
+                operator: 'between',
+                comparisonDateMode: 'fixed',
+                fixedComparisonDate: '2000-01-01',
+                upperComparisonDateMode: 'current',
+            })
+        ).toBe(
+            'Any unvalidated date should be between 2000-01-01 and current date'
+        )
+    })
+
+    it('summarises a numeric between template with min and max', () => {
+        expect(
+            getBatchTemplateSummary({
+                category: 'numeric',
+                scope: 'programme',
+                actionType: 'SHOWERROR',
+                numericOperator: 'between',
+                numericValue: 0,
+                numericValueMax: 115,
+            })
+        ).toBe('Any unvalidated numeric variable should be between 0 and 115')
+    })
+
     it('summarises interval templates with direction', () => {
         expect(
             getBatchTemplateSummary({
