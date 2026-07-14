@@ -488,7 +488,9 @@ describe('between — preview and completeness', () => {
             },
             allVariables
         )
-        expect(preview.preview).toBe('Age should be between 0 and 115')
+        expect(preview.preview).toBe(
+            'Age should be between 0 and 115 (inclusive)'
+        )
     })
 
     it('previews a date between with both bounds', () => {
@@ -505,7 +507,7 @@ describe('between — preview and completeness', () => {
             allVariables
         )
         expect(preview.preview).toBe(
-            'Enrollment date should be between 1 years before current date and Current date'
+            'Enrollment date should be between 1 years before current date and Current date (inclusive)'
         )
     })
 
@@ -600,7 +602,7 @@ describe('batch templates', () => {
                 upperComparisonDateMode: 'current',
             })
         ).toBe(
-            'Any unvalidated date should be between 2000-01-01 and current date'
+            'Any unvalidated date should be between 2000-01-01 and current date (inclusive)'
         )
     })
 
@@ -614,7 +616,9 @@ describe('batch templates', () => {
                 numericValue: 0,
                 numericValueMax: 115,
             })
-        ).toBe('Any unvalidated numeric variable should be between 0 and 115')
+        ).toBe(
+            'Any unvalidated numeric variable should be between 0 and 115 (inclusive)'
+        )
     })
 
     it('summarises interval templates with direction', () => {

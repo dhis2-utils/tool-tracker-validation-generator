@@ -362,10 +362,10 @@ export function getValidationPreview(
                 return EMPTY_PREVIEW
             }
             return {
-                preview: `${varName} should be between ${min} and ${max}`,
-                suggestedRuleName: `${varName} must be between ${min} and ${max}`,
-                suggestedMessage: `${varName} must be between ${min} and ${max}`,
-                suggestedDescription: `Validates that ${varName} is between ${min} and ${max}`,
+                preview: `${varName} should be between ${min} and ${max} (inclusive)`,
+                suggestedRuleName: `${varName} must be between ${min} and ${max} (inclusive)`,
+                suggestedMessage: `${varName} must be between ${min} and ${max} (inclusive)`,
+                suggestedDescription: `Validates that ${varName} is between ${min} and ${max}, both included`,
             }
         }
         const opLabel = NUMERIC_OPERATOR_LABELS[config.numericOperator ?? '']
@@ -407,10 +407,10 @@ export function getValidationPreview(
             return EMPTY_PREVIEW
         }
         return {
-            preview: `${variableName} should be between ${lower} and ${upper}`,
-            suggestedRuleName: `${variableName} must be between ${lower} and ${upper}`,
-            suggestedMessage: `${variableName} must be between ${lower} and ${upper}`,
-            suggestedDescription: `Validates that ${variableName} is between ${lower} and ${upper}`,
+            preview: `${variableName} should be between ${lower} and ${upper} (inclusive)`,
+            suggestedRuleName: `${variableName} must be between ${lower} and ${upper} (inclusive)`,
+            suggestedMessage: `${variableName} must be between ${lower} and ${upper} (inclusive)`,
+            suggestedDescription: `Validates that ${variableName} is between ${lower} and ${upper}, both included`,
         }
     }
     const comparisonName = getDateComparisonLabel(config, variables)
@@ -786,7 +786,7 @@ function batchBoundLabel(
 export function getBatchTemplateSummary(template: BatchTemplate): string {
     if (template.category === 'numeric') {
         if (template.numericOperator === 'between') {
-            return `Any unvalidated numeric variable should be between ${template.numericValue} and ${template.numericValueMax}`
+            return `Any unvalidated numeric variable should be between ${template.numericValue} and ${template.numericValueMax} (inclusive)`
         }
         return `Any unvalidated numeric variable should be ${
             NUMERIC_OPERATOR_LABELS[template.numericOperator ?? ''] ||
@@ -809,7 +809,7 @@ export function getBatchTemplateSummary(template: BatchTemplate): string {
             template.upperRelativeComparisonUnit,
             template.upperRelativeComparisonDirection
         )
-        return `Any unvalidated date should be between ${comparisonLabel} and ${upperLabel}`
+        return `Any unvalidated date should be between ${comparisonLabel} and ${upperLabel} (inclusive)`
     }
     if (
         template.operator === 'within_before' ||

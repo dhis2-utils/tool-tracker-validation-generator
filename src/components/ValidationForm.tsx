@@ -364,6 +364,9 @@ export const ValidationForm = ({
                                 }
                                 dateOptions={dateOptions}
                             />
+                            <span className={styles.connector}>
+                                {i18n.t('(both included)')}
+                            </span>
                         </>
                     )}
                 </div>
@@ -445,6 +448,9 @@ export const ValidationForm = ({
                                     setNumericValueMax(value ?? '')
                                 }
                             />
+                            <span className={styles.connector}>
+                                {i18n.t('(both included)')}
+                            </span>
                         </>
                     ) : (
                         <>

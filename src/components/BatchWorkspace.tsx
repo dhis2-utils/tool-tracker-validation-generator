@@ -474,6 +474,9 @@ export const BatchWorkspace = ({
                                         setUpperRelativeDirection
                                     }
                                 />
+                                <span className={styles.connector}>
+                                    {i18n.t('(both included)')}
+                                </span>
                             </>
                         )}
                     </div>
@@ -550,6 +553,9 @@ export const BatchWorkspace = ({
                                         setNumericValueMax(value ?? '')
                                     }
                                 />
+                                <span className={styles.connector}>
+                                    {i18n.t('(both included)')}
+                                </span>
                             </>
                         ) : (
                             <>

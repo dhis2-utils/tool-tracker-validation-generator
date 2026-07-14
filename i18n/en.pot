@@ -5,8 +5,8 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"POT-Creation-Date: 2026-07-14T09:10:42.498Z\n"
-"PO-Revision-Date: 2026-07-14T09:10:42.498Z\n"
+"POT-Creation-Date: 2026-07-14T09:25:18.654Z\n"
+"PO-Revision-Date: 2026-07-14T09:25:18.654Z\n"
 
 msgid "Tracker Validation Tool"
 msgstr "Tracker Validation Tool"
@@ -143,6 +143,9 @@ msgstr "years"
 
 msgid "and"
 msgstr "and"
+
+msgid "(both included)"
+msgstr "(both included)"
 
 msgid "Any unvalidated number"
 msgstr "Any unvalidated number"
