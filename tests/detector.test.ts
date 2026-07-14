@@ -42,6 +42,61 @@ describe('prGetExisting — numeric rules', () => {
     })
 })
 
+describe('prGetExisting — between rules (|| outside-range form)', () => {
+    const meta = makeMeta({
+        programRuleVariables: [
+            {
+                id: 'prvAge01AAA',
+                name: 'EIR_AGE',
+                dataElement: { id: 'deAge01AAAAA' },
+                programStage: { id: 'stg01' },
+            },
+        ],
+        programRules: [
+            {
+                id: 'ruleNumBtw01',
+                name: 'Age between',
+                condition:
+                    'd2:hasValue(#{EIR_AGE}) && (#{EIR_AGE} < 0 || #{EIR_AGE} > 115)',
+                programStage: { id: 'stg01' },
+            },
+            {
+                id: 'ruleDateBtw1',
+                name: 'Enrollment between',
+                condition:
+                    "d2:daysBetween(V{enrollment_date}, '1900-01-01') > 0 || " +
+                    'd2:daysBetween(V{enrollment_date}, V{current_date}) < 0',
+            },
+        ],
+        programRuleActions: [
+            {
+                id: 'actNumBtw01A',
+                programRule: { id: 'ruleNumBtw01' },
+                programRuleActionType: 'SHOWERROR',
+            },
+            {
+                id: 'actDateBtw1A',
+                programRule: { id: 'ruleDateBtw1' },
+                programRuleActionType: 'SHOWERROR',
+            },
+        ],
+    })
+
+    it('attributes a numeric between rule to its data element', () => {
+        const results = prGetExisting(meta, numericVar)
+        expect(results.map((r) => r.rule.id)).toContain('ruleNumBtw01')
+    })
+
+    it('attributes a date between rule to the enrollment date', () => {
+        const enrollment = makeVariable({
+            type: 'enrollment',
+            id: 'enrollment_date',
+        })
+        const results = prGetExisting(meta, enrollment)
+        expect(results.map((r) => r.rule.id)).toContain('ruleDateBtw1')
+    })
+})
+
 describe('prGetExisting — interval and stage-bound dates', () => {
     const stage = { id: 'stg01' }
     const metaWith = (condition: string, programStage?: { id: string }) =>
