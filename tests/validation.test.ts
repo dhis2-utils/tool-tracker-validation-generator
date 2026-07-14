@@ -376,7 +376,14 @@ describe('buildEditConfig', () => {
                 "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
         })
         const parsed = parseRuleCondition(rule.condition, meta, dateDE)
-        const config = buildEditConfig(parsed!, rule, action, dateDE, 'EIR')
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            action,
+            dateDE,
+            allVariables,
+            'EIR'
+        )
         expect(config.ruleName).toBe('Vaccination rule')
         expect(config.ruleDescription).toBe('Some description')
         expect(config.ruleMessage).toBe('The message')
@@ -392,7 +399,13 @@ describe('buildEditConfig', () => {
                 'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, d2:addDays(V{current_date}, -100)) >= 0',
         })
         const parsed = parseRuleCondition(rule.condition, meta, dateDE)
-        const config = buildEditConfig(parsed!, rule, action, dateDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            action,
+            dateDE,
+            allVariables
+        )
         expect(config.comparisonDateMode).toBe('relative')
         expect(config.relativeComparisonAmount).toBe(100)
         expect(config.relativeComparisonUnit).toBe('days')
@@ -405,7 +418,13 @@ describe('buildEditConfig', () => {
                 'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) < 0',
         })
         const parsed = parseRuleCondition(rule.condition, meta, dateDE)
-        const config = buildEditConfig(parsed!, rule, action, dateDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            action,
+            dateDE,
+            allVariables
+        )
         expect(config.comparisonDateMode).toBe('variable')
         expect(config.comparisonDate).toBe('enrollment:enrollment_date')
         expect(config.operator).toBe('before')
@@ -432,7 +451,13 @@ describe('buildEditConfig', () => {
             numericMeta,
             numericDE
         )
-        const config = buildEditConfig(parsed!, rule, action, numericDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            action,
+            numericDE,
+            allVariables
+        )
         expect(config.numericOperator).toBe('greater_than')
         expect(config.numericComparisonType).toBe('value')
         expect(config.numericValue).toBe(120)
@@ -458,7 +483,13 @@ describe('buildEditConfig', () => {
             numericMeta,
             numericDE
         )
-        const config = buildEditConfig(parsed!, rule, action, numericDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            action,
+            numericDE,
+            allVariables
+        )
         expect(config.numericOperator).toBe('between')
         expect(config.numericValue).toBe(0)
         expect(config.numericValueMax).toBe(115)
@@ -471,11 +502,69 @@ describe('buildEditConfig', () => {
                 'd2:daysBetween(#{PRV_VACC}, V{current_date}) < 0)',
         })
         const parsed = parseRuleCondition(rule.condition, meta, dateDE)
-        const config = buildEditConfig(parsed!, rule, action, dateDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            action,
+            dateDE,
+            allVariables
+        )
         expect(config.operator).toBe('between')
         expect(config.comparisonDateMode).toBe('fixed')
         expect(config.fixedComparisonDate).toBe('2000-01-01')
         expect(config.upperComparisonDateMode).toBe('current')
+    })
+
+    it('nulls out texts that still match the generated default', () => {
+        // Stored texts equal exactly what the generator would produce for
+        // this "after 1900-01-01" rule, so they should be treated as default.
+        const rule = makeRule({
+            name: 'Vaccination date must be after 1900-01-01',
+            description:
+                '[DVT] Validates that Vaccination date is entered after 1900-01-01',
+            condition:
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+        })
+        const defaultAction: ProgramRuleAction = {
+            ...action,
+            content: 'Vaccination date must be after 1900-01-01',
+        }
+        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            defaultAction,
+            dateDE,
+            allVariables
+        )
+        expect(config.ruleName).toBeUndefined()
+        expect(config.ruleDescription).toBeUndefined()
+        expect(config.ruleMessage).toBeUndefined()
+    })
+
+    it('keeps texts that were customized away from the default', () => {
+        const rule = makeRule({
+            name: 'Vaccination date must be after 1900-01-01',
+            description: '[DVT] A custom description',
+            condition:
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+        })
+        const mixedAction: ProgramRuleAction = {
+            ...action,
+            content: 'A custom message',
+        }
+        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            mixedAction,
+            dateDE,
+            allVariables
+        )
+        // Name matches the default → nulled; description/message customized → kept.
+        expect(config.ruleName).toBeUndefined()
+        expect(config.ruleDescription).toBe('A custom description')
+        expect(config.ruleMessage).toBe('A custom message')
     })
 })
 

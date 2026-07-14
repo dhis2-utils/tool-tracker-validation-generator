@@ -133,6 +133,7 @@ export const DetailsPage = () => {
                 validation.rule,
                 action,
                 variable,
+                variables,
                 config?.programRulePrefix
             ),
         })

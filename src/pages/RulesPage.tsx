@@ -88,6 +88,7 @@ export const RulesPage = () => {
                             validation.rule,
                             action,
                             variable,
+                            variables,
                             config?.programRulePrefix
                         )
                         const preview = getValidationPreview(
@@ -203,6 +204,7 @@ export const RulesPage = () => {
             row.validation.rule,
             action,
             row.variable,
+            variables,
             config?.programRulePrefix
         )
         return {

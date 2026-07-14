@@ -656,22 +656,22 @@ export function buildEditConfig(
     rule: ProgramRule,
     action: ProgramRuleAction,
     currentVariable: Variable,
+    variables: Variable[] | null,
     programRulePrefix?: string
 ): ValidationConfig {
-    let ruleName = rule.name
-    if (programRulePrefix && ruleName.startsWith(`${programRulePrefix} - `)) {
-        ruleName = ruleName.substring(programRulePrefix.length + 3)
+    let strippedName = rule.name
+    if (
+        programRulePrefix &&
+        strippedName.startsWith(`${programRulePrefix} - `)
+    ) {
+        strippedName = strippedName.substring(programRulePrefix.length + 3)
     }
-    const base: ValidationConfig = {
-        ruleName,
-        ruleDescription: removeAppSignature(rule.description || ''),
-        ruleMessage: action.content || '',
-        actionType: action.programRuleActionType || 'SHOWERROR',
-    }
+    const strippedDesc = removeAppSignature(rule.description || '')
+    const storedMessage = action.content || ''
 
+    let structural: ValidationConfig
     if (currentVariable.category === 'numeric') {
-        return {
-            ...base,
+        structural = {
             numericOperator: parsed.config.operator,
             numericComparisonType:
                 parsed.config.comparisonType === 'field' ? 'field' : 'value',
@@ -681,40 +681,53 @@ export function buildEditConfig(
                 ? getVariableKey(parsed.variable2)
                 : '',
         }
-    }
-
-    const lower = mapDateVariableToFields(parsed.variable2)
-    if (parsed.config.operator === 'between') {
-        const upper = mapDateVariableToFields(parsed.variable3 ?? null)
-        return {
-            ...base,
-            operator: 'between',
-            comparisonDateMode: lower.mode,
-            comparisonDate: lower.comparisonDate,
-            fixedComparisonDate: lower.fixedComparisonDate,
-            relativeComparisonAmount: lower.relativeAmount,
-            relativeComparisonUnit: lower.relativeUnit,
-            relativeComparisonDirection: lower.relativeDirection,
-            upperComparisonDateMode: upper.mode,
-            upperComparisonDate: upper.comparisonDate,
-            upperFixedComparisonDate: upper.fixedComparisonDate,
-            upperRelativeComparisonAmount: upper.relativeAmount,
-            upperRelativeComparisonUnit: upper.relativeUnit,
-            upperRelativeComparisonDirection: upper.relativeDirection,
+    } else {
+        const lower = mapDateVariableToFields(parsed.variable2)
+        if (parsed.config.operator === 'between') {
+            const upper = mapDateVariableToFields(parsed.variable3 ?? null)
+            structural = {
+                operator: 'between',
+                comparisonDateMode: lower.mode,
+                comparisonDate: lower.comparisonDate,
+                fixedComparisonDate: lower.fixedComparisonDate,
+                relativeComparisonAmount: lower.relativeAmount,
+                relativeComparisonUnit: lower.relativeUnit,
+                relativeComparisonDirection: lower.relativeDirection,
+                upperComparisonDateMode: upper.mode,
+                upperComparisonDate: upper.comparisonDate,
+                upperFixedComparisonDate: upper.fixedComparisonDate,
+                upperRelativeComparisonAmount: upper.relativeAmount,
+                upperRelativeComparisonUnit: upper.relativeUnit,
+                upperRelativeComparisonDirection: upper.relativeDirection,
+            }
+        } else {
+            structural = {
+                operator: parsed.config.operator,
+                comparisonDateMode: lower.mode,
+                comparisonDate: lower.comparisonDate,
+                fixedComparisonDate: lower.fixedComparisonDate,
+                relativeComparisonAmount: lower.relativeAmount,
+                relativeComparisonUnit: lower.relativeUnit,
+                relativeComparisonDirection: lower.relativeDirection,
+                intervalAmount: parsed.config.intervalAmount ?? null,
+                intervalUnit: parsed.config.intervalUnit || 'days',
+            }
         }
     }
 
+    const suggested = getSuggestedRuleTexts(
+        currentVariable,
+        structural,
+        variables
+    )
     return {
-        ...base,
-        operator: parsed.config.operator,
-        comparisonDateMode: lower.mode,
-        comparisonDate: lower.comparisonDate,
-        fixedComparisonDate: lower.fixedComparisonDate,
-        relativeComparisonAmount: lower.relativeAmount,
-        relativeComparisonUnit: lower.relativeUnit,
-        relativeComparisonDirection: lower.relativeDirection,
-        intervalAmount: parsed.config.intervalAmount ?? null,
-        intervalUnit: parsed.config.intervalUnit || 'days',
+        ...structural,
+        ruleName: strippedName === suggested.name ? undefined : strippedName,
+        ruleDescription:
+            strippedDesc === suggested.description ? undefined : strippedDesc,
+        ruleMessage:
+            storedMessage === suggested.message ? undefined : storedMessage,
+        actionType: action.programRuleActionType || 'SHOWERROR',
     }
 }
 
