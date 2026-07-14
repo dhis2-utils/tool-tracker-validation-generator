@@ -8,7 +8,6 @@ import {
     generateNumericBetweenCondition,
     generateNumericCondition,
     generateNumericFieldCondition,
-    generateRuleName,
 } from '@/lib/builder'
 import { prGetExisting } from '@/lib/detector'
 import {
@@ -29,9 +28,7 @@ import type {
     Variable,
 } from '@/lib/types'
 import {
-    generateDefaultDescription,
-    generateDefaultNumericDescription,
-    generateDefaultNumericMessage,
+    getSuggestedRuleTexts,
     resolveDateComparisonTarget,
     resolveUpperDateComparisonTarget,
 } from '@/lib/validation'
@@ -389,6 +386,7 @@ export async function createDateValidationForVariable(
     if (!compareDate) {
         throw new Error('Target date not found')
     }
+    const suggested = getSuggestedRuleTexts(targetVariable, config, variables)
 
     const duplicateRule = findDuplicateRule(metadata, targetVariable, config)
     if (duplicateRule) {
@@ -397,12 +395,7 @@ export async function createDateValidationForVariable(
         )
     }
 
-    const finalRuleName = generateRuleName(
-        targetVariable,
-        compareDate,
-        config.operator,
-        config.ruleName || null
-    )
+    const finalRuleName = config.ruleName || suggested.name
     const existingRule = metadata.programRules.find(
         (rule) => rule.name === finalRuleName
     )
@@ -436,28 +429,10 @@ export async function createDateValidationForVariable(
         await assertConditionValid(ctx, ruleCondition)
     }
 
-    const actualName = generateRuleName(
-        targetVariable,
-        compareDate,
-        config.operator,
-        config.ruleName || null
-    )
-    const ruleName = prefix ? `${prefix} - ${actualName}` : actualName
-    const defaultDesc = generateDefaultDescription(
-        targetVariable,
-        compareDate,
-        config.operator,
-        config.intervalAmount,
-        config.intervalUnit
-    )
-    const defaultMessage = generateRuleName(
-        targetVariable,
-        compareDate,
-        config.operator
-    ).replace('Date validation: ', '')
+    const ruleName = prefix ? `${prefix} - ${finalRuleName}` : finalRuleName
     const { description } = signatureFn(
         ruleName,
-        config.ruleDescription || defaultDesc
+        config.ruleDescription || suggested.description
     )
 
     const programRule: Omit<ProgramRule, 'id'> = {
@@ -478,7 +453,7 @@ export async function createDateValidationForVariable(
 
     const programRuleAction: Omit<ProgramRuleAction, 'id' | 'programRule'> = {
         programRuleActionType: config.actionType || 'SHOWERROR',
-        content: config.ruleMessage || defaultMessage,
+        content: config.ruleMessage || suggested.message,
         program: { id: programId },
     }
     if (targetVariable.type === 'dataElement') {
@@ -508,6 +483,7 @@ export async function createNumericValidationForVariable(
             throw new Error('Comparison field not found')
         }
     }
+    const suggested = getSuggestedRuleTexts(targetVariable, config, variables)
 
     // Duplicate pre-check (mirrors the date path): same variable, operator
     // and comparison target already covered by an existing rule.
@@ -566,26 +542,11 @@ export async function createNumericValidationForVariable(
         await assertConditionValid(ctx, ruleCondition)
     }
     const prefix = programConfig?.programRulePrefix || ''
-    const ruleNameBase =
-        config.ruleName ||
-        generateDefaultNumericMessage(
-            targetVariable,
-            config.numericOperator,
-            config.numericComparisonType,
-            config.numericValue,
-            compareField
-        )
+    const ruleNameBase = config.ruleName || suggested.name
     const ruleName = prefix ? `${prefix} - ${ruleNameBase}` : ruleNameBase
-    const defaultDesc = generateDefaultNumericDescription(
-        targetVariable,
-        config.numericOperator,
-        config.numericComparisonType,
-        config.numericValue,
-        compareField
-    )
     const { description } = signatureFn(
         ruleName,
-        config.ruleDescription || defaultDesc
+        config.ruleDescription || suggested.description
     )
     const programRule: Omit<ProgramRule, 'id'> = {
         name: ruleName,
@@ -599,15 +560,7 @@ export async function createNumericValidationForVariable(
     }
     const programRuleAction: Omit<ProgramRuleAction, 'id' | 'programRule'> = {
         programRuleActionType: config.actionType || 'SHOWERROR',
-        content:
-            config.ruleMessage ||
-            generateDefaultNumericMessage(
-                targetVariable,
-                config.numericOperator,
-                config.numericComparisonType,
-                config.numericValue,
-                compareField
-            ),
+        content: config.ruleMessage || suggested.message,
         program: { id: programId },
     }
     if (targetVariable.type === 'dataElement') {
@@ -660,6 +613,7 @@ export async function updateValidation(
     { ruleId, config, currentVariable }: UpdateValidationInput
 ): Promise<void> {
     const { engine, metadata, config: programConfig, variables } = ctx
+    const suggested = getSuggestedRuleTexts(currentVariable, config, variables)
     const existingRule = metadata.programRules.find((r) => r.id === ruleId)
     const existingAction = metadata.programRuleActions.find(
         (a) =>
@@ -722,26 +676,11 @@ export async function updateValidation(
         const prefix = programConfig?.programRulePrefix || ''
         // Fall back to a generated name when none is supplied (e.g. group edits
         // that regenerate per variable), mirroring the create path.
-        const ruleNameBase =
-            config.ruleName ||
-            generateDefaultNumericMessage(
-                currentVariable,
-                config.numericOperator,
-                config.numericComparisonType,
-                config.numericValue,
-                compareField
-            )
+        const ruleNameBase = config.ruleName || suggested.name
         const ruleName = prefix ? `${prefix} - ${ruleNameBase}` : ruleNameBase
-        const defaultDesc = generateDefaultNumericDescription(
-            currentVariable,
-            config.numericOperator,
-            config.numericComparisonType,
-            config.numericValue,
-            compareField
-        )
         const { description } = signatureFn(
             ruleName,
-            config.ruleDescription || defaultDesc
+            config.ruleDescription || suggested.description
         )
         updatedRule = {
             ...existingRule,
@@ -767,12 +706,7 @@ export async function updateValidation(
             )
         }
 
-        const finalRuleName = generateRuleName(
-            currentVariable,
-            compareDate,
-            config.operator,
-            config.ruleName || null
-        )
+        const finalRuleName = config.ruleName || suggested.name
         const duplicateName = metadata.programRules.find(
             (rule) => rule.name === finalRuleName && rule.id !== ruleId
         )
@@ -812,16 +746,9 @@ export async function updateValidation(
         const ruleName = programConfig?.programRulePrefix
             ? `${programConfig.programRulePrefix} - ${finalRuleName}`
             : finalRuleName
-        const defaultDesc = generateDefaultDescription(
-            currentVariable,
-            compareDate,
-            config.operator,
-            config.intervalAmount,
-            config.intervalUnit
-        )
         const { description } = signatureFn(
             ruleName,
-            config.ruleDescription || defaultDesc
+            config.ruleDescription || suggested.description
         )
         updatedRule = {
             ...existingRule,
@@ -837,7 +764,7 @@ export async function updateValidation(
         ...existingAction,
         programRuleActionType:
             config.actionType || existingAction.programRuleActionType,
-        content: config.ruleMessage,
+        content: config.ruleMessage || suggested.message,
     }
 
     await engine.mutate({

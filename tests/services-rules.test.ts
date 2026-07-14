@@ -418,7 +418,7 @@ describe('updateValidation — group/bulk edits', () => {
 
         expect(ruleUpdate?.data.description).toContain('[DVT-BATCH]')
         expect(ruleUpdate?.data.name).toBe(
-            'Date validation: Vacc date (Stage A) should be on or before Current date'
+            'Vacc date (Stage A) must be on or before Current date'
         )
         expect(ruleUpdate?.data.condition).toContain('<= 0')
     })
