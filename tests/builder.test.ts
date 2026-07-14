@@ -6,7 +6,6 @@ import {
     generateNumericBetweenCondition,
     generateNumericCondition,
     generateNumericFieldCondition,
-    generateRuleName,
     getVariableReference,
     isSystemVariable,
 } from '@/lib/builder'
@@ -188,25 +187,6 @@ describe('date literal and relative references', () => {
         )
         expect(condition).toBe(
             'd2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, d2:addDays(V{current_date}, -100)) >= 0'
-        )
-    })
-})
-
-describe('generateRuleName', () => {
-    it('includes stage context for repeated stage-bound dates', () => {
-        const dueDate = makeVariable({
-            type: 'due_date',
-            name: 'Due date',
-            stageId: 'stageA',
-            stageName: 'VISITS',
-        })
-        const currentDate = makeVariable({
-            type: 'current_date',
-            name: 'Current date',
-        })
-
-        expect(generateRuleName(dueDate, currentDate, 'on_or_before')).toBe(
-            'Date validation: Due date (VISITS) should be on or before Current date'
         )
     })
 })

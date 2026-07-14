@@ -590,62 +590,6 @@ export function ruleRejectsFutureDates(config: ValidationConfig): boolean {
     return false
 }
 
-export function generateDefaultDescription(
-    variable1: Variable,
-    variable2: Variable,
-    operator: string | undefined,
-    intervalAmount?: number | null,
-    intervalUnit?: string
-): string {
-    const var1Name = variable1.name
-    const var2Name = variable2.name
-
-    switch (operator) {
-        case 'before':
-            return `Validates that ${var1Name} is entered before ${var2Name}`
-        case 'after':
-            return `Validates that ${var1Name} is entered after ${var2Name}`
-        case 'on_or_after':
-            return `Validates that ${var1Name} is on the same date or after ${var2Name}`
-        case 'on_or_before':
-            return `Validates that ${var1Name} is on the same date or before ${var2Name}`
-        case 'within_before':
-            return `Validates that ${var1Name} is no more than ${intervalAmount} ${intervalUnit} before ${var2Name}`
-        case 'within_after':
-            return `Validates that ${var1Name} is no more than ${intervalAmount} ${intervalUnit} after ${var2Name}`
-        default:
-            return `Date validation rule for ${var1Name}`
-    }
-}
-
-export function generateDefaultNumericDescription(
-    variable: Variable,
-    operator: string | undefined,
-    comparisonType: string | undefined,
-    value: number | null | undefined,
-    compareField: Variable | null
-): string {
-    const opLabel = NUMERIC_OPERATOR_LABELS[operator ?? ''] || operator
-    if (comparisonType === 'field') {
-        return `Validates that ${variable.name} is ${opLabel} ${compareField?.name || 'another field'}`
-    }
-    return `Validates that ${variable.name} is ${opLabel} ${value}`
-}
-
-export function generateDefaultNumericMessage(
-    variable: Variable,
-    operator: string | undefined,
-    comparisonType: string | undefined,
-    value: number | null | undefined,
-    compareField: Variable | null
-): string {
-    const opLabel = NUMERIC_OPERATOR_LABELS[operator ?? ''] || operator
-    if (comparisonType === 'field') {
-        return `${variable.name} must be ${opLabel} ${compareField?.name || 'another field'}`
-    }
-    return `${variable.name} must be ${opLabel} ${value}`
-}
-
 /**
  * Build the form configuration for editing an existing rule from its parsed
  * condition. Strips the configured rule-name prefix so saving doesn't apply
