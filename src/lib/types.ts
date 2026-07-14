@@ -25,6 +25,10 @@ export interface Variable {
     relativeAmount?: number
     relativeUnit?: string
     relativeDirection?: RelativeDirection
+    /** True when this date field is explicitly configured to allow future
+     * dates (DE/TEA `allowFutureDate`, or program `select…DatesInFuture`).
+     * Not allowing future dates is the default, so only `true` is surfaced. */
+    futureDatesAllowed?: boolean
 }
 
 export interface ProgramRule {
@@ -78,7 +82,10 @@ export interface ProgramStage {
     name: string
     executionDateLabel?: string
     hideDueDate?: boolean
-    programStageDataElements?: { dataElement?: DataElementRef }[]
+    programStageDataElements?: {
+        allowFutureDate?: boolean
+        dataElement?: DataElementRef
+    }[]
 }
 
 export interface ProgramMetadata {
@@ -87,8 +94,11 @@ export interface ProgramMetadata {
     enrollmentDateLabel?: string
     incidentDateLabel?: string
     displayIncidentDate?: boolean
+    selectEnrollmentDatesInFuture?: boolean
+    selectIncidentDatesInFuture?: boolean
     programStages?: ProgramStage[]
     programTrackedEntityAttributes?: {
+        allowFutureDate?: boolean
         trackedEntityAttribute?: DataElementRef
     }[]
     programRules: ProgramRule[]

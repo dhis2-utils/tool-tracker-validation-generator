@@ -37,6 +37,9 @@ export function buildVariablesArray(
             type: 'enrollment',
             category: 'date',
             valueType: 'DATE',
+            futureDatesAllowed: Boolean(
+                programMetadata.selectEnrollmentDatesInFuture
+            ),
         })
     }
     if (
@@ -49,6 +52,9 @@ export function buildVariablesArray(
             type: 'incident',
             category: 'date',
             valueType: 'DATE',
+            futureDatesAllowed: Boolean(
+                programMetadata.selectIncidentDatesInFuture
+            ),
         })
     }
     list.push({
@@ -95,6 +101,7 @@ export function buildVariablesArray(
                     valueType: 'DATE',
                     stageId: stage.id,
                     stageName: stage.name,
+                    futureDatesAllowed: Boolean(psde.allowFutureDate),
                 })
             } else if (NUMERIC_VALUE_TYPES.has(de.valueType) && !de.optionSet) {
                 // Skip numeric fields bound to an option set: the option set
@@ -125,6 +132,7 @@ export function buildVariablesArray(
                 type: 'trackedEntityAttribute',
                 category: 'date',
                 valueType: 'DATE',
+                futureDatesAllowed: Boolean(ptea.allowFutureDate),
             })
         } else if (NUMERIC_VALUE_TYPES.has(tea.valueType) && !tea.optionSet) {
             // See note above: option-set numerics are excluded.

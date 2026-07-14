@@ -555,6 +555,29 @@ export function isConfigComplete(
     return getMissingFieldLabels(currentVariable, config).length === 0
 }
 
+/**
+ * True when a date rule rejects future dates (errors on dates after today):
+ * "before"/"on or before" the current date, or "between … and the current
+ * date". Used to warn about a contradiction on a field that is explicitly
+ * configured to allow future dates.
+ */
+export function ruleRejectsFutureDates(config: ValidationConfig): boolean {
+    const { operator } = config
+    if (
+        (operator === 'before' || operator === 'on_or_before') &&
+        config.comparisonDateMode === 'current'
+    ) {
+        return true
+    }
+    if (
+        operator === 'between' &&
+        config.upperComparisonDateMode === 'current'
+    ) {
+        return true
+    }
+    return false
+}
+
 export function generateDefaultDescription(
     variable1: Variable,
     variable2: Variable,

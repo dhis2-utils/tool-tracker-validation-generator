@@ -172,6 +172,57 @@ describe('buildVariablesArray — numeric variables', () => {
         dates.forEach((v) => expect(v.valueType).toBe('DATE'))
     })
 
+    it('marks future-allowed dates and leaves the default (blocked) unmarked', () => {
+        const meta = makeMeta({
+            enrollmentDateLabel: 'Registration',
+            selectEnrollmentDatesInFuture: true,
+            displayIncidentDate: true,
+            incidentDateLabel: 'Onset',
+            selectIncidentDatesInFuture: false,
+            programStages: [
+                {
+                    id: 'stage001AAAAA',
+                    name: 'Stage 1',
+                    programStageDataElements: [
+                        {
+                            allowFutureDate: true,
+                            dataElement: {
+                                id: 'deFut01AAAAA',
+                                name: 'Expiry date',
+                                valueType: 'DATE',
+                            },
+                        },
+                        {
+                            allowFutureDate: false,
+                            dataElement: {
+                                id: 'deNoFut01AAA',
+                                name: 'Visit date',
+                                valueType: 'DATE',
+                            },
+                        },
+                    ],
+                },
+            ],
+            programTrackedEntityAttributes: [
+                {
+                    allowFutureDate: true,
+                    trackedEntityAttribute: {
+                        id: 'teaFut01AAAA',
+                        name: 'Planned date',
+                        valueType: 'DATE',
+                    },
+                },
+            ],
+        })
+        const vars = buildVariablesArray(meta)
+        const find = (id: string) => vars.find((v) => v.id === id)
+        expect(find('enrollment_date')?.futureDatesAllowed).toBe(true)
+        expect(find('incident_date')?.futureDatesAllowed).toBe(false)
+        expect(find('deFut01AAAAA')?.futureDatesAllowed).toBe(true)
+        expect(find('deNoFut01AAA')?.futureDatesAllowed).toBe(false)
+        expect(find('teaFut01AAAA')?.futureDatesAllowed).toBe(true)
+    })
+
     it('excludes numeric fields bound to an option set', () => {
         const meta = makeMeta({
             programStages: [

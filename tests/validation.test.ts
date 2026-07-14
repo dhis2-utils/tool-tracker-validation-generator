@@ -13,6 +13,7 @@ import {
     getValidationPreview,
     isConfigComplete,
     resolveDateComparisonTarget,
+    ruleRejectsFutureDates,
 } from '@/lib/validation'
 
 const enrollment = makeVariable({
@@ -527,6 +528,50 @@ describe('between — preview and completeness', () => {
             upperComparisonDateMode: 'variable',
         })
         expect(missing).toEqual(['Upper comparison date field'])
+    })
+})
+
+describe('ruleRejectsFutureDates', () => {
+    it('is true for before/on-or-before the current date', () => {
+        expect(
+            ruleRejectsFutureDates({
+                operator: 'before',
+                comparisonDateMode: 'current',
+            })
+        ).toBe(true)
+        expect(
+            ruleRejectsFutureDates({
+                operator: 'on_or_before',
+                comparisonDateMode: 'current',
+            })
+        ).toBe(true)
+    })
+
+    it('is true for between … and the current date (upper bound)', () => {
+        expect(
+            ruleRejectsFutureDates({
+                operator: 'between',
+                comparisonDateMode: 'fixed',
+                fixedComparisonDate: '2000-01-01',
+                upperComparisonDateMode: 'current',
+            })
+        ).toBe(true)
+    })
+
+    it('is false for rules that do not reject future dates', () => {
+        expect(
+            ruleRejectsFutureDates({
+                operator: 'after',
+                comparisonDateMode: 'current',
+            })
+        ).toBe(false)
+        expect(
+            ruleRejectsFutureDates({
+                operator: 'before',
+                comparisonDateMode: 'fixed',
+                fixedComparisonDate: '2000-01-01',
+            })
+        ).toBe(false)
     })
 })
 

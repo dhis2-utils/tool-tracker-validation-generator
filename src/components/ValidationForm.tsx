@@ -22,6 +22,7 @@ import {
     getMissingFieldLabels,
     getNumericFieldOptions,
     getValidationPreview,
+    ruleRejectsFutureDates,
 } from '@/lib/validation'
 import { getVariableKey, VALUE_TYPE_LABELS } from '@/lib/variables'
 import type { ProgramConfig } from '@/services/rules'
@@ -211,6 +212,11 @@ export const ValidationForm = ({
     )
     const missingFields = getMissingFieldLabels(variable, finalConfig)
     const isValid = settingsConfigured && missingFields.length === 0
+    // Warn (don't block) when the rule rejects future dates on a field that is
+    // explicitly configured to allow them.
+    const futureDatesContradiction =
+        Boolean(variable.futureDatesAllowed) &&
+        ruleRejectsFutureDates(finalConfig)
 
     const dateOptions = getDateComparisonOptions(variable, variables)
     const numericFieldOptions = getNumericFieldOptions(variable, variables)
@@ -584,6 +590,18 @@ export const ValidationForm = ({
                     ))}
                 </SingleSelectField>
             </div>
+
+            {futureDatesContradiction && (
+                <NoticeBox
+                    warning
+                    title={i18n.t('This field allows future dates')}
+                >
+                    {i18n.t(
+                        '“{{name}}” is configured to allow future dates, but this rule rejects dates after the current date — the rule contradicts the field’s configuration.',
+                        { name: variable.name, nsSeparator: undefined }
+                    )}
+                </NoticeBox>
+            )}
 
             {settingsConfigured && missingFields.length > 0 && (
                 <NoticeBox

@@ -43,6 +43,9 @@ const VariableRow = ({
                 ({TYPE_LABELS[variable.type] || variable.type})
             </span>
             <span className={styles.rowSpacer} />
+            {variable.futureDatesAllowed && (
+                <Tag>{i18n.t('Future dates allowed')}</Tag>
+            )}
             {ruleCount > 0 && (
                 <Tag positive>
                     {ruleCount === 1
