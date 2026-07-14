@@ -5,8 +5,8 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"POT-Creation-Date: 2026-07-14T06:11:25.105Z\n"
-"PO-Revision-Date: 2026-07-14T06:11:25.105Z\n"
+"POT-Creation-Date: 2026-07-14T08:58:44.126Z\n"
+"PO-Revision-Date: 2026-07-14T08:58:44.126Z\n"
 
 msgid "Tracker Validation Tool"
 msgstr "Tracker Validation Tool"
@@ -193,6 +193,18 @@ msgstr ""
 msgid "Unknown stage"
 msgstr "Unknown stage"
 
+msgid "Some fields allow future dates"
+msgstr "Some fields allow future dates"
+
+msgid ""
+"A queued rule rejects dates after the current date. Fields configured to "
+"allow future dates will be skipped (no contradicting rule is created for "
+"them)."
+msgstr ""
+"A queued rule rejects dates after the current date. Fields configured to "
+"allow future dates will be skipped (no contradicting rule is created for "
+"them)."
+
 msgid "Apply queued rules"
 msgstr "Apply queued rules"
 
@@ -308,6 +320,9 @@ msgstr "Message shown to users when validation fails"
 msgid "How DHIS2 should respond when validation fails"
 msgstr "How DHIS2 should respond when validation fails"
 
+msgid "This field allows future dates"
+msgstr "This field allows future dates"
+
 msgid "Complete these fields before saving"
 msgstr "Complete these fields before saving"
 
@@ -319,6 +334,9 @@ msgstr "Create validation rule"
 
 msgid "Cancel editing"
 msgstr "Cancel editing"
+
+msgid "Future dates allowed"
+msgstr "Future dates allowed"
 
 msgid "1 rule"
 msgstr "1 rule"
@@ -465,3 +483,13 @@ msgid ""
 msgstr ""
 "Choose a tracker programme in the bar above to view its date and numeric "
 "variables and manage validation rules."
+
+msgctxt "Application title"
+msgid "__MANIFEST_APP_TITLE"
+msgstr "Tracker Validation Tool"
+
+msgctxt "Application description"
+msgid "__MANIFEST_APP_DESCRIPTION"
+msgstr ""
+"Configure and manage validation program rules (dates and numeric values) in "
+"DHIS2 tracker programmes"
