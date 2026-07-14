@@ -129,10 +129,12 @@ function isVariablePrimaryTarget(
 ): boolean {
     const stripped = stripNullGuard(condition)
 
-    // "between": two clauses joined by &&. The validated variable is the first
-    // argument of each d2:daysBetween clause (dates) or the #{} operand
-    // (numeric). Checked before the single-clause forms.
-    const clauses = stripped.split('&&').map((clause) => clause.trim())
+    // "between": the value being outside the range, encoded as two clauses
+    // joined by ||. The validated variable is the first argument of each
+    // d2:daysBetween clause (dates) or the #{} operand (numeric). Checked
+    // before the single-clause forms. Strip an optional wrapping paren.
+    const betweenBody = stripped.replace(/^\((.*)\)$/, '$1')
+    const clauses = betweenBody.split('||').map((clause) => clause.trim())
     if (clauses.length === 2) {
         for (const clause of clauses) {
             const clauseBetween = parseBetweenExpression(clause)

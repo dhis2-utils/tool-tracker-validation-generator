@@ -43,23 +43,24 @@ const relativeCurrentDate = makeVariable({
 })
 
 describe('between conditions', () => {
-    it('builds a numeric between as an inclusive compound condition', () => {
+    it('builds a numeric between that fires when the value is outside the range', () => {
         const numDE = makeVariable({
             type: 'dataElement',
             id: 'ageAbc',
             prvName: 'EIR_AGE',
         })
         expect(generateNumericBetweenCondition(numDE, 0, 115)).toBe(
-            'd2:hasValue(#{EIR_AGE}) && #{EIR_AGE} >= 0 && #{EIR_AGE} <= 115'
+            'd2:hasValue(#{EIR_AGE}) && (#{EIR_AGE} < 0 || #{EIR_AGE} > 115)'
         )
     })
 
-    it('builds a date between with lower <= 0 and upper >= 0 clauses', () => {
+    it('builds a date between that fires when the date is outside the range', () => {
         const currentDate = makeVariable({
             type: 'current_date',
             id: 'current_date',
         })
-        // reporting date between (1 year ago) and today, inclusive
+        // reporting date between (100 days ago) and today: error if before the
+        // lower bound or after today.
         expect(
             generateBetweenDateCondition(
                 enrollment,
@@ -67,8 +68,8 @@ describe('between conditions', () => {
                 currentDate
             )
         ).toBe(
-            'd2:daysBetween(V{enrollment_date}, d2:addDays(V{current_date}, -100)) <= 0 && ' +
-                'd2:daysBetween(V{enrollment_date}, V{current_date}) >= 0'
+            'd2:daysBetween(V{enrollment_date}, d2:addDays(V{current_date}, -100)) > 0 || ' +
+                'd2:daysBetween(V{enrollment_date}, V{current_date}) < 0'
         )
     })
 })
@@ -117,28 +118,28 @@ const numDE2 = makeVariable({
     prvName: 'EIR_WEIGHT',
 })
 
-describe('generateNumericCondition — variable vs fixed value', () => {
-    it('greater_than produces correct expression', () => {
+describe('generateNumericCondition — fires on the violation (negated op)', () => {
+    it('greater_than → error when value <= N', () => {
         const c = generateNumericCondition(numDE, 'greater_than', 0)
-        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} > 0')
+        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} <= 0')
     })
-    it('less_than_or_equal produces correct expression', () => {
+    it('less_than_or_equal → error when value > N', () => {
         const c = generateNumericCondition(numDE, 'less_than_or_equal', 120)
-        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} <= 120')
+        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} > 120')
     })
-    it('equal_to produces == expression', () => {
+    it('equal_to → error when value != N', () => {
         const c = generateNumericCondition(numDE, 'equal_to', 5)
-        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} == 5')
+        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} != 5')
     })
     it('throws on unknown operator', () => {
-        expect(() => generateNumericCondition(numDE, 'between', 5)).toThrow()
+        expect(() => generateNumericCondition(numDE, 'bogus', 5)).toThrow()
     })
 })
 
-describe('generateNumericFieldCondition — variable vs variable', () => {
-    it('greater_than produces field comparison', () => {
+describe('generateNumericFieldCondition — fires on the violation', () => {
+    it('greater_than → error when value <= other field', () => {
         const c = generateNumericFieldCondition(numDE, 'greater_than', numDE2)
-        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} > #{EIR_WEIGHT}')
+        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} <= #{EIR_WEIGHT}')
     })
 })
 

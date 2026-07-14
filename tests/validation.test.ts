@@ -419,8 +419,10 @@ describe('buildEditConfig', () => {
                 },
             ],
         })
+        // Stored condition holds the VIOLATION op: "<= 120" round-trips to the
+        // constraint "greater_than 120".
         const rule = makeRule({
-            condition: 'd2:hasValue(#{PRV_AGE}) && #{PRV_AGE} >= 0',
+            condition: 'd2:hasValue(#{PRV_AGE}) && #{PRV_AGE} <= 120',
         })
         const parsed = parseRuleCondition(
             rule.condition,
@@ -428,9 +430,9 @@ describe('buildEditConfig', () => {
             numericDE
         )
         const config = buildEditConfig(parsed!, rule, action, numericDE)
-        expect(config.numericOperator).toBe('greater_than_or_equal')
+        expect(config.numericOperator).toBe('greater_than')
         expect(config.numericComparisonType).toBe('value')
-        expect(config.numericValue).toBe(0)
+        expect(config.numericValue).toBe(120)
     })
 
     it('round-trips a numeric between into min/max form config', () => {
@@ -446,7 +448,7 @@ describe('buildEditConfig', () => {
         })
         const rule = makeRule({
             condition:
-                'd2:hasValue(#{PRV_AGE}) && #{PRV_AGE} >= 0 && #{PRV_AGE} <= 115',
+                'd2:hasValue(#{PRV_AGE}) && (#{PRV_AGE} < 0 || #{PRV_AGE} > 115)',
         })
         const parsed = parseRuleCondition(
             rule.condition,
@@ -462,8 +464,8 @@ describe('buildEditConfig', () => {
     it('round-trips a date between into lower and upper bound config', () => {
         const rule = makeRule({
             condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '2000-01-01') <= 0 && " +
-                'd2:daysBetween(#{PRV_VACC}, V{current_date}) >= 0',
+                "d2:hasValue(#{PRV_VACC}) && (d2:daysBetween(#{PRV_VACC}, '2000-01-01') > 0 || " +
+                'd2:daysBetween(#{PRV_VACC}, V{current_date}) < 0)',
         })
         const parsed = parseRuleCondition(rule.condition, meta, dateDE)
         const config = buildEditConfig(parsed!, rule, action, dateDE)

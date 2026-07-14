@@ -70,9 +70,9 @@ describe('parseRuleCondition — date comparisons', () => {
 })
 
 describe('parseRuleCondition — between', () => {
-    it('parses a numeric between (min && max) on the same field', () => {
+    it('parses a numeric between (outside-range || form) on the same field', () => {
         const result = parseRuleCondition(
-            'd2:hasValue(#{EIR_DOB}) && #{EIR_DOB} >= 0 && #{EIR_DOB} <= 115',
+            'd2:hasValue(#{EIR_DOB}) && (#{EIR_DOB} < 0 || #{EIR_DOB} > 115)',
             mockMeta
         )
         expect(result?.config.operator).toBe('between')
@@ -82,8 +82,8 @@ describe('parseRuleCondition — between', () => {
 
     it('parses a date between into distinct lower and upper bounds', () => {
         const result = parseRuleCondition(
-            'd2:daysBetween(V{enrollment_date}, d2:addDays(V{current_date}, -1)) <= 0 && ' +
-                'd2:daysBetween(V{enrollment_date}, V{current_date}) >= 0',
+            'd2:daysBetween(V{enrollment_date}, d2:addDays(V{current_date}, -1)) > 0 || ' +
+                'd2:daysBetween(V{enrollment_date}, V{current_date}) < 0',
             mockMeta
         )
         expect(result?.config.operator).toBe('between')
@@ -140,8 +140,8 @@ describe('parseRuleCondition — null guards', () => {
 })
 
 describe('parseRuleCondition — numeric literal', () => {
-    it('parses greater_than with fixed value', () => {
-        const condition = 'd2:hasValue(#{EIR_AGE}) && #{EIR_AGE} > 0'
+    it('parses the violation op back to the constraint (<= 0 → greater_than)', () => {
+        const condition = 'd2:hasValue(#{EIR_AGE}) && #{EIR_AGE} <= 0'
         const meta = makeMeta({
             programRuleVariables: [
                 {
@@ -162,9 +162,9 @@ describe('parseRuleCondition — numeric literal', () => {
 })
 
 describe('parseRuleCondition — numeric field-to-field', () => {
-    it('parses greater_than between two numeric fields', () => {
+    it('parses greater_than between two numeric fields (violation op <=)', () => {
         const condition =
-            'd2:hasValue(#{EIR_AGE}) && #{EIR_AGE} > #{EIR_WEIGHT}'
+            'd2:hasValue(#{EIR_AGE}) && #{EIR_AGE} <= #{EIR_WEIGHT}'
         const meta = makeMeta({
             programRuleVariables: [
                 {

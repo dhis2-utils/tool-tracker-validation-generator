@@ -177,13 +177,15 @@ export function findDuplicateRule(
     return null
 }
 
+// Stored conditions hold the VIOLATION operator (see NUMERIC_VIOLATION_OP in
+// builder.ts); map it back to the user-facing constraint operator.
 const NUMERIC_OP_REVERSE_MAP: Record<string, string> = {
-    '>': 'greater_than',
-    '>=': 'greater_than_or_equal',
-    '<': 'less_than',
-    '<=': 'less_than_or_equal',
-    '==': 'equal_to',
-    '!=': 'not_equal_to',
+    '<=': 'greater_than',
+    '<': 'greater_than_or_equal',
+    '>=': 'less_than',
+    '>': 'less_than_or_equal',
+    '!=': 'equal_to',
+    '==': 'not_equal_to',
 }
 
 export function parseRuleCondition(
@@ -196,12 +198,15 @@ export function parseRuleCondition(
 
     const betweenExpression = parseBetweenExpression(condition)
 
-    // "between": two clauses joined by && (checked before single-clause forms).
-    const clauses = condition.split('&&').map((clause) => clause.trim())
+    // "between": the rule fires when the value is OUTSIDE the range, encoded as
+    // two clauses joined by || (checked before the single-clause forms). Strip
+    // an optional wrapping paren left after the null guard is removed.
+    const betweenBody = condition.replace(/^\((.*)\)$/, '$1')
+    const clauses = betweenBody.split('||').map((clause) => clause.trim())
     if (clauses.length === 2) {
-        // numeric between: #{X} >= min && #{X} <= max
-        const lo = clauses[0].match(/^#{([^}]+)}\s*>=\s*(-?\d+(?:\.\d+)?)$/)
-        const hi = clauses[1].match(/^#{([^}]+)}\s*<=\s*(-?\d+(?:\.\d+)?)$/)
+        // numeric between: #{X} < min || #{X} > max
+        const lo = clauses[0].match(/^#{([^}]+)}\s*<\s*(-?\d+(?:\.\d+)?)$/)
+        const hi = clauses[1].match(/^#{([^}]+)}\s*>\s*(-?\d+(?:\.\d+)?)$/)
         if (lo && hi && lo[1] === hi[1]) {
             const variable1 = parseVariableReference(lo[1], programMetadata)
             if (variable1) {
@@ -211,13 +216,13 @@ export function parseRuleCondition(
                     config: {
                         operator: 'between',
                         comparisonType: 'value',
-                        value: parseFloat(lo[2]),
-                        valueMax: parseFloat(hi[2]),
+                        value: parseFloat(lo[2]), // min (from the "< min" clause)
+                        valueMax: parseFloat(hi[2]), // max (from the "> max" clause)
                     },
                 }
             }
         }
-        // date between: daysBetween(v, lower) <= 0 && daysBetween(v, upper) >= 0
+        // date between: daysBetween(v, lower) > 0 || daysBetween(v, upper) < 0
         const c1 = parseBetweenExpression(clauses[0])
         const c2 = parseBetweenExpression(clauses[1])
         if (
@@ -228,12 +233,13 @@ export function parseRuleCondition(
             c1.value === 0 &&
             c2.value === 0 &&
             c1.ref1 === c2.ref1 &&
-            ((c1.op === '<=' && c2.op === '>=') ||
-                (c1.op === '>=' && c2.op === '<='))
+            ((c1.op === '>' && c2.op === '<') ||
+                (c1.op === '<' && c2.op === '>'))
         ) {
             const variable1 = parseVariableReference(c1.ref1, programMetadata)
-            const lowerRef = c1.op === '<=' ? c1.ref2 : c2.ref2
-            const upperRef = c1.op === '<=' ? c2.ref2 : c1.ref2
+            // lower bound is the "> 0" clause (daysBetween(v, lower) > 0 => v < lower)
+            const lowerRef = c1.op === '>' ? c1.ref2 : c2.ref2
+            const upperRef = c1.op === '>' ? c2.ref2 : c1.ref2
             const lower = parseVariableReference(lowerRef, programMetadata)
             const upper = parseVariableReference(upperRef, programMetadata)
             if (variable1 && lower && upper) {

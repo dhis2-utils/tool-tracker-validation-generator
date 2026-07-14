@@ -131,10 +131,13 @@ export function generateBetweenDateCondition(
     const lowerRef = getVariableReference(lowerVariable)
     const upperRef = getVariableReference(upperVariable)
     const guard = buildNullGuard(variable1)
+    // Error (fire) when the date is OUTSIDE [lower, upper]:
+    //   before lower: daysBetween(v, lower) > 0     (lower - v > 0 => v < lower)
+    //   after upper:  daysBetween(v, upper) < 0      (upper - v < 0 => v > upper)
     const body =
-        `d2:daysBetween(${varRef}, ${lowerRef}) <= 0 && ` +
-        `d2:daysBetween(${varRef}, ${upperRef}) >= 0`
-    return guard ? `${guard} && ${body}` : body
+        `d2:daysBetween(${varRef}, ${lowerRef}) > 0 || ` +
+        `d2:daysBetween(${varRef}, ${upperRef}) < 0`
+    return guard ? `${guard} && (${body})` : body
 }
 
 export function generateRuleName(
@@ -206,13 +209,18 @@ export function getValidationStageId(
     return pick(variable1) || pick(variable2) || null
 }
 
-const NUMERIC_OP_MAP: Record<string, string> = {
-    greater_than: '>',
-    greater_than_or_equal: '>=',
-    less_than: '<',
-    less_than_or_equal: '<=',
-    equal_to: '==',
-    not_equal_to: '!=',
+// A SHOWERROR rule fires when its condition is TRUE, so the condition must
+// express the VIOLATION — the negation of the user's constraint. e.g. the
+// constraint "value must be greater than N" is violated (and the error shown)
+// when the value is <= N. (Date operators express the violation naturally via
+// d2:daysBetween, so only numeric comparisons need this inversion.)
+const NUMERIC_VIOLATION_OP: Record<string, string> = {
+    greater_than: '<=',
+    greater_than_or_equal: '<',
+    less_than: '>=',
+    less_than_or_equal: '>',
+    equal_to: '!=',
+    not_equal_to: '==',
 }
 
 export function generateNumericCondition(
@@ -221,7 +229,7 @@ export function generateNumericCondition(
     value: number | string | null | undefined
 ): string {
     const varRef = getVariableReference(variable)
-    const op = NUMERIC_OP_MAP[operator ?? '']
+    const op = NUMERIC_VIOLATION_OP[operator ?? '']
     if (!op) {
         throw new Error(`Unknown numeric operator: ${operator}`)
     }
@@ -234,7 +242,8 @@ export function generateNumericBetweenCondition(
     max: number | string | null | undefined
 ): string {
     const varRef = getVariableReference(variable)
-    return `d2:hasValue(${varRef}) && ${varRef} >= ${min} && ${varRef} <= ${max}`
+    // Error (fire) when the value is OUTSIDE [min, max].
+    return `d2:hasValue(${varRef}) && (${varRef} < ${min} || ${varRef} > ${max})`
 }
 
 export function generateNumericFieldCondition(
@@ -244,7 +253,7 @@ export function generateNumericFieldCondition(
 ): string {
     const var1Ref = getVariableReference(variable1)
     const var2Ref = getVariableReference(variable2)
-    const op = NUMERIC_OP_MAP[operator ?? '']
+    const op = NUMERIC_VIOLATION_OP[operator ?? '']
     if (!op) {
         throw new Error(`Unknown numeric operator: ${operator}`)
     }
