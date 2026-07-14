@@ -53,7 +53,7 @@ tests/                  - Vitest unit tests for src/lib and src/services
   `/:programId` (overview) and `/:programId/variable/:type/:id/:stageId?` (details)
 - Program metadata (program + rules + PRVs + actions) is one TanStack Query cache entry keyed
   `['programMetadata', programId]`; all mutations invalidate it
-- Mutation services take a *cloned* metadata object and extend it with created objects so
+- Mutation services take a _cloned_ metadata object and extend it with created objects so
   multi-rule runs (batch apply) reuse PRVs without refetching mid-run
 - Per-program settings (rule/PRV name prefixes) live in the dataStore under
   `tracker-date-validation/config-<programId>`

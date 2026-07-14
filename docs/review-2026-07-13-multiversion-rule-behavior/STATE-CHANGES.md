@@ -2,11 +2,11 @@
 
 ## Broker instances
 
-| Instance | Version | Seed | Purpose | Final state |
-|---|---|---|---|---|
-| agent-review-sl-42 | 2.42.5 | Sierra Leone v42 | 2.42 testing | **Deleted** |
-| agent-review-laos-41 | 2.41.9 | Laos v41 | 2.41 testing | **Deleted** |
-| agent-laos-v43 | 2.43.0 | Laos v41 → migrated | 2.43 testing + user's dev server | **Left running** (pre-existing this session) |
+| Instance             | Version | Seed                | Purpose                          | Final state                                  |
+| -------------------- | ------- | ------------------- | -------------------------------- | -------------------------------------------- |
+| agent-review-sl-42   | 2.42.5  | Sierra Leone v42    | 2.42 testing                     | **Deleted**                                  |
+| agent-review-laos-41 | 2.41.9  | Laos v41            | 2.41 testing                     | **Deleted**                                  |
+| agent-laos-v43       | 2.43.0  | Laos v41 → migrated | 2.43 testing + user's dev server | **Left running** (pre-existing this session) |
 
 Note: `agent-laos-v43` was stopped by the host (resource management) partway through the review and
 **restarted** so the user's dev server keeps working. It was not created for this review and is

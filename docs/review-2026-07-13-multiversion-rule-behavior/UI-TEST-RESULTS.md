@@ -12,11 +12,11 @@ Both parameterised (`DHIS2_URL`/`DHIS2_USER`/`DHIS2_PASS`/`LABEL`/`OUTDIR`) and 
 
 ## Instances / data
 
-| Version | Database | Instance | Programme auto-discovered | Numeric field | Date field | Login |
-|---|---|---|---|---|---|---|
-| 2.41.9 | Laos HMIS demo | agent-review-laos-41 | AFI – Acute Febrile Illness | Age (Years) [INT≥0] | GEN - Date of birth | local_admin |
-| 2.42.5 | Sierra Leone demo | agent-review-sl-42 | MNCH / PNC (Adult Woman) | Height in cm [NUMBER] | Date of birth | admin |
-| 2.43.0 | Laos HMIS demo | agent-laos-v43 | Case Surveillance: Mpox (CRF) | MPOX CS: Age (months) [INT+] | GEN - Date of birth | local_admin |
+| Version | Database          | Instance             | Programme auto-discovered     | Numeric field                | Date field          | Login       |
+| ------- | ----------------- | -------------------- | ----------------------------- | ---------------------------- | ------------------- | ----------- |
+| 2.41.9  | Laos HMIS demo    | agent-review-laos-41 | AFI – Acute Febrile Illness   | Age (Years) [INT≥0]          | GEN - Date of birth | local_admin |
+| 2.42.5  | Sierra Leone demo | agent-review-sl-42   | MNCH / PNC (Adult Woman)      | Height in cm [NUMBER]        | Date of birth       | admin       |
+| 2.43.0  | Laos HMIS demo    | agent-laos-v43       | Case Surveillance: Mpox (CRF) | MPOX CS: Age (months) [INT+] | GEN - Date of birth | local_admin |
 
 ## API (import) — server-side rule engine
 
@@ -24,13 +24,13 @@ Each rule: violating import → `status ERROR`, this rule's `E1300` present, `cr
 persisted (404); valid import → `OK`, this rule's `E1300` absent, created. Result files:
 `api-results-2.41.txt`, `api-results-2.42.txt`, `api-results-2.43.txt`.
 
-| Rule (tool format) | 2.41 | 2.42 | 2.43 |
-|---|---|---|---|
-| Date **before current date** (`daysBetween(d, V{current_date}) < 0`) | ✅ | ✅ | ✅ |
-| Date **between**, fixed/current bounds inclusive (`… <= 0 && … >= 0`) | ✅ | ✅ | ✅ |
-| Numeric **comparison** (`#{v} > N`) | ✅ | ✅ | ✅ |
-| Numeric **between** (`#{v} >= min && #{v} <= max`) | ✅ | ✅ | ✅ |
-| **Per-version total** | **8/8** | **8/8** | **8/8** |
+| Rule (tool format)                                                    | 2.41    | 2.42    | 2.43    |
+| --------------------------------------------------------------------- | ------- | ------- | ------- |
+| Date **before current date** (`daysBetween(d, V{current_date}) < 0`)  | ✅      | ✅      | ✅      |
+| Date **between**, fixed/current bounds inclusive (`… <= 0 && … >= 0`) | ✅      | ✅      | ✅      |
+| Numeric **comparison** (`#{v} > N`)                                   | ✅      | ✅      | ✅      |
+| Numeric **between** (`#{v} >= min && #{v} <= max`)                    | ✅      | ✅      | ✅      |
+| **Per-version total**                                                 | **8/8** | **8/8** | **8/8** |
 
 ## Capture app — client-side rule engine
 
@@ -40,10 +40,10 @@ Basic-auth `GET /api/me` cookie injection (no login form). Capture served inside
 iframe on 2.42/2.43; on 2.43 a loopback tunnel was used to satisfy Capture's secure-context
 requirement (test-harness detail, not an app issue).
 
-| Check | 2.41 | 2.42 | 2.43 |
-|---|---|---|---|
-| Rule message shown at data entry for a violating value | ✅ | ✅ | ✅ |
-| Screenshot | capture-2.41-date_before_current.png | capture-2.42-date_before_current.png | capture-2.43-date_before_current.png |
+| Check                                                  | 2.41                                 | 2.42                                 | 2.43                                 |
+| ------------------------------------------------------ | ------------------------------------ | ------------------------------------ | ------------------------------------ |
+| Rule message shown at data entry for a violating value | ✅                                   | ✅                                   | ✅                                   |
+| Screenshot                                             | capture-2.41-date_before_current.png | capture-2.42-date_before_current.png | capture-2.43-date_before_current.png |
 
 Screenshots are in `./screenshots/`.
 

@@ -9,8 +9,8 @@ When a user edits an existing validation rule and changes its bound (e.g. a rule
 "date should be after 1900-01-01" changed to "after 2000-01-01" for one data
 element), the rule **condition** updates but the rule **name**, **description**,
 and **validation message** stay frozen at the old text. The user expects those
-three texts to update too — *as long as they are still the auto-generated
-defaults*. If the user has customized a text, it must be preserved.
+three texts to update too — _as long as they are still the auto-generated
+defaults_. If the user has customized a text, it must be preserved.
 
 ### Root cause
 
@@ -19,7 +19,7 @@ defaults*. If the user has customized a text, it must be preserved.
 regenerate as the bound changes — the desired behavior.
 
 `buildEditConfig` (`src/lib/validation.ts`) breaks this on edit: it pre-fills all
-three fields with the *stored* strings, so the form treats them as "customized"
+three fields with the _stored_ strings, so the form treats them as "customized"
 even when they are untouched defaults.
 
 ### Secondary issue: two default-text generators
@@ -67,7 +67,7 @@ numeric, all operators, and the correct "between … and … (inclusive)" phrasi
 fixing both between-naming bugs as a side effect.
 
 **Stage-aware names (uniqueness).** The old bulk generator appended stage
-context to the *name* (`"Vacc date (Stage A) must be …"`) so that same-named
+context to the _name_ (`"Vacc date (Stage A) must be …"`) so that same-named
 fields in different stages get distinct, unique rule names (DHIS2 rejects
 duplicate names). `getValidationPreview` currently uses the raw variable name, so
 the unification must preserve stage-awareness for the **name only**. Add a small
@@ -102,11 +102,11 @@ create/update paths only run with complete, validated configs, so
 Replace every `generate*` default with `getSuggestedRuleTexts`:
 
 - `createDateValidationForVariable` and `createNumericValidationForVariable`:
-  - `ruleName`  = `config.ruleName || suggested.name`
-  - `description` = `signatureFn(ruleName, config.ruleDescription || suggested.description)`
-  - action `content` = `config.ruleMessage || suggested.message`
-  - the duplicate-name pre-check probes `config.ruleName || suggested.name`
-    (the name actually persisted), not the old `generateRuleName` form.
+    - `ruleName` = `config.ruleName || suggested.name`
+    - `description` = `signatureFn(ruleName, config.ruleDescription || suggested.description)`
+    - action `content` = `config.ruleMessage || suggested.message`
+    - the duplicate-name pre-check probes `config.ruleName || suggested.name`
+      (the name actually persisted), not the old `generateRuleName` form.
 - `updateValidation` (numeric and date branches): same three substitutions.
   In particular the action content changes from `content: config.ruleMessage`
   (no fallback) to `content: config.ruleMessage || suggested.message`, matching
@@ -134,14 +134,18 @@ const strippedName =
 const strippedDesc = removeAppSignature(rule.description || '')
 const storedMessage = action.content || ''
 
-const built = { /* operator + comparison/numeric fields, as today, no texts */ }
+const built = {
+    /* operator + comparison/numeric fields, as today, no texts */
+}
 const suggested = getSuggestedRuleTexts(currentVariable, built, variables)
 
 return {
     ...built,
-    ruleName:        strippedName === suggested.name        ? undefined : strippedName,
-    ruleDescription: strippedDesc === suggested.description ? undefined : strippedDesc,
-    ruleMessage:     storedMessage === suggested.message    ? undefined : storedMessage,
+    ruleName: strippedName === suggested.name ? undefined : strippedName,
+    ruleDescription:
+        strippedDesc === suggested.description ? undefined : strippedDesc,
+    ruleMessage:
+        storedMessage === suggested.message ? undefined : storedMessage,
 }
 ```
 

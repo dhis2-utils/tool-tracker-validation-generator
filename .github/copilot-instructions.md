@@ -5,7 +5,8 @@
 This is a DHIS2 admin web app for configuring **validation program rules** for both **date and
 numeric** variables in tracker programmes. It gives system administrators a guided interface to
 create, edit, and delete validation rules (e.g. "date X must be before date Y", "value must be
->= 0") without hand-authoring program rules, program rule variables, and rule actions.
+
+> = 0") without hand-authoring program rules, program rule variables, and rule actions.
 
 It is a **React app built on the DHIS2 App Platform** (`@dhis2/cli-app-scripts`), written in
 TypeScript. It was migrated from a vanilla-JS webpack tool; the pre-migration code lives in git
@@ -31,7 +32,7 @@ anymore.
   form/preview/batch helpers) lives in `src/lib/` as pure functions with unit tests in `tests/` —
   keep it free of React and engine imports
 - Date validations use `operator` + comparison fields; numeric validations use `numericOperator`
-  + `numericComparisonType` ('value' | 'field'). Keep both paths in sync when adding features
+    - `numericComparisonType` ('value' | 'field'). Keep both paths in sync when adding features
 - User-facing strings use `i18n.t()` from `@dhis2/d2-i18n`; strings persisted into DHIS2 metadata
   (rule names, conditions, descriptions) stay locale-independent English
 - Styling: CSS Modules with DHIS2 design tokens (`var(--spacers-dp16)`, `var(--colors-grey900)`)

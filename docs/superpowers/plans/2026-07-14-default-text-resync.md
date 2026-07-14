@@ -21,13 +21,15 @@
 ### Task 1: Single default-text generator (`getSuggestedRuleTexts`) + stage-aware name
 
 **Files:**
+
 - Modify: `src/lib/validation.ts` (add `getVariableDisplayName`, use it in `getValidationPreview`'s `suggestedRuleName`, add `getSuggestedRuleTexts`)
 - Test: `tests/validation.test.ts`
 
 **Interfaces:**
+
 - Produces:
-  - `getVariableDisplayName(variable: Variable): string`
-  - `getSuggestedRuleTexts(currentVariable: Variable, config: ValidationConfig, variables: Variable[] | null): { name: string; description: string; message: string }`
+    - `getVariableDisplayName(variable: Variable): string`
+    - `getSuggestedRuleTexts(currentVariable: Variable, config: ValidationConfig, variables: Variable[] | null): { name: string; description: string; message: string }`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -55,7 +57,11 @@ describe('getSuggestedRuleTexts', () => {
     it('gives a numeric "between" name that carries both bounds', () => {
         const texts = getSuggestedRuleTexts(
             numericDE,
-            { numericOperator: 'between', numericValue: 0, numericValueMax: 115 },
+            {
+                numericOperator: 'between',
+                numericValue: 0,
+                numericValueMax: 115,
+            },
             allVariables
         )
         expect(texts.name).toBe('Age must be between 0 and 115 (inclusive)')
@@ -135,22 +141,21 @@ the raw name. For the numeric branch, after `const varName = currentVariable.nam
 add:
 
 ```ts
-        const varDisplayName = getVariableDisplayName(currentVariable)
+const varDisplayName = getVariableDisplayName(currentVariable)
 ```
 
-and change every `suggestedRuleName: \`${varName} ...\`` to use `${varDisplayName}`
-(the `preview`, `suggestedMessage`, and `suggestedDescription` keep `${varName}`).
+and change every `suggestedRuleName: \`${varName} ...\`` to use `${varDisplayName}`(the`preview`, `suggestedMessage`, and `suggestedDescription`keep`${varName}`).
 
 For the date branch, after `const variableName = currentVariable.name` add:
 
 ```ts
-    const variableDisplayName = getVariableDisplayName(currentVariable)
+const variableDisplayName = getVariableDisplayName(currentVariable)
 ```
 
 and change every `suggestedRuleName: \`${variableName} ...\`` to use
-`${variableDisplayName}` (again, `preview`/`suggestedMessage`/
-`suggestedDescription` keep `${variableName}`). This covers the between branch and
-the before/after/on-or-* branch and the within branch.
+`${variableDisplayName}`(again,`preview`/`suggestedMessage`/
+`suggestedDescription`keep`${variableName}`). This covers the between branch and
+the before/after/on-or-\* branch and the within branch.
 
 Then add the projection helper at the end of the file:
 
@@ -188,10 +193,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ### Task 2: Route create + update through the unified generator
 
 **Files:**
+
 - Modify: `src/services/rules.ts`
 - Test: `tests/services-rules.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getSuggestedRuleTexts` from Task 1.
 - Produces: no new exports; behavior change — default rule name/description/message everywhere come from `getSuggestedRuleTexts`.
 
@@ -200,9 +207,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 In `tests/services-rules.test.ts`, the `updateValidation — group/bulk edits` test asserts the regenerated name in the old style. Change the expectation (near the end of that test):
 
 ```ts
-        expect(ruleUpdate?.data.name).toBe(
-            'Vacc date (Stage A) must be on or before Current date'
-        )
+expect(ruleUpdate?.data.name).toBe(
+    'Vacc date (Stage A) must be on or before Current date'
+)
 ```
 
 (Leave the input fixture's stored `name`/`description` as-is — the group edit regenerates the name regardless of the stored value.)
@@ -237,19 +244,19 @@ import {
 **`createDateValidationForVariable`** — replace the duplicate-name probe and the default-text block. The existing `finalRuleName` (used for the "already exists" check) and the later `actualName`/`defaultDesc`/`defaultMessage` all collapse into one `suggested`. Compute it right after `compareDate` is resolved:
 
 ```ts
-    const suggested = getSuggestedRuleTexts(targetVariable, config, variables)
+const suggested = getSuggestedRuleTexts(targetVariable, config, variables)
 ```
 
 Change the duplicate-name probe to:
 
 ```ts
-    const finalRuleName = config.ruleName || suggested.name
-    const existingRule = metadata.programRules.find(
-        (rule) => rule.name === finalRuleName
-    )
-    if (existingRule) {
-        throw new Error(`Rule "${finalRuleName}" already exists`)
-    }
+const finalRuleName = config.ruleName || suggested.name
+const existingRule = metadata.programRules.find(
+    (rule) => rule.name === finalRuleName
+)
+if (existingRule) {
+    throw new Error(`Rule "${finalRuleName}" already exists`)
+}
 ```
 
 Delete the old `const actualName = generateRuleName(...)` line and its
@@ -257,11 +264,11 @@ Delete the old `const actualName = generateRuleName(...)` line and its
 `suggested`:
 
 ```ts
-    const ruleName = prefix ? `${prefix} - ${finalRuleName}` : finalRuleName
-    const { description } = signatureFn(
-        ruleName,
-        config.ruleDescription || suggested.description
-    )
+const ruleName = prefix ? `${prefix} - ${finalRuleName}` : finalRuleName
+const { description } = signatureFn(
+    ruleName,
+    config.ruleDescription || suggested.description
+)
 ```
 
 and the action content:
@@ -273,22 +280,22 @@ and the action content:
 **`createNumericValidationForVariable`** — same shape. After `compareField` is resolved and before building the rule, add:
 
 ```ts
-    const suggested = getSuggestedRuleTexts(targetVariable, config, variables)
+const suggested = getSuggestedRuleTexts(targetVariable, config, variables)
 ```
 
 Replace `ruleNameBase`:
 
 ```ts
-    const ruleNameBase = config.ruleName || suggested.name
+const ruleNameBase = config.ruleName || suggested.name
 ```
 
 Delete the `generateDefaultNumericDescription` line; replace with:
 
 ```ts
-    const { description } = signatureFn(
-        ruleName,
-        config.ruleDescription || suggested.description
-    )
+const { description } = signatureFn(
+    ruleName,
+    config.ruleDescription || suggested.description
+)
 ```
 
 Replace the action `content` (currently `config.ruleMessage || generateDefaultNumericMessage(...)`) with:
@@ -301,44 +308,44 @@ Replace the action `content` (currently `config.ruleMessage || generateDefaultNu
 destructuring `variables`:
 
 ```ts
-    const suggested = getSuggestedRuleTexts(currentVariable, config, variables)
+const suggested = getSuggestedRuleTexts(currentVariable, config, variables)
 ```
 
 In the **numeric branch**, replace `ruleNameBase` and `defaultDesc`:
 
 ```ts
-        const ruleNameBase = config.ruleName || suggested.name
-        const ruleName = prefix ? `${prefix} - ${ruleNameBase}` : ruleNameBase
-        const { description } = signatureFn(
-            ruleName,
-            config.ruleDescription || suggested.description
-        )
+const ruleNameBase = config.ruleName || suggested.name
+const ruleName = prefix ? `${prefix} - ${ruleNameBase}` : ruleNameBase
+const { description } = signatureFn(
+    ruleName,
+    config.ruleDescription || suggested.description
+)
 ```
 
 In the **date branch**, replace the duplicate-name probe's `finalRuleName` and the default description:
 
 ```ts
-        const finalRuleName = config.ruleName || suggested.name
+const finalRuleName = config.ruleName || suggested.name
 ```
 
 (keep the surrounding duplicate checks that reference `finalRuleName`), and:
 
 ```ts
-        const { description } = signatureFn(
-            ruleName,
-            config.ruleDescription || suggested.description
-        )
+const { description } = signatureFn(
+    ruleName,
+    config.ruleDescription || suggested.description
+)
 ```
 
 Finally, give the action content a fallback (currently `content: config.ruleMessage`):
 
 ```ts
-    const updatedAction: ProgramRuleAction = {
-        ...existingAction,
-        programRuleActionType:
-            config.actionType || existingAction.programRuleActionType,
-        content: config.ruleMessage || suggested.message,
-    }
+const updatedAction: ProgramRuleAction = {
+    ...existingAction,
+    programRuleActionType:
+        config.actionType || existingAction.programRuleActionType,
+    content: config.ruleMessage || suggested.message,
+}
 ```
 
 - [ ] **Step 4: Run to verify it passes**
@@ -365,11 +372,13 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ### Task 3: Per-field default detection in `buildEditConfig`
 
 **Files:**
+
 - Modify: `src/lib/validation.ts` (`buildEditConfig` signature + body)
 - Modify: `src/pages/DetailsPage.tsx`, `src/pages/RulesPage.tsx` (pass `variables`)
 - Test: `tests/validation.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getSuggestedRuleTexts` (Task 1).
 - Produces: new signature
   `buildEditConfig(parsed, rule, action, currentVariable, variables, programRulePrefix?)`.
@@ -377,63 +386,64 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Write the failing tests**
 
 In `tests/validation.test.ts`, first update the existing 6 `buildEditConfig` calls to pass `allVariables` before the optional prefix:
+
 - `buildEditConfig(parsed!, rule, action, dateDE, 'EIR')` → `buildEditConfig(parsed!, rule, action, dateDE, allVariables, 'EIR')`
 - the four `buildEditConfig(parsed!, rule, action, dateDE)` / `(..., numericDE)` calls → add `, allVariables` as the 5th arg.
 
 Then append new cases inside the existing `describe('buildEditConfig', ...)` block:
 
 ```ts
-    it('nulls out texts that still match the generated default', () => {
-        // Stored texts equal exactly what the generator would produce for
-        // this "after 1900-01-01" rule, so they should be treated as default.
-        const rule = makeRule({
-            name: 'Vaccination date must be after 1900-01-01',
-            description:
-                '[DVT] Validates that Vaccination date is entered after 1900-01-01',
-            condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
-        })
-        const defaultAction: ProgramRuleAction = {
-            ...action,
-            content: 'Vaccination date must be after 1900-01-01',
-        }
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
-        const config = buildEditConfig(
-            parsed!,
-            rule,
-            defaultAction,
-            dateDE,
-            allVariables
-        )
-        expect(config.ruleName).toBeUndefined()
-        expect(config.ruleDescription).toBeUndefined()
-        expect(config.ruleMessage).toBeUndefined()
+it('nulls out texts that still match the generated default', () => {
+    // Stored texts equal exactly what the generator would produce for
+    // this "after 1900-01-01" rule, so they should be treated as default.
+    const rule = makeRule({
+        name: 'Vaccination date must be after 1900-01-01',
+        description:
+            '[DVT] Validates that Vaccination date is entered after 1900-01-01',
+        condition:
+            "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
     })
+    const defaultAction: ProgramRuleAction = {
+        ...action,
+        content: 'Vaccination date must be after 1900-01-01',
+    }
+    const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+    const config = buildEditConfig(
+        parsed!,
+        rule,
+        defaultAction,
+        dateDE,
+        allVariables
+    )
+    expect(config.ruleName).toBeUndefined()
+    expect(config.ruleDescription).toBeUndefined()
+    expect(config.ruleMessage).toBeUndefined()
+})
 
-    it('keeps texts that were customized away from the default', () => {
-        const rule = makeRule({
-            name: 'Vaccination date must be after 1900-01-01',
-            description: '[DVT] A custom description',
-            condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
-        })
-        const mixedAction: ProgramRuleAction = {
-            ...action,
-            content: 'A custom message',
-        }
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
-        const config = buildEditConfig(
-            parsed!,
-            rule,
-            mixedAction,
-            dateDE,
-            allVariables
-        )
-        // Name matches the default → nulled; description/message customized → kept.
-        expect(config.ruleName).toBeUndefined()
-        expect(config.ruleDescription).toBe('A custom description')
-        expect(config.ruleMessage).toBe('A custom message')
+it('keeps texts that were customized away from the default', () => {
+    const rule = makeRule({
+        name: 'Vaccination date must be after 1900-01-01',
+        description: '[DVT] A custom description',
+        condition:
+            "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
     })
+    const mixedAction: ProgramRuleAction = {
+        ...action,
+        content: 'A custom message',
+    }
+    const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+    const config = buildEditConfig(
+        parsed!,
+        rule,
+        mixedAction,
+        dateDE,
+        allVariables
+    )
+    // Name matches the default → nulled; description/message customized → kept.
+    expect(config.ruleName).toBeUndefined()
+    expect(config.ruleDescription).toBe('A custom description')
+    expect(config.ruleMessage).toBe('A custom message')
+})
 ```
 
 - [ ] **Step 2: Run to verify failure**
@@ -510,11 +520,14 @@ export function buildEditConfig(
         }
     }
 
-    const suggested = getSuggestedRuleTexts(currentVariable, structural, variables)
+    const suggested = getSuggestedRuleTexts(
+        currentVariable,
+        structural,
+        variables
+    )
     return {
         ...structural,
-        ruleName:
-            strippedName === suggested.name ? undefined : strippedName,
+        ruleName: strippedName === suggested.name ? undefined : strippedName,
         ruleDescription:
             strippedDesc === suggested.description ? undefined : strippedDesc,
         ruleMessage:
@@ -542,27 +555,27 @@ export function buildEditConfig(
 `src/pages/RulesPage.tsx` — both calls. In the `useMemo` grouping block:
 
 ```ts
-                        const cfg = buildEditConfig(
-                            parsed,
-                            validation.rule,
-                            action,
-                            variable,
-                            variables,
-                            config?.programRulePrefix
-                        )
+const cfg = buildEditConfig(
+    parsed,
+    validation.rule,
+    action,
+    variable,
+    variables,
+    config?.programRulePrefix
+)
 ```
 
 and in `seedConfigFor`:
 
 ```ts
-        const cfg = buildEditConfig(
-            parsed,
-            row.validation.rule,
-            action,
-            row.variable,
-            variables,
-            config?.programRulePrefix
-        )
+const cfg = buildEditConfig(
+    parsed,
+    row.validation.rule,
+    action,
+    row.variable,
+    variables,
+    config?.programRulePrefix
+)
 ```
 
 - [ ] **Step 5: Run tests + type-check**
@@ -584,29 +597,35 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ### Task 4: Delete the now-dead generators
 
 **Files:**
+
 - Modify: `src/lib/builder.ts` (remove `generateRuleName`, `generateValidationMessage`, `getValidationStageId`)
 - Modify: `src/lib/validation.ts` (remove `generateDefaultDescription`, `generateDefaultNumericMessage`, `generateDefaultNumericDescription`)
 - Test: `tests/builder.test.ts` (remove `generateRuleName` test + import)
 
 **Interfaces:**
+
 - Consumes: nothing new. All removed symbols are unused after Tasks 2–3.
 
 - [ ] **Step 1: Confirm each symbol is unused in `src/`**
 
 Run:
+
 ```bash
 grep -rn "generateRuleName\|generateValidationMessage\|getValidationStageId\|generateDefaultDescription\|generateDefaultNumericMessage\|generateDefaultNumericDescription" src
 ```
+
 Expected: only the definitions in `src/lib/builder.ts` / `src/lib/validation.ts` (no call sites). If any call site remains, it belongs to a prior task — fix there first.
 
 - [ ] **Step 2: Remove the functions**
 
 In `src/lib/builder.ts`, delete:
+
 - `generateRuleName` (lines ~143–180, includes the `difference_*` label map),
 - `generateValidationMessage` (lines ~182–197, includes the `difference_*` branch),
 - `getValidationStageId` (lines ~199–210).
 
 In `src/lib/validation.ts`, delete:
+
 - `generateDefaultDescription`,
 - `generateDefaultNumericDescription`,
 - `generateDefaultNumericMessage`.
@@ -616,9 +635,11 @@ In `tests/builder.test.ts`, remove `generateRuleName` from the import list and d
 - [ ] **Step 3: Full verification suite**
 
 Run:
+
 ```bash
 pnpm exec tsc --noEmit && pnpm run lint && pnpm test
 ```
+
 Expected: type-check clean (no unused-export or missing-symbol errors), lint clean, all tests pass.
 
 - [ ] **Step 4: Commit**
@@ -639,14 +660,17 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Regenerate i18n if any user-facing `i18n.t` strings changed**
 
 This change touches only metadata-persisted English strings (no `i18n.t`), so this should be a no-op. Confirm:
+
 ```bash
 pnpm run build 2>/dev/null; git status --porcelain i18n
 ```
+
 Expected: no changes under `i18n/`. (If there are, run the project's i18n extract script and commit as `chore: regenerate i18n strings`.)
 
 - [ ] **Step 2: Drive the app against a test instance**
 
 Use the `verify` / `run` skill (or `pnpm start --proxy <url>`) and confirm the scenario from the spec:
+
 1. Create a bulk date rule "after 1900-01-01" over date fields.
 2. Open one field's details, change the bound to 2000-01-01, save. Confirm the rule **name, description, and validation message** now read "2000-01-01".
 3. Repeat, but first rename the rule, then change the bound. Confirm the **name is preserved** while description/message update.
@@ -661,6 +685,7 @@ Record the observed behavior for the review. No commit.
 ## Self-Review
 
 **Spec coverage:**
+
 - §1 single generator → Task 1 (`getSuggestedRuleTexts`) + stage-aware name note → Task 1 (`getVariableDisplayName`). ✔
 - §2 route create+update → Task 2 (incl. duplicate-name probes and action-content fallback). ✔
 - §3 per-field detection in `buildEditConfig` → Task 3. ✔

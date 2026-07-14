@@ -1,0 +1,20 @@
+# Build / generated artifacts (mirrors .gitignore)
+node_modules
+.d2
+src/locales
+build
+compiled
+.tmp
+.vscode
+.DS_Store
+.pnpm-store
+tests/e2e/__pycache__/
+
+# Auto-generated package-manager lockfile — never hand-format
+pnpm-lock.yaml
+
+# Subagent-driven-development scratch (git-ignored working files)
+.superpowers/
+
+# Generated review/test result snapshots
+docs/review-*/results-*.json
