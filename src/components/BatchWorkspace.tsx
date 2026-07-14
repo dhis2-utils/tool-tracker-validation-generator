@@ -4,6 +4,7 @@ import {
     ButtonStrip,
     Card,
     InputField,
+    NoticeBox,
     SingleSelectField,
     SingleSelectOption,
     Tag,
@@ -24,6 +25,7 @@ import {
     createBatchTemplateKey,
     getBatchTemplateSummary,
     getUnvalidatedVariables,
+    ruleRejectsFutureDates,
 } from '@/lib/validation'
 import type { BatchProgress, ProgramConfig } from '@/services/rules'
 
@@ -182,23 +184,39 @@ export const BatchWorkspace = ({
         setTemplates(templates.filter((_, i) => i !== index))
     }
 
+    // Targets for a template — excluding fields that allow future dates when
+    // the template rejects future dates (don't create a contradicting rule).
+    const targetsFor = (template: BatchTemplate) => {
+        const base = getUnvalidatedVariables(
+            programMetadata,
+            variables,
+            template.category,
+            template.scope === 'stage' ? (template.stageId ?? null) : null
+        )
+        return ruleRejectsFutureDates(template)
+            ? base.filter((v) => !v.futureDatesAllowed)
+            : base
+    }
+
+    // Any queued future-rejecting template that would otherwise hit a
+    // future-allowed field (those are skipped) — surfaced as a notice.
+    const skipsFutureAllowedFields = templates.some(
+        (template) =>
+            ruleRejectsFutureDates(template) &&
+            getUnvalidatedVariables(
+                programMetadata,
+                variables,
+                template.category,
+                template.scope === 'stage' ? (template.stageId ?? null) : null
+            ).some((v) => v.futureDatesAllowed)
+    )
+
     const handleApply = async () => {
         if (templates.length === 0 || isApplyingBatch) {
             return
         }
         try {
-            await applyBatch({
-                templates,
-                getTargets: (template) =>
-                    getUnvalidatedVariables(
-                        programMetadata,
-                        variables,
-                        template.category,
-                        template.scope === 'stage'
-                            ? (template.stageId ?? null)
-                            : null
-                    ),
-            })
+            await applyBatch({ templates, getTargets: targetsFor })
             setTemplates([])
         } catch {
             // error alert already shown by the mutation hook
@@ -617,6 +635,17 @@ export const BatchWorkspace = ({
                         ))
                     )}
                 </div>
+
+                {skipsFutureAllowedFields && (
+                    <NoticeBox
+                        warning
+                        title={i18n.t('Some fields allow future dates')}
+                    >
+                        {i18n.t(
+                            'A queued rule rejects dates after the current date. Fields configured to allow future dates will be skipped (no contradicting rule is created for them).'
+                        )}
+                    </NoticeBox>
+                )}
 
                 <ButtonStrip>
                     <Button
