@@ -343,6 +343,16 @@ export function getUpperDateComparisonLabel(
     )
 }
 
+export function getVariableDisplayName(variable: Variable): string {
+    if (
+        variable.stageName &&
+        ['dataElement', 'event_date', 'due_date'].includes(variable.type)
+    ) {
+        return `${variable.name} (${variable.stageName})`
+    }
+    return variable.name
+}
+
 export function getValidationPreview(
     currentVariable: Variable,
     config: ValidationConfig,
@@ -350,6 +360,7 @@ export function getValidationPreview(
 ): PreviewTexts {
     if (currentVariable.category === 'numeric') {
         const varName = currentVariable.name
+        const varDisplayName = getVariableDisplayName(currentVariable)
         if (config.numericOperator === 'between') {
             const min = config.numericValue
             const max = config.numericValueMax
@@ -363,7 +374,7 @@ export function getValidationPreview(
             }
             return {
                 preview: `${varName} should be between ${min} and ${max} (inclusive)`,
-                suggestedRuleName: `${varName} must be between ${min} and ${max} (inclusive)`,
+                suggestedRuleName: `${varDisplayName} must be between ${min} and ${max} (inclusive)`,
                 suggestedMessage: `${varName} must be between ${min} and ${max} (inclusive)`,
                 suggestedDescription: `Validates that ${varName} is between ${min} and ${max}, both included`,
             }
@@ -392,7 +403,7 @@ export function getValidationPreview(
         }
         return {
             preview: `${varName} should be ${opLabel} ${comparison}`,
-            suggestedRuleName: `${varName} must be ${opLabel} ${comparison}`,
+            suggestedRuleName: `${varDisplayName} must be ${opLabel} ${comparison}`,
             suggestedMessage: `${varName} must be ${opLabel} ${comparison}`,
             suggestedDescription: `Validates that ${varName} is ${opLabel} ${comparison}`,
         }
@@ -400,6 +411,7 @@ export function getValidationPreview(
 
     const operator = config.operator
     const variableName = currentVariable.name
+    const variableDisplayName = getVariableDisplayName(currentVariable)
     if (operator === 'between') {
         const lower = getDateComparisonLabel(config, variables)
         const upper = getUpperDateComparisonLabel(config, variables)
@@ -408,7 +420,7 @@ export function getValidationPreview(
         }
         return {
             preview: `${variableName} should be between ${lower} and ${upper} (inclusive)`,
-            suggestedRuleName: `${variableName} must be between ${lower} and ${upper} (inclusive)`,
+            suggestedRuleName: `${variableDisplayName} must be between ${lower} and ${upper} (inclusive)`,
             suggestedMessage: `${variableName} must be between ${lower} and ${upper} (inclusive)`,
             suggestedDescription: `Validates that ${variableName} is between ${lower} and ${upper}, both included`,
         }
@@ -440,7 +452,7 @@ export function getValidationPreview(
                         : `is on the same date or before ${comparisonName}`
             return {
                 preview: `${variableName} should be ${phrase} ${comparisonName}`,
-                suggestedRuleName: `${variableName} must be ${phrase} ${comparisonName}`,
+                suggestedRuleName: `${variableDisplayName} must be ${phrase} ${comparisonName}`,
                 suggestedMessage: `${variableName} must be ${phrase} ${comparisonName}`,
                 suggestedDescription: `Validates that ${variableName} ${descPhrase}`,
             }
@@ -454,7 +466,7 @@ export function getValidationPreview(
             const interval = `${config.intervalAmount} ${config.intervalUnit}`
             return {
                 preview: `${variableName} should be within ${interval} ${dir} ${comparisonName}`,
-                suggestedRuleName: `${variableName} within ${interval} ${dir} ${comparisonName}`,
+                suggestedRuleName: `${variableDisplayName} within ${interval} ${dir} ${comparisonName}`,
                 suggestedMessage: `${variableName} must be within ${interval} ${dir} ${comparisonName}`,
                 suggestedDescription: `Validates that ${variableName} is no more than ${interval} ${dir} ${comparisonName}`,
             }
@@ -822,4 +834,17 @@ export function getBatchTemplateSummary(template: BatchTemplate): string {
     return `Any unvalidated date should be ${
         DATE_OPERATOR_LABELS[template.operator ?? ''] || template.operator
     } ${comparisonLabel}`
+}
+
+export function getSuggestedRuleTexts(
+    currentVariable: Variable,
+    config: ValidationConfig,
+    variables: Variable[] | null
+): { name: string; description: string; message: string } {
+    const p = getValidationPreview(currentVariable, config, variables)
+    return {
+        name: p.suggestedRuleName,
+        description: p.suggestedDescription,
+        message: p.suggestedMessage,
+    }
 }

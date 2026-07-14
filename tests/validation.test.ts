@@ -9,8 +9,10 @@ import {
     getBatchTemplateSummary,
     getDateComparisonOptions,
     getMissingFieldLabels,
+    getSuggestedRuleTexts,
     getUnvalidatedVariables,
     getValidationPreview,
+    getVariableDisplayName,
     isConfigComplete,
     resolveDateComparisonTarget,
     ruleRejectsFutureDates,
@@ -673,5 +675,80 @@ describe('getUnvalidatedVariables — pseudo-variables', () => {
             null
         )
         expect(result).toEqual([enrollment])
+    })
+})
+
+describe('getSuggestedRuleTexts', () => {
+    it('projects the three suggested texts for a date rule', () => {
+        const texts = getSuggestedRuleTexts(
+            dateDE,
+            {
+                operator: 'after',
+                comparisonDateMode: 'fixed',
+                fixedComparisonDate: '1900-01-01',
+            },
+            allVariables
+        )
+        expect(texts.name).toBe('Vaccination date must be after 1900-01-01')
+        expect(texts.message).toBe('Vaccination date must be after 1900-01-01')
+        expect(texts.description).toBe(
+            'Validates that Vaccination date is entered after 1900-01-01'
+        )
+    })
+
+    it('gives a numeric "between" name that carries both bounds', () => {
+        const texts = getSuggestedRuleTexts(
+            numericDE,
+            {
+                numericOperator: 'between',
+                numericValue: 0,
+                numericValueMax: 115,
+            },
+            allVariables
+        )
+        expect(texts.name).toBe('Age must be between 0 and 115 (inclusive)')
+    })
+
+    it('adds stage context to the name only, not the message', () => {
+        const stageDate = makeVariable({
+            type: 'dataElement',
+            id: 'deStageAAAA',
+            name: 'Vacc date',
+            category: 'date',
+            stageId: 'stgA',
+            stageName: 'Stage A',
+        })
+        const texts = getSuggestedRuleTexts(
+            stageDate,
+            { operator: 'before', comparisonDateMode: 'current' },
+            [stageDate]
+        )
+        expect(texts.name).toBe(
+            'Vacc date (Stage A) must be before Current date'
+        )
+        expect(texts.message).toBe('Vacc date must be before Current date')
+    })
+})
+
+describe('getVariableDisplayName', () => {
+    it('appends stage name for stage-bound data elements', () => {
+        expect(
+            getVariableDisplayName(
+                makeVariable({
+                    type: 'dataElement',
+                    name: 'Vacc date',
+                    stageId: 'stgA',
+                    stageName: 'Stage A',
+                })
+            )
+        ).toBe('Vacc date (Stage A)')
+    })
+
+    it('returns the raw name when there is no stage name', () => {
+        expect(
+            getVariableDisplayName(
+                makeVariable({ type: 'enrollment', name: 'Enrollment date' })
+            )
+        ).toBe('Enrollment date')
     })
 })
