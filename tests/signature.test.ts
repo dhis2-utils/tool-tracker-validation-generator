@@ -5,6 +5,7 @@ import {
     BATCH_TAG,
     isBatchGenerated,
     parseRuleCondition,
+    removeAllSignatures,
 } from '@/lib/signature'
 
 const mockMeta = makeMeta({
@@ -228,5 +229,25 @@ describe('batch signature', () => {
         expect(
             isBatchGenerated(makeRule({ description: '[DVT-BATCH] desc' }))
         ).toBe(false)
+    })
+})
+
+describe('removeAllSignatures', () => {
+    it('strips both the app tag and the batch tag', () => {
+        expect(removeAllSignatures('[DVT] [DVT-BATCH] Validates that X')).toBe(
+            'Validates that X'
+        )
+    })
+
+    it('strips just the app tag when there is no batch tag', () => {
+        expect(removeAllSignatures('[DVT] Validates that X')).toBe(
+            'Validates that X'
+        )
+    })
+
+    it('leaves untagged text unchanged', () => {
+        expect(removeAllSignatures('A custom description')).toBe(
+            'A custom description'
+        )
     })
 })

@@ -1,6 +1,6 @@
 // Pure form/validation helpers shared by the details form and batch workspace
 import { prGetExisting } from './detector'
-import { removeAppSignature } from './signature'
+import { removeAllSignatures } from './signature'
 import type {
     BatchTemplate,
     ComparisonDateMode,
@@ -610,7 +610,7 @@ export function buildEditConfig(
     ) {
         strippedName = strippedName.substring(programRulePrefix.length + 3)
     }
-    const strippedDesc = removeAppSignature(rule.description || '')
+    const strippedDesc = removeAllSignatures(rule.description || '')
     const storedMessage = action.content || ''
 
     let structural: ValidationConfig

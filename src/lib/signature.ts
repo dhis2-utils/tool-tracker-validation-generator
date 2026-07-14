@@ -81,6 +81,21 @@ export function removeAppSignature(text?: string): string {
     return text
 }
 
+/**
+ * Like removeAppSignature, but also strips a leading batch tag left behind
+ * once the app tag is gone (batch-created rules are tagged
+ * "[DVT] [DVT-BATCH] ..."). Individual (non-batch) rules only ever carry the
+ * app tag, so this is a safe superset to use anywhere removeAppSignature is
+ * used for display/comparison purposes.
+ */
+export function removeAllSignatures(text?: string): string {
+    const withoutApp = removeAppSignature(text)
+    const batchPrefix = `[${BATCH_TAG}]`
+    return withoutApp.startsWith(batchPrefix)
+        ? withoutApp.substring(batchPrefix.length).trim()
+        : withoutApp
+}
+
 export function getConfigurationSignature(
     variable1: Variable,
     variable2: Variable,

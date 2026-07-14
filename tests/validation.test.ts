@@ -542,6 +542,34 @@ describe('buildEditConfig', () => {
         expect(config.ruleMessage).toBeUndefined()
     })
 
+    it('nulls out texts on a BULK rule whose description carries both the app and batch tags', () => {
+        // Bulk/batch rules are tagged "[DVT] [DVT-BATCH] ...". Stripping only
+        // the app tag would leave "[DVT-BATCH] Validates that ..." dangling,
+        // which would never match the generated default.
+        const rule = makeRule({
+            name: 'Vaccination date must be after 1900-01-01',
+            description:
+                '[DVT] [DVT-BATCH] Validates that Vaccination date is entered after 1900-01-01',
+            condition:
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+        })
+        const defaultAction: ProgramRuleAction = {
+            ...action,
+            content: 'Vaccination date must be after 1900-01-01',
+        }
+        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            defaultAction,
+            dateDE,
+            allVariables
+        )
+        expect(config.ruleName).toBeUndefined()
+        expect(config.ruleDescription).toBeUndefined()
+        expect(config.ruleMessage).toBeUndefined()
+    })
+
     it('keeps texts that were customized away from the default', () => {
         const rule = makeRule({
             name: 'Vaccination date must be after 1900-01-01',
