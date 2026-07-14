@@ -411,23 +411,24 @@ function parseVariableReference(
         return { type: 'fixed_date', id: dateValue, name: dateValue }
     }
 
+    // Days only: the builder emits d2:addDays (the engine has no
+    // addYears/addMonths), so that's the only relative form to parse.
     const relativeCurrentMatch = varRef.match(
-        /^d2:add(Days|Months|Years)\(V\{current_date\},\s*(-?\d+)\)$/
+        /^d2:addDays\(V\{current_date\},\s*(-?\d+)\)$/
     )
     if (relativeCurrentMatch) {
-        const unit = relativeCurrentMatch[1].toLowerCase()
-        const rawAmount = parseInt(relativeCurrentMatch[2], 10)
+        const rawAmount = parseInt(relativeCurrentMatch[1], 10)
         const relativeAmount = Math.abs(rawAmount)
         const relativeDirection = rawAmount < 0 ? 'past' : 'future'
-        const label = `${relativeAmount} ${unit} ${
+        const label = `${relativeAmount} days ${
             relativeDirection === 'past' ? 'before' : 'after'
         } current date`
         return {
             type: 'relative_current_date',
-            id: `current_date_${relativeDirection}_${relativeAmount}_${unit}`,
+            id: `current_date_${relativeDirection}_${relativeAmount}_days`,
             name: label,
             relativeAmount,
-            relativeUnit: unit,
+            relativeUnit: 'days',
             relativeDirection,
         }
     }

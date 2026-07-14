@@ -31,17 +31,13 @@ export function getVariableReference(variable?: Variable | null): string {
         case 'fixed_date':
             return `'${variable.id}'`
         case 'relative_current_date': {
-            const unitFn =
-                variable.relativeUnit === 'days'
-                    ? 'd2:addDays'
-                    : variable.relativeUnit === 'months'
-                      ? 'd2:addMonths'
-                      : 'd2:addYears'
+            // Days only: the program-rule engine has d2:addDays but not
+            // d2:addYears/d2:addMonths, so those would never evaluate.
             const amount =
                 variable.relativeDirection === 'past'
                     ? -Math.abs(variable.relativeAmount ?? 0)
                     : Math.abs(variable.relativeAmount ?? 0)
-            return `${unitFn}(V{current_date}, ${amount})`
+            return `d2:addDays(V{current_date}, ${amount})`
         }
         case 'dataElement':
         case 'trackedEntityAttribute':

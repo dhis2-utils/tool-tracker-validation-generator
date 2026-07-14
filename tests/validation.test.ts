@@ -386,13 +386,13 @@ describe('buildEditConfig', () => {
     it('maps a relative-date rule back to form config', () => {
         const rule = makeRule({
             condition:
-                'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, d2:addYears(V{current_date}, -100)) >= 0',
+                'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, d2:addDays(V{current_date}, -100)) >= 0',
         })
         const parsed = parseRuleCondition(rule.condition, meta, dateDE)
         const config = buildEditConfig(parsed!, rule, action, dateDE)
         expect(config.comparisonDateMode).toBe('relative')
         expect(config.relativeComparisonAmount).toBe(100)
-        expect(config.relativeComparisonUnit).toBe('years')
+        expect(config.relativeComparisonUnit).toBe('days')
         expect(config.relativeComparisonDirection).toBe('past')
     })
 

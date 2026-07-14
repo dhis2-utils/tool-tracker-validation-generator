@@ -58,13 +58,13 @@ describe('parseRuleCondition — date comparisons', () => {
 
     it('parses relative current-date offsets as comparison targets', () => {
         const result = parseRuleCondition(
-            'd2:daysBetween(#{EIR_VACCINATION_DATE}, d2:addYears(V{current_date}, -100)) >= 0',
+            'd2:daysBetween(#{EIR_VACCINATION_DATE}, d2:addDays(V{current_date}, -100)) >= 0',
             mockMeta
         )
         expect(result?.variable2?.type).toBe('relative_current_date')
         expect(result?.variable2?.relativeDirection).toBe('past')
         expect(result?.variable2?.relativeAmount).toBe(100)
-        expect(result?.variable2?.relativeUnit).toBe('years')
+        expect(result?.variable2?.relativeUnit).toBe('days')
         expect(result?.config.operator).toBe('on_or_after')
     })
 })
@@ -82,7 +82,7 @@ describe('parseRuleCondition — between', () => {
 
     it('parses a date between into distinct lower and upper bounds', () => {
         const result = parseRuleCondition(
-            'd2:daysBetween(V{enrollment_date}, d2:addYears(V{current_date}, -1)) <= 0 && ' +
+            'd2:daysBetween(V{enrollment_date}, d2:addDays(V{current_date}, -1)) <= 0 && ' +
                 'd2:daysBetween(V{enrollment_date}, V{current_date}) >= 0',
             mockMeta
         )
