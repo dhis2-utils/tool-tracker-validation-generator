@@ -343,14 +343,77 @@ export function getUpperDateComparisonLabel(
     )
 }
 
-export function getVariableDisplayName(variable: Variable): string {
-    if (
-        variable.stageName &&
-        ['dataElement', 'event_date', 'due_date'].includes(variable.type)
-    ) {
-        return `${variable.name} (${variable.stageName})`
+const STAGE_SCOPED_TYPES = ['dataElement', 'event_date', 'due_date']
+
+/** Action types whose message renders away from the field it belongs to, so the
+ * text has to name the field itself. The inline types render next to the field,
+ * where repeating its name is noise. */
+const ON_COMPLETE_ACTION_TYPES = ['ERRORONCOMPLETE', 'WARNINGONCOMPLETE']
+
+/**
+ * True when the stage is worth naming: the variable is stage-bound, and the
+ * programme has more than one stage to tell apart. `stageCount` omitted means
+ * "unknown" and keeps the stage, since dropping it can make names collide.
+ */
+function shouldNameStage(variable: Variable, stageCount?: number): boolean {
+    return (
+        Boolean(variable.stageName) &&
+        STAGE_SCOPED_TYPES.includes(variable.type) &&
+        stageCount !== 1
+    )
+}
+
+/** Number of distinct stages the variable list covers. `buildVariablesArray`
+ * emits an event-date variable for every stage, so this matches the
+ * programme's stage count. */
+function countStages(variables: Variable[] | null): number | undefined {
+    if (!variables) {
+        return undefined
     }
-    return variable.name
+    const stageIds = new Set<string>()
+    for (const variable of variables) {
+        if (variable.stageId) {
+            stageIds.add(variable.stageId)
+        }
+    }
+    return stageIds.size
+}
+
+export function getVariableDisplayName(
+    variable: Variable,
+    stageCount?: number
+): string {
+    if (!shouldNameStage(variable, stageCount)) {
+        return variable.name
+    }
+    // Fold the stage into the marker we appended ourselves rather than adding a
+    // second parenthetical: "Report date (Specimen Tracking event date)", not
+    // "Report date (event date) (Specimen Tracking)".
+    if (variable.typeLabel) {
+        const marker = ` (${variable.typeLabel})`
+        if (variable.name.endsWith(marker)) {
+            const label = variable.name.slice(0, -marker.length)
+            return `${label} (${variable.stageName} ${variable.typeLabel})`
+        }
+    }
+    return `${variable.name} (${variable.stageName})`
+}
+
+/** Prose clause naming the variable's stage, for the description. Empty when
+ * the stage is not worth naming. */
+function stageClause(variable: Variable, stageCount?: number): string {
+    return shouldNameStage(variable, stageCount)
+        ? ` in the ${variable.stageName} stage`
+        : ''
+}
+
+/** Opening of the validation message: on-complete messages render in a dialog
+ * away from the field, so they name it; inline ones are already anchored to it. */
+function messageLead(variable: Variable, config: ValidationConfig): string {
+    const actionType = config.actionType || 'SHOWERROR'
+    return ON_COMPLETE_ACTION_TYPES.includes(actionType)
+        ? `${variable.name} must be`
+        : 'Must be'
 }
 
 export function getValidationPreview(
@@ -358,9 +421,15 @@ export function getValidationPreview(
     config: ValidationConfig,
     variables: Variable[] | null
 ): PreviewTexts {
+    const stageCount = countStages(variables)
+    const clause = stageClause(currentVariable, stageCount)
+    const lead = messageLead(currentVariable, config)
     if (currentVariable.category === 'numeric') {
         const varName = currentVariable.name
-        const varDisplayName = getVariableDisplayName(currentVariable)
+        const varDisplayName = getVariableDisplayName(
+            currentVariable,
+            stageCount
+        )
         if (config.numericOperator === 'between') {
             const min = config.numericValue
             const max = config.numericValueMax
@@ -375,8 +444,8 @@ export function getValidationPreview(
             return {
                 preview: `${varName} should be between ${min} and ${max} (inclusive)`,
                 suggestedRuleName: `${varDisplayName} must be between ${min} and ${max} (inclusive)`,
-                suggestedMessage: `${varName} must be between ${min} and ${max} (inclusive)`,
-                suggestedDescription: `Validates that ${varName} is between ${min} and ${max}, both included`,
+                suggestedMessage: `${lead} between ${min} and ${max} (inclusive)`,
+                suggestedDescription: `Validates that ${varName}${clause} is between ${min} and ${max} (inclusive)`,
             }
         }
         const opLabel = NUMERIC_OPERATOR_LABELS[config.numericOperator ?? '']
@@ -404,14 +473,17 @@ export function getValidationPreview(
         return {
             preview: `${varName} should be ${opLabel} ${comparison}`,
             suggestedRuleName: `${varDisplayName} must be ${opLabel} ${comparison}`,
-            suggestedMessage: `${varName} must be ${opLabel} ${comparison}`,
-            suggestedDescription: `Validates that ${varName} is ${opLabel} ${comparison}`,
+            suggestedMessage: `${lead} ${opLabel} ${comparison}`,
+            suggestedDescription: `Validates that ${varName}${clause} is ${opLabel} ${comparison}`,
         }
     }
 
     const operator = config.operator
     const variableName = currentVariable.name
-    const variableDisplayName = getVariableDisplayName(currentVariable)
+    const variableDisplayName = getVariableDisplayName(
+        currentVariable,
+        stageCount
+    )
     if (operator === 'between') {
         const lower = getDateComparisonLabel(config, variables)
         const upper = getUpperDateComparisonLabel(config, variables)
@@ -421,8 +493,8 @@ export function getValidationPreview(
         return {
             preview: `${variableName} should be between ${lower} and ${upper} (inclusive)`,
             suggestedRuleName: `${variableDisplayName} must be between ${lower} and ${upper} (inclusive)`,
-            suggestedMessage: `${variableName} must be between ${lower} and ${upper} (inclusive)`,
-            suggestedDescription: `Validates that ${variableName} is between ${lower} and ${upper}, both included`,
+            suggestedMessage: `${lead} between ${lower} and ${upper} (inclusive)`,
+            suggestedDescription: `Validates that ${variableName}${clause} is between ${lower} and ${upper} (inclusive)`,
         }
     }
     const comparisonName = getDateComparisonLabel(config, variables)
@@ -443,18 +515,16 @@ export function getValidationPreview(
                         ? 'on or after'
                         : 'on or before'
             const descPhrase =
-                operator === 'before'
-                    ? `is entered before ${comparisonName}`
-                    : operator === 'after'
-                      ? `is entered after ${comparisonName}`
-                      : operator === 'on_or_after'
-                        ? `is on the same date or after ${comparisonName}`
-                        : `is on the same date or before ${comparisonName}`
+                operator === 'on_or_after'
+                    ? `is on the same date or after ${comparisonName}`
+                    : operator === 'on_or_before'
+                      ? `is on the same date or before ${comparisonName}`
+                      : `is ${phrase} ${comparisonName}`
             return {
                 preview: `${variableName} should be ${phrase} ${comparisonName}`,
                 suggestedRuleName: `${variableDisplayName} must be ${phrase} ${comparisonName}`,
-                suggestedMessage: `${variableName} must be ${phrase} ${comparisonName}`,
-                suggestedDescription: `Validates that ${variableName} ${descPhrase}`,
+                suggestedMessage: `${lead} ${phrase} ${comparisonName}`,
+                suggestedDescription: `Validates that ${variableName}${clause} ${descPhrase}`,
             }
         }
         case 'within_before':
@@ -466,9 +536,9 @@ export function getValidationPreview(
             const interval = `${config.intervalAmount} ${config.intervalUnit}`
             return {
                 preview: `${variableName} should be within ${interval} ${dir} ${comparisonName}`,
-                suggestedRuleName: `${variableDisplayName} within ${interval} ${dir} ${comparisonName}`,
-                suggestedMessage: `${variableName} must be within ${interval} ${dir} ${comparisonName}`,
-                suggestedDescription: `Validates that ${variableName} is no more than ${interval} ${dir} ${comparisonName}`,
+                suggestedRuleName: `${variableDisplayName} must be within ${interval} ${dir} ${comparisonName}`,
+                suggestedMessage: `${lead} within ${interval} ${dir} ${comparisonName}`,
+                suggestedDescription: `Validates that ${variableName}${clause} is no more than ${interval} ${dir} ${comparisonName}`,
             }
         }
         default:
@@ -659,9 +729,13 @@ export function buildEditConfig(
         }
     }
 
+    // The default message depends on the action type, so the "is this still the
+    // default?" comparison has to use the rule's own action type — otherwise
+    // every on-complete rule looks customized and stops re-syncing.
+    const actionType = action.programRuleActionType || 'SHOWERROR'
     const suggested = getSuggestedRuleTexts(
         currentVariable,
-        structural,
+        { ...structural, actionType },
         variables
     )
     return {
@@ -671,7 +745,7 @@ export function buildEditConfig(
             strippedDesc === suggested.description ? undefined : strippedDesc,
         ruleMessage:
             storedMessage === suggested.message ? undefined : storedMessage,
-        actionType: action.programRuleActionType || 'SHOWERROR',
+        actionType,
     }
 }
 

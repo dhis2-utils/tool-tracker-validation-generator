@@ -521,13 +521,13 @@ describe('buildEditConfig', () => {
         const rule = makeRule({
             name: 'Vaccination date must be after 1900-01-01',
             description:
-                '[DVT] Validates that Vaccination date is entered after 1900-01-01',
+                '[DVT] Validates that Vaccination date is after 1900-01-01',
             condition:
                 "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
         })
         const defaultAction: ProgramRuleAction = {
             ...action,
-            content: 'Vaccination date must be after 1900-01-01',
+            content: 'Must be after 1900-01-01',
         }
         const parsed = parseRuleCondition(rule.condition, meta, dateDE)
         const config = buildEditConfig(
@@ -549,13 +549,13 @@ describe('buildEditConfig', () => {
         const rule = makeRule({
             name: 'Vaccination date must be after 1900-01-01',
             description:
-                '[DVT] [DVT-BATCH] Validates that Vaccination date is entered after 1900-01-01',
+                '[DVT] [DVT-BATCH] Validates that Vaccination date is after 1900-01-01',
             condition:
                 "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
         })
         const defaultAction: ProgramRuleAction = {
             ...action,
-            content: 'Vaccination date must be after 1900-01-01',
+            content: 'Must be after 1900-01-01',
         }
         const parsed = parseRuleCondition(rule.condition, meta, dateDE)
         const config = buildEditConfig(
@@ -568,6 +568,60 @@ describe('buildEditConfig', () => {
         expect(config.ruleName).toBeUndefined()
         expect(config.ruleDescription).toBeUndefined()
         expect(config.ruleMessage).toBeUndefined()
+    })
+
+    it("judges the stored message against the rule's own action type", () => {
+        // The default message depends on the action type: on-complete rules
+        // carry the field name, inline ones do not. Judging an on-complete
+        // rule against the inline default would mark an untouched message as
+        // customized and stop it re-syncing.
+        const rule = makeRule({
+            name: 'Vaccination date must be after 1900-01-01',
+            description:
+                '[DVT] Validates that Vaccination date is after 1900-01-01',
+            condition:
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+        })
+        const onCompleteAction: ProgramRuleAction = {
+            ...action,
+            programRuleActionType: 'ERRORONCOMPLETE',
+            content: 'Vaccination date must be after 1900-01-01',
+        }
+        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            onCompleteAction,
+            dateDE,
+            allVariables
+        )
+        expect(config.actionType).toBe('ERRORONCOMPLETE')
+        expect(config.ruleMessage).toBeUndefined()
+    })
+
+    it('treats the inline default as customized on an on-complete rule', () => {
+        // Mirror of the test above: the field-less text is the default only
+        // for SHOWERROR/SHOWWARNING, so on an on-complete rule it is a real
+        // customization and must be preserved.
+        const rule = makeRule({
+            name: 'Vaccination date must be after 1900-01-01',
+            condition:
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+        })
+        const onCompleteAction: ProgramRuleAction = {
+            ...action,
+            programRuleActionType: 'WARNINGONCOMPLETE',
+            content: 'Must be after 1900-01-01',
+        }
+        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            onCompleteAction,
+            dateDE,
+            allVariables
+        )
+        expect(config.ruleMessage).toBe('Must be after 1900-01-01')
     })
 
     it('keeps texts that were customized away from the default', () => {
@@ -807,9 +861,9 @@ describe('getSuggestedRuleTexts', () => {
             allVariables
         )
         expect(texts.name).toBe('Vaccination date must be after 1900-01-01')
-        expect(texts.message).toBe('Vaccination date must be after 1900-01-01')
+        expect(texts.message).toBe('Must be after 1900-01-01')
         expect(texts.description).toBe(
-            'Validates that Vaccination date is entered after 1900-01-01'
+            'Validates that Vaccination date is after 1900-01-01'
         )
     })
 
@@ -826,39 +880,20 @@ describe('getSuggestedRuleTexts', () => {
         expect(texts.name).toBe('Age must be between 0 and 115 (inclusive)')
     })
 
-    it('adds stage context to the name only, not the message', () => {
-        const stageDate = makeVariable({
-            type: 'dataElement',
-            id: 'deStageAAAA',
-            name: 'Vacc date',
-            category: 'date',
-            stageId: 'stgA',
-            stageName: 'Stage A',
-        })
-        const texts = getSuggestedRuleTexts(
-            stageDate,
-            { operator: 'before', comparisonDateMode: 'current' },
-            [stageDate]
-        )
-        expect(texts.name).toBe(
-            'Vacc date (Stage A) must be before Current date'
-        )
-        expect(texts.message).toBe('Vacc date must be before Current date')
-    })
+    // Stage context and the message's field name are covered in detail by the
+    // "default-text templates" suite below.
 })
 
 describe('getVariableDisplayName', () => {
+    const stageBound = makeVariable({
+        type: 'dataElement',
+        name: 'Vacc date',
+        stageId: 'stgA',
+        stageName: 'Stage A',
+    })
+
     it('appends stage name for stage-bound data elements', () => {
-        expect(
-            getVariableDisplayName(
-                makeVariable({
-                    type: 'dataElement',
-                    name: 'Vacc date',
-                    stageId: 'stgA',
-                    stageName: 'Stage A',
-                })
-            )
-        ).toBe('Vacc date (Stage A)')
+        expect(getVariableDisplayName(stageBound)).toBe('Vacc date (Stage A)')
     })
 
     it('returns the raw name when there is no stage name', () => {
@@ -867,5 +902,295 @@ describe('getVariableDisplayName', () => {
                 makeVariable({ type: 'enrollment', name: 'Enrollment date' })
             )
         ).toBe('Enrollment date')
+    })
+
+    it('omits the stage name when the programme has a single stage', () => {
+        expect(getVariableDisplayName(stageBound, 1)).toBe('Vacc date')
+    })
+
+    it('keeps the stage name when the programme has several stages', () => {
+        expect(getVariableDisplayName(stageBound, 3)).toBe(
+            'Vacc date (Stage A)'
+        )
+    })
+
+    describe('variables whose name carries a synthetic type marker', () => {
+        const eventDate = makeVariable({
+            type: 'event_date',
+            id: 'event_date_stgA',
+            name: 'Report date (event date)',
+            typeLabel: 'event date',
+            stageId: 'stgA',
+            stageName: 'Specimen Tracking',
+        })
+
+        it('folds the stage into the type marker instead of adding a second parenthetical', () => {
+            expect(getVariableDisplayName(eventDate, 2)).toBe(
+                'Report date (Specimen Tracking event date)'
+            )
+        })
+
+        it('leaves the type marker alone when the programme has a single stage', () => {
+            expect(getVariableDisplayName(eventDate, 1)).toBe(
+                'Report date (event date)'
+            )
+        })
+
+        it('appends the stage normally when there is no type marker', () => {
+            expect(
+                getVariableDisplayName(
+                    makeVariable({
+                        type: 'due_date',
+                        name: 'Due date',
+                        stageId: 'stgA',
+                        stageName: 'Specimen Tracking',
+                    }),
+                    2
+                )
+            ).toBe('Due date (Specimen Tracking)')
+        })
+
+        it('does not mistake a real parenthetical in a data element name for a type marker', () => {
+            expect(
+                getVariableDisplayName(
+                    makeVariable({
+                        type: 'dataElement',
+                        name: 'Weight (kg)',
+                        stageId: 'stgA',
+                        stageName: 'Specimen Tracking',
+                    }),
+                    2
+                )
+            ).toBe('Weight (kg) (Specimen Tracking)')
+        })
+    })
+})
+
+describe('default-text templates', () => {
+    const stageA = makeVariable({
+        type: 'dataElement',
+        id: 'deStageAAAA',
+        name: 'Vacc date',
+        category: 'date',
+        stageId: 'stgA',
+        stageName: 'Stage A',
+    })
+    const stageB = makeVariable({
+        type: 'dataElement',
+        id: 'deStageBBBB',
+        name: 'Other date',
+        category: 'date',
+        stageId: 'stgB',
+        stageName: 'Stage B',
+    })
+    const multiStage = [stageA, stageB]
+    const singleStage = [stageA]
+    const before = {
+        operator: 'before',
+        comparisonDateMode: 'current',
+    } as const
+
+    describe('rule name', () => {
+        it('says "must be" on the interval variant', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                {
+                    operator: 'within_after',
+                    comparisonDateMode: 'current',
+                    intervalAmount: 30,
+                    intervalUnit: 'days',
+                },
+                multiStage
+            )
+            expect(texts.name).toBe(
+                'Vacc date (Stage A) must be within 30 days after Current date'
+            )
+        })
+
+        it('keeps the stage suffix when the programme has several stages', () => {
+            const texts = getSuggestedRuleTexts(stageA, before, multiStage)
+            expect(texts.name).toBe(
+                'Vacc date (Stage A) must be before Current date'
+            )
+        })
+
+        it('drops the stage suffix when the programme has a single stage', () => {
+            const texts = getSuggestedRuleTexts(stageA, before, singleStage)
+            expect(texts.name).toBe('Vacc date must be before Current date')
+        })
+    })
+
+    describe('description', () => {
+        it('spells out the stage when the programme has several stages', () => {
+            const texts = getSuggestedRuleTexts(stageA, before, multiStage)
+            expect(texts.description).toBe(
+                'Validates that Vacc date in the Stage A stage is before Current date'
+            )
+        })
+
+        it('omits the stage clause when the programme has a single stage', () => {
+            const texts = getSuggestedRuleTexts(stageA, before, singleStage)
+            expect(texts.description).toBe(
+                'Validates that Vacc date is before Current date'
+            )
+        })
+
+        it('omits the stage clause for a variable that has no stage', () => {
+            const texts = getSuggestedRuleTexts(enrollment, before, [
+                enrollment,
+                ...multiStage,
+            ])
+            expect(texts.description).toBe(
+                'Validates that Enrollment date is before Current date'
+            )
+        })
+
+        it('says "is after", not "is entered after"', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                {
+                    operator: 'after',
+                    comparisonDateMode: 'fixed',
+                    fixedComparisonDate: '2000-01-01',
+                },
+                singleStage
+            )
+            expect(texts.description).toBe(
+                'Validates that Vacc date is after 2000-01-01'
+            )
+        })
+
+        it('marks a date "between" inclusive the same way the name does', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                {
+                    operator: 'between',
+                    comparisonDateMode: 'fixed',
+                    fixedComparisonDate: '2000-01-01',
+                    upperComparisonDateMode: 'fixed',
+                    upperFixedComparisonDate: '2020-01-01',
+                },
+                singleStage
+            )
+            expect(texts.description).toBe(
+                'Validates that Vacc date is between 2000-01-01 and 2020-01-01 (inclusive)'
+            )
+        })
+
+        it('marks a numeric "between" inclusive too', () => {
+            const texts = getSuggestedRuleTexts(
+                numericDE,
+                {
+                    numericOperator: 'between',
+                    numericValue: 0,
+                    numericValueMax: 115,
+                },
+                allVariables
+            )
+            expect(texts.description).toBe(
+                'Validates that Age is between 0 and 115 (inclusive)'
+            )
+        })
+    })
+
+    describe('validation message', () => {
+        it('omits the field name for SHOWERROR, which renders next to the field', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                { ...before, actionType: 'SHOWERROR' },
+                multiStage
+            )
+            expect(texts.message).toBe('Must be before Current date')
+        })
+
+        it('omits the field name for SHOWWARNING', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                { ...before, actionType: 'SHOWWARNING' },
+                multiStage
+            )
+            expect(texts.message).toBe('Must be before Current date')
+        })
+
+        it('omits the field name when no action type is set, since SHOWERROR is the default', () => {
+            const texts = getSuggestedRuleTexts(stageA, before, multiStage)
+            expect(texts.message).toBe('Must be before Current date')
+        })
+
+        it('keeps the field name for ERRORONCOMPLETE, which renders in a modal', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                { ...before, actionType: 'ERRORONCOMPLETE' },
+                multiStage
+            )
+            expect(texts.message).toBe('Vacc date must be before Current date')
+        })
+
+        it('keeps the field name for WARNINGONCOMPLETE', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                { ...before, actionType: 'WARNINGONCOMPLETE' },
+                multiStage
+            )
+            expect(texts.message).toBe('Vacc date must be before Current date')
+        })
+
+        it('never carries the stage suffix, even on a multi-stage programme', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                { ...before, actionType: 'ERRORONCOMPLETE' },
+                multiStage
+            )
+            expect(texts.message).not.toContain('Stage A')
+        })
+
+        it('capitalises the field-less form for a numeric rule', () => {
+            const texts = getSuggestedRuleTexts(
+                numericDE,
+                {
+                    numericOperator: 'greater_than',
+                    numericComparisonType: 'value',
+                    numericValue: 0,
+                    actionType: 'SHOWERROR',
+                },
+                allVariables
+            )
+            expect(texts.message).toBe('Must be greater than 0')
+        })
+
+        it('capitalises the field-less form for an interval rule', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                {
+                    operator: 'within_after',
+                    comparisonDateMode: 'current',
+                    intervalAmount: 30,
+                    intervalUnit: 'days',
+                    actionType: 'SHOWERROR',
+                },
+                singleStage
+            )
+            expect(texts.message).toBe(
+                'Must be within 30 days after Current date'
+            )
+        })
+
+        it('capitalises the field-less form for a between rule', () => {
+            const texts = getSuggestedRuleTexts(
+                stageA,
+                {
+                    operator: 'between',
+                    comparisonDateMode: 'fixed',
+                    fixedComparisonDate: '2000-01-01',
+                    upperComparisonDateMode: 'fixed',
+                    upperFixedComparisonDate: '2020-01-01',
+                    actionType: 'SHOWERROR',
+                },
+                singleStage
+            )
+            expect(texts.message).toBe(
+                'Must be between 2000-01-01 and 2020-01-01 (inclusive)'
+            )
+        })
     })
 })

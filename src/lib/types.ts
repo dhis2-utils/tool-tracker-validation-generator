@@ -21,6 +21,12 @@ export interface Variable {
     valueType?: string
     stageId?: string
     stageName?: string
+    /** The trailing "(… )" marker this app appended to `name` itself, e.g.
+     * "event date" in "Report date (event date)". Set only for the synthetic
+     * date variables; a data element genuinely named "Weight (kg)" has none,
+     * so display code can fold the stage into our marker without touching a
+     * parenthetical that belongs to the metadata. */
+    typeLabel?: string
     prvName?: string
     relativeAmount?: number
     relativeUnit?: string

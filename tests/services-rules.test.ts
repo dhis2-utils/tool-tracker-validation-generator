@@ -346,11 +346,22 @@ describe('updateValidation — group/bulk edits', () => {
             valueType: 'DATE',
             category: 'date',
         })
+        // A second stage, so the programme genuinely has stages to tell apart:
+        // the stage suffix is only added when it disambiguates something.
+        const otherStageVariable = makeVariable({
+            type: 'dataElement',
+            id: 'de2AAAAAAAA',
+            name: 'Follow-up date',
+            stageName: 'Stage B',
+            stageId: 'stgBBBBBBBB',
+            valueType: 'DATE',
+            category: 'date',
+        })
         const ctx: RuleServiceContext = {
             engine,
             programId: 'prog1234567',
             config: { programRuleVariablePrefix: 'TRE', programRulePrefix: '' },
-            variables: [currentVariable],
+            variables: [currentVariable, otherStageVariable],
             metadata: makeMeta({
                 programRuleVariables: [
                     {

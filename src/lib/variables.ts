@@ -34,6 +34,7 @@ export function buildVariablesArray(
         list.push({
             id: 'enrollment_date',
             name: `${programMetadata.enrollmentDateLabel} (enrollment date)`,
+            typeLabel: 'enrollment date',
             type: 'enrollment',
             category: 'date',
             valueType: 'DATE',
@@ -49,6 +50,7 @@ export function buildVariablesArray(
         list.push({
             id: 'incident_date',
             name: `${programMetadata.incidentDateLabel} (incident date)`,
+            typeLabel: 'incident date',
             type: 'incident',
             category: 'date',
             valueType: 'DATE',
@@ -70,6 +72,7 @@ export function buildVariablesArray(
         list.push({
             id: `event_date_${stage.id}`,
             name: `${eventLabel} (event date)`,
+            typeLabel: 'event date',
             type: 'event_date',
             category: 'date',
             valueType: 'DATE',

@@ -40,6 +40,20 @@ describe('buildVariablesArray', () => {
         expect(ev?.id).toBe('event_date_stage001AAAAA')
     })
 
+    it('marks the synthetic type suffix it bakes into a name', () => {
+        // The name is "<label> (event date)", so display code needs to know
+        // which trailing parenthetical it put there itself — a data element
+        // genuinely named "Weight (kg)" must not be treated the same way.
+        const vars = buildVariablesArray(mockMeta)
+        const ev = vars.find((v) => v.type === 'event_date')
+        expect(ev?.name).toBe('Event date (event date)')
+        expect(ev?.typeLabel).toBe('event date')
+        const enrollment = vars.find((v) => v.type === 'enrollment')
+        expect(enrollment?.typeLabel).toBe('enrollment date')
+        const de = vars.find((v) => v.id === 'deDate01AAAA')
+        expect(de?.typeLabel).toBeUndefined()
+    })
+
     it("TEA type is 'trackedEntityAttribute'", () => {
         const vars = buildVariablesArray(mockMeta)
         const tea = vars.find((v) => v.id === 'teaDate01AAA')
