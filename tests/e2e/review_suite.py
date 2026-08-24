@@ -30,9 +30,36 @@ USER = os.environ.get("DHIS2_USER", "local_admin")
 PASS = os.environ.get("DHIS2_PASS", "district")
 LABEL = os.environ.get("LABEL", "dev")
 OUTDIR = os.environ.get("OUTDIR", "/tmp/review")
-APP_URL = f"{BASE}/api/apps/tracker-validation-tool/index.html"
-PROGRAM = "Child Programme"
-PROGRAM_ID = "IpHINAT79UW"
+APP_URL = f"{BASE}/api/apps/tool-tracker-validation/index.html"
+
+# The same 11 steps run against either demo database; only the programme and
+# the field names differ. The expected bulk-apply count is derived from the
+# instance metadata at run time (see expected_unvalidated_dates).
+PROFILES = {
+    "sl": {
+        "program": "Child Programme",
+        "program_id": "IpHINAT79UW",
+        "enrollment_var": "Date of enrollment (enrollment date)",
+        "numeric_stage": "Birth",
+        "numeric_var": "MCH Weight (g)",
+        "cleanup_stage": None,
+        "cleanup_var": "Date of birth (incident date)",
+        "cleanup_condition_fragment": "incident",
+    },
+    "laos": {
+        "program": "Electronic Immunization Registry",
+        "program_id": "SSLpOM0r1U7",
+        "enrollment_var": "Registration date (enrollment date)",
+        "numeric_stage": "Birth details",
+        "numeric_var": "GEN - Birth weight (grams)",
+        "cleanup_stage": "Immunization",
+        "cleanup_var": "EIR - Birth registration date",
+        "cleanup_condition_fragment": "BIRTH_REGISTRATION_DATE",
+    },
+}
+PROFILE = PROFILES[os.environ.get("PROFILE", "sl")]
+PROGRAM = PROFILE["program"]
+PROGRAM_ID = PROFILE["program_id"]
 
 os.makedirs(OUTDIR, exist_ok=True)
 
@@ -89,6 +116,38 @@ def app_rules():
                          "&fields=id,name,description,condition&paging=false")
     return [r for r in (data or {}).get("programRules", [])
             if (r.get("description") or "").startswith("[DVT]")]
+
+
+def expected_unvalidated_dates():
+    """How many date variables the bulk apply should cover at step 8.
+
+    Derived from the instance's own metadata rather than hand-counted per
+    profile: every date variable the app offers, minus the enrollment date,
+    which step 5 has already given a rule. Hand-counting this is exactly the
+    kind of fixture arithmetic that goes stale when a seed changes.
+    """
+    _, p = api("GET", f"/api/programs/{PROGRAM_ID}?fields=programType,"
+                      "enrollmentDateLabel,incidentDateLabel,displayIncidentDate,"
+                      "programStages[hideDueDate,programStageDataElements["
+                      "dataElement[valueType]]],programTrackedEntityAttributes["
+                      "trackedEntityAttribute[valueType]]")
+    tracker = p.get("programType") != "WITHOUT_REGISTRATION"
+    total = 0
+    if tracker and p.get("enrollmentDateLabel"):
+        total += 1
+    if tracker and p.get("displayIncidentDate") and p.get("incidentDateLabel"):
+        total += 1
+    for stage in p.get("programStages") or []:
+        total += 1                                    # event date
+        if not stage.get("hideDueDate"):
+            total += 1                                # due date
+        for psde in stage.get("programStageDataElements") or []:
+            if (psde.get("dataElement") or {}).get("valueType") == "DATE":
+                total += 1
+    for ptea in p.get("programTrackedEntityAttributes") or []:
+        if (ptea.get("trackedEntityAttribute") or {}).get("valueType") == "DATE":
+            total += 1
+    return total - 1      # the enrollment date already has a rule
 
 
 def find_root(page):
@@ -150,7 +209,7 @@ def main():
     cn, cv = session_cookie()
     host = urlparse(BASE).hostname
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(args=["--disable-dev-shm-usage"])
         ctx = browser.new_context(viewport={"width": 1400, "height": 950})
         ctx.add_cookies([{"name": cn, "value": cv, "domain": host, "path": "/"}])
         page = ctx.new_page()
@@ -170,7 +229,7 @@ def main():
 
         # ---- 2. select program ----
         try:
-            choose(root, page, "Select a tracker programme", PROGRAM)
+            choose(root, page, "Select a programme", PROGRAM)
             root.get_by_text("Bulk rules for unvalidated variables").wait_for(timeout=30000)
             record("program selection loads overview", True)
         except Exception as e:
@@ -181,10 +240,11 @@ def main():
         # ---- 3. overview content ----
         try:
             root.get_by_text("Settings required").first.wait_for(timeout=10000)
-            enr = root.get_by_text("Date of enrollment (enrollment date)")
+            enr = root.get_by_text(PROFILE["enrollment_var"])
             enr.first.wait_for(timeout=10000)
-            root.get_by_role("heading", name="Birth", exact=True).click()
-            root.get_by_text("MCH Weight (g)").first.wait_for(timeout=5000)
+            root.get_by_role("heading", name=PROFILE["numeric_stage"],
+                             exact=True).click()
+            root.get_by_text(PROFILE["numeric_var"]).first.wait_for(timeout=5000)
             record("overview shows variables, stages expand, settings warning", True)
         except Exception as e:
             record("overview shows variables, stages expand, settings warning", False, str(e))
@@ -212,12 +272,12 @@ def main():
 
         # ---- 5. create date rule (enrollment date on or before current date) ----
         try:
-            root.get_by_text("Date of enrollment (enrollment date)").first.click()
+            root.get_by_text(PROFILE["enrollment_var"]).first.click()
             root.get_by_text("Add new validation").wait_for(timeout=10000)
             choose(root, page, "Choose relationship", "on or before")
             choose(root, page, "another tracked date", "the current date")
             preview = root.get_by_text(
-                "Date of enrollment (enrollment date) should be on or before Current date")
+                f'{PROFILE["enrollment_var"]} should be on or before Current date')
             preview.wait_for(timeout=5000)
             shot(page, "05-date-form")
             root.get_by_role("button", name="Create validation rule").click()
@@ -256,8 +316,9 @@ def main():
         try:
             root.get_by_role("button", name="Back to overview").click()
             root.get_by_text("Bulk rules for unvalidated variables").wait_for(timeout=10000)
-            root.get_by_role("heading", name="Birth", exact=True).click()
-            root.get_by_text("MCH Weight (g)").first.click()
+            root.get_by_role("heading", name=PROFILE["numeric_stage"],
+                             exact=True).click()
+            root.get_by_text(PROFILE["numeric_var"]).first.click()
             root.get_by_text("Add new validation").wait_for(timeout=10000)
             choose(root, page, "Choose operator", "greater than")
             num = root.locator("input[type='number']").first
@@ -266,16 +327,36 @@ def main():
             root.get_by_role("button", name="Create validation rule").click()
             wait_alert(root, page, "created successfully")
             rules = app_rules()
-            match = [r for r in rules if "MCH Weight" in r["name"]]
+            match = [r for r in rules if PROFILE["numeric_var"] in r["name"]]
             cond = match[0]["condition"] if match else ""
-            ok = cond == "d2:hasValue(#{TVT_BIRTH_MCH_WEIGHT_G}) && #{TVT_BIRTH_MCH_WEIGHT_G} > 300"
-            _, prvs = api("GET", f"/api/programRuleVariables.json?filter=program.id:eq:{PROGRAM_ID}"
-                                 "&filter=name:eq:TVT_BIRTH_MCH_WEIGHT_G&fields=id,valueType&paging=false")
-            prv_list = (prvs or {}).get("programRuleVariables", [])
-            record("create numeric rule + prefixed PRV", ok and len(prv_list) == 1,
-                   cond or "rule not found")
+            # "must be greater than 300" fires ON THE VIOLATION, so the stored
+            # condition is "<= 300". Don't assert a PRV *name*: the app reuses
+            # an existing PRV bound to the same data element when one exists
+            # (Laos EIR ships "birth_weight"), and only creates a prefixed one
+            # otherwise. Assert the shape, then that the PRV it used really
+            # points at the field under test.
+            m = re.fullmatch(r"d2:hasValue\(#\{(?P<prv>[^}]+)\}\) "
+                             r"&& #\{(?P=prv)\} <= 300", cond)
+            prv_ok = False
+            prv_note = ""
+            if m:
+                prv_name = m.group("prv")
+                _, prvs = api(
+                    "GET",
+                    f"/api/programRuleVariables.json?filter=program.id:eq:{PROGRAM_ID}"
+                    f"&filter=name:eq:{prv_name}"
+                    "&fields=id,dataElement[name]&paging=false")
+                prv_list = (prvs or {}).get("programRuleVariables", [])
+                prv_ok = (len(prv_list) == 1 and (prv_list[0].get("dataElement")
+                          or {}).get("name") == PROFILE["numeric_var"])
+                prv_note = f"PRV {prv_name} -> " + str(
+                    (prv_list[0].get("dataElement") or {}).get("name")
+                    if prv_list else None)
+            record("create numeric rule (inverted condition + bound PRV)",
+                   bool(m) and prv_ok, f"{cond or 'rule not found'}; {prv_note}")
         except Exception as e:
-            record("create numeric rule + prefixed PRV", False, str(e))
+            record("create numeric rule (inverted condition + bound PRV)",
+                   False, str(e))
         shot(page, "07-numeric-rule")
 
         # ---- 8. batch apply (date before fixed 2030-01-01, whole programme) ----
@@ -293,16 +374,20 @@ def main():
             batch_card.get_by_role("button", name="Apply queued rules").click()
             text = wait_alert(root, page, "validation rule", timeout=90000)
             batch = [r for r in app_rules() if "[DVT-BATCH]" in (r["description"] or "")]
-            # unvalidated date vars: incident date + 2x event date + 2x due date = 5
+            expected = expected_unvalidated_dates()
             record("batch apply creates rules for unvalidated dates",
-                   len(batch) == 5, f"batch rules={len(batch)}; alert={text!r}")
+                   len(batch) == expected,
+                   f"batch rules={len(batch)} (expected {expected}); alert={text!r}")
         except Exception as e:
             record("batch apply creates rules for unvalidated dates", False, str(e))
         shot(page, "08-batch")
 
         # ---- 9. specific rule triggers batch-cleanup offer ----
         try:
-            root.get_by_text("Date of birth (incident date)").first.click()
+            if PROFILE["cleanup_stage"]:
+                root.get_by_role("heading", name=PROFILE["cleanup_stage"],
+                                 exact=True).click()
+            root.get_by_text(PROFILE["cleanup_var"]).first.click()
             root.get_by_text("Add new validation").wait_for(timeout=10000)
             choose(root, page, "Choose relationship", "on or before")
             choose(root, page, "another tracked date", "the current date")
@@ -315,7 +400,8 @@ def main():
             wait_alert(root, page, "deleted successfully")
             batch_incident = [r for r in app_rules()
                               if "[DVT-BATCH]" in (r["description"] or "")
-                              and "incident" in r["condition"]]
+                              and PROFILE["cleanup_condition_fragment"]
+                              in r["condition"]]
             record("batch-rule cleanup offer removes generic rule",
                    len(batch_incident) == 0, f"remaining={len(batch_incident)}")
         except Exception as e:

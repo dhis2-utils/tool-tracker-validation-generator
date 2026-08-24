@@ -1,0 +1,36 @@
+{
+  "results": [
+    [
+      "event programme is selectable and labelled",
+      "PASS",
+      ""
+    ],
+    [
+      "programme settings saved for the event programme",
+      "PASS",
+      ""
+    ],
+    [
+      "enrollment/incident dates are not offered",
+      "PASS",
+      ""
+    ],
+    [
+      "stage date fields are offered",
+      "PASS",
+      ""
+    ],
+    [
+      "create date rule on an event programme",
+      "PASS",
+      "d2:hasValue(#{TVT_INPATIENT_MORBIDITY_AND_MORTALITY_DISCHARGE_DATE}) && d2:daysBetween(#{TVT_INPATIENT_MORBIDITY_AND_MORTALITY_DISCHARGE_DATE}, '2000-01-01') > 0"
+    ],
+    [
+      "rule name omits the stage on a single-stage programme",
+      "PASS",
+      "TVT - Discharge Date must be after 2000-01-01"
+    ]
+  ],
+  "console_errors": [],
+  "page_errors": []
+}
