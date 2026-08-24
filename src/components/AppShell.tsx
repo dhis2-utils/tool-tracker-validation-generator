@@ -47,7 +47,7 @@ export const AppShell = () => {
                         dense
                         filterable
                         loading={isLoading}
-                        placeholder={i18n.t('Select a tracker programme...')}
+                        placeholder={i18n.t('Select a programme...')}
                         noMatchText={i18n.t('No programmes match the filter')}
                         selected={
                             programId &&
@@ -63,7 +63,15 @@ export const AppShell = () => {
                             <SingleSelectOption
                                 key={program.id}
                                 value={program.id}
-                                label={program.displayName}
+                                label={
+                                    program.programType ===
+                                    'WITHOUT_REGISTRATION'
+                                        ? i18n.t('{{name}} (event programme)', {
+                                              name: program.displayName,
+                                              nsSeparator: undefined,
+                                          })
+                                        : program.displayName
+                                }
                             />
                         ))}
                     </SingleSelect>

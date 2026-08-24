@@ -94,9 +94,14 @@ export interface ProgramStage {
     }[]
 }
 
+export type ProgramType = 'WITH_REGISTRATION' | 'WITHOUT_REGISTRATION'
+
 export interface ProgramMetadata {
     id: string
     name: string
+    /** Absent is treated as WITH_REGISTRATION: never drop variables just
+     * because the type was not fetched. */
+    programType?: ProgramType
     enrollmentDateLabel?: string
     incidentDateLabel?: string
     displayIncidentDate?: boolean

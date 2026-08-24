@@ -30,7 +30,12 @@ export function buildVariablesArray(
         return list
     }
 
-    if (programMetadata.enrollmentDateLabel) {
+    // An event programme has no enrollment the user ever sees — DHIS2 creates
+    // one hidden enrollment per event — so enrollment and incident dates are
+    // not offered there, even if the programme carries labels for them.
+    const hasEnrollment = programMetadata.programType !== 'WITHOUT_REGISTRATION'
+
+    if (hasEnrollment && programMetadata.enrollmentDateLabel) {
         list.push({
             id: 'enrollment_date',
             name: `${programMetadata.enrollmentDateLabel} (enrollment date)`,
@@ -44,6 +49,7 @@ export function buildVariablesArray(
         })
     }
     if (
+        hasEnrollment &&
         programMetadata.displayIncidentDate &&
         programMetadata.incidentDateLabel
     ) {

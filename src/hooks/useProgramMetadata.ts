@@ -13,6 +13,7 @@ const PROGRAM_FIELDS = [
     'id',
     'name',
     'displayName',
+    'programType',
     'enrollmentDateLabel',
     'incidentDateLabel',
     'displayIncidentDate',

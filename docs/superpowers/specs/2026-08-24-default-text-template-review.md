@@ -134,7 +134,8 @@ means the default text now depends on two fields rather than one.
 
 ## Findings surfaced during the review (not template changes)
 
-1. **The programme filter excludes event programmes for no apparent reason.**
+1. **The programme filter excluded event programmes for no apparent reason.**
+   _Resolved — support added, see "Event programme support" below._
    `usePrograms.ts:19` filters `programType:eq:WITH_REGISTRATION`. The Android
    docs list all four feedback action types as fully supported for "Program
    without registration", and `buildVariablesArray` already degrades correctly:
@@ -173,5 +174,33 @@ message`); the `default-text templates` suite covers both behaviours in
   second stage in its fixture, so it still tests stage-aware naming rather than
   being weakened to match the new single-stage output.
 
-Not done, still open: the two findings above (widening the programme filter, and
-warning about on-complete actions on TEI attributes).
+Not done, still open: warning about on-complete actions on TEI attributes
+(finding 2 above).
+
+## Event programme support
+
+`usePrograms` no longer filters on `programType`, so programmes without
+registration are selectable; the picker labels them "(event programme)" so the
+two kinds are distinguishable. `programType` is now fetched in both the list and
+the metadata query.
+
+`buildVariablesArray` skips the **enrollment and incident date** variables for a
+`WITHOUT_REGISTRATION` programme even when the programme carries labels for
+them: DHIS2 creates one hidden enrollment per event there, so a rule on
+`V{enrollment_date}` would fire on a date the user never sees. Event date, due
+date and stage data elements are offered as usual. An absent `programType` is
+treated as a tracker programme, so a metadata query that omits the field can
+never silently drop variables.
+
+**Verified live** on the Laos demo (DHIS2 2.42.5.2) by walking the app's own
+metadata path against the "RMS - Rapid Mortality Surveillance" event programme:
+a `DATAELEMENT_CURRENT_EVENT` program rule variable, a `d2:daysBetween` rule
+condition (validated through `/api/programRules/condition/description` — "Valid"),
+a `programRule`, and a `SHOWERROR` action bound to the data element all created
+with 201, and read back correctly through the nested
+`programRules?fields=:owner,programRuleActions[:owner]` query the app uses. Test
+metadata was deleted afterwards.
+
+Copy that promised tracker-only was corrected in `AppShell` and
+`SelectProgramPage`. The app's own name ("Tracker Validation Tool") was left
+alone — renaming it is a separate decision, since it is also the DHIS2 app name.

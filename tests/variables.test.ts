@@ -89,6 +89,69 @@ describe('buildVariablesArray', () => {
     it('returns an empty list without metadata', () => {
         expect(buildVariablesArray(null)).toEqual([])
     })
+
+    describe('event programmes (WITHOUT_REGISTRATION)', () => {
+        // An event programme has no real enrollment: DHIS2 creates one hidden
+        // enrollment per event. Offering "enrollment date" or "incident date"
+        // there would build rules on a date the user never sees, so they are
+        // skipped even when the programme carries labels for them.
+        const eventMeta = makeMeta({
+            programType: 'WITHOUT_REGISTRATION',
+            enrollmentDateLabel: 'Registration date',
+            displayIncidentDate: true,
+            incidentDateLabel: 'Incident date',
+            programStages: [
+                {
+                    id: 'stage001AAAAA',
+                    name: 'Stage 1',
+                    executionDateLabel: 'Report date',
+                    hideDueDate: false,
+                    programStageDataElements: [
+                        {
+                            dataElement: {
+                                id: 'deDate01AAAA',
+                                name: 'Date of birth',
+                                valueType: 'DATE',
+                            },
+                        },
+                    ],
+                },
+            ],
+        })
+
+        it('skips enrollment and incident dates', () => {
+            const vars = buildVariablesArray(eventMeta)
+            expect(vars.find((v) => v.type === 'enrollment')).toBeUndefined()
+            expect(vars.find((v) => v.type === 'incident')).toBeUndefined()
+        })
+
+        it('still offers the event date, due date and stage data elements', () => {
+            const vars = buildVariablesArray(eventMeta)
+            expect(vars.find((v) => v.type === 'event_date')?.name).toBe(
+                'Report date (event date)'
+            )
+            expect(vars.find((v) => v.type === 'due_date')).toBeDefined()
+            expect(vars.find((v) => v.id === 'deDate01AAAA')).toBeDefined()
+        })
+
+        it('keeps enrollment dates for a tracker programme with the same labels', () => {
+            const trackerMeta = makeMeta({
+                ...eventMeta,
+                programType: 'WITH_REGISTRATION',
+            })
+            const vars = buildVariablesArray(trackerMeta)
+            expect(vars.find((v) => v.type === 'enrollment')).toBeDefined()
+            expect(vars.find((v) => v.type === 'incident')).toBeDefined()
+        })
+
+        it('treats an unspecified programme type as a tracker programme', () => {
+            // Absence of programType must not silently drop variables.
+            const vars = buildVariablesArray(
+                makeMeta({ ...eventMeta, programType: undefined })
+            )
+            expect(vars.find((v) => v.type === 'enrollment')).toBeDefined()
+        })
+    })
 })
 
 const mockMetaWithNumeric = makeMeta({
