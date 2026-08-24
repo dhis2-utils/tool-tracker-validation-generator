@@ -1,0 +1,61 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - 'v*.*.*'
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+            - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Verify tag matches package.json version
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  TAG="${GITHUB_REF_NAME#v}"
+                  if [ "$VERSION" != "$TAG" ]; then
+                    echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION" >&2
+                    exit 1
+                  fi
+
+            - name: Install dependencies
+              # --ignore-scripts: dependency lifecycle scripts are not needed to
+              # build this app and running them would execute third-party code in CI.
+              run: pnpm install --frozen-lockfile --ignore-scripts
+
+            - name: Build
+              run: pnpm run build
+
+            - name: Extract changelog section
+              run: |
+                  VERSION="${GITHUB_REF_NAME#v}"
+                  awk -v ver="$VERSION" '
+                    $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+                    found && /^## \[/ { exit }
+                    found { print }
+                  ' CHANGELOG.md > release-notes.md
+                  if [ ! -s release-notes.md ]; then
+                    echo "No CHANGELOG.md section found for $VERSION" >&2
+                    exit 1
+                  fi
+
+            - name: Create GitHub release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh release create "$GITHUB_REF_NAME" \
+                    --title "$GITHUB_REF_NAME" \
+                    --notes-file release-notes.md \
+                    build/bundle/*.zip
