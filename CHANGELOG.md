@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 1.0.0 — 2026-08-25
+## [1.0.0] - 2026-08-25
 
 Verified end-to-end on DHIS2 **2.41.9.1, 2.42.5.2 and 2.43.1** against both the
 Sierra Leone and Laos HMIS demo databases — 51 of 51 checks passing, no console
