@@ -39,16 +39,22 @@ jobs:
               run: pnpm run build
 
             - name: Extract changelog section
+              # Tags in this repo are protected: they cannot be deleted or
+              # moved. So a missing changelog section must NOT fail the job —
+              # that would burn the version number with no way to retry it.
+              # Warn and fall back to a generic note instead.
               run: |
                   VERSION="${GITHUB_REF_NAME#v}"
                   awk -v ver="$VERSION" '
-                    $0 ~ "^## \\[" ver "\\]" { found = 1; next }
-                    found && /^## \[/ { exit }
+                    BEGIN { pat = ver; gsub(/\./, "\\.", pat) }
+                    # Accept both "## [1.2.3] - date" and "## 1.2.3 - date"
+                    $0 ~ "^## \\[?" pat "\\]?([^0-9]|$)" { found = 1; next }
+                    found && /^## / { exit }
                     found { print }
                   ' CHANGELOG.md > release-notes.md
                   if [ ! -s release-notes.md ]; then
-                    echo "No CHANGELOG.md section found for $VERSION" >&2
-                    exit 1
+                    echo "::warning::No CHANGELOG.md section for $VERSION; using a generic note"
+                    echo "Release $GITHUB_REF_NAME" > release-notes.md
                   fi
 
             - name: Create GitHub release

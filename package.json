@@ -1,6 +1,6 @@
 {
     "name": "tool-tracker-validation",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Tool to configure and manage validation program rules (dates and numeric values) in DHIS2 tracker programmes",
     "license": "BSD-3-Clause",
     "private": true,

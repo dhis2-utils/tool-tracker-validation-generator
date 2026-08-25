@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2026-08-25
+
+First published release. No functional changes since 1.0.0 — see that section
+for what the release actually contains.
+
+The `v1.0.0` and `v1.0.1` tags exist in the repository but never produced a
+release: the release workflow extracted its notes from a `## [x.y.z]` changelog
+heading, which `v1.0.0` did not have in that form and `v1.0.1` did not have at
+all. Tags here are protected and cannot be moved, so the release was reissued
+under a new version. The workflow no longer fails on a missing section.
+
 ## [1.0.0] - 2026-08-25
 
 Verified end-to-end on DHIS2 **2.41.9.1, 2.42.5.2 and 2.43.1** against both the
