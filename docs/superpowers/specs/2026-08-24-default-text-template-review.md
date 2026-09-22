@@ -143,7 +143,7 @@ means the default text now depends on two fields rather than one.
    `enrollmentDateLabel`, so only event date, due date and data-element variables
    would be produced — exactly right. The single-stage suppression decided above
    also covers event programmes for free, since they always have exactly one
-   stage. Recommend widening the filter; no code change made yet.
+   stage.
 
 2. **On-complete actions are not supported for tracked entity attributes on
    Android.** The Android support matrix marks `WARNINGONCOMPLETE` and

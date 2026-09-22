@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Release workflow hardened for this repo's protected tags: a tag / `package.json` version
+  mismatch now publishes the release as a **draft** instead of failing (a failed job would burn
+  the version number for good), and publishing is idempotent so a re-run does not die on "release
+  already exists". GitHub Actions pinned to Node 24 releases (`actions/checkout` v5.1.0,
+  `actions/setup-node` v5.0.0, `actions/upload-artifact` v6.0.0); the CI job token is read-only.
+- Test files are now type-checked (`tsconfig.json` includes `tests/`).
+- README documents the Android limitation (on-complete actions on tracked entity attributes),
+  event-programme support, and the post-rename bundle name.
+
 ## [1.0.2] - 2026-08-25
 
 First published release. No functional changes since 1.0.0 — see that section

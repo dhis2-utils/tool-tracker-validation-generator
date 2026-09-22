@@ -1,7 +1,7 @@
 # Tracker Validation Tool
 
-DHIS2 admin tool for configuring validation of dates and numeric values in DHIS2 tracker
-programmes, using program rules.
+DHIS2 admin tool for configuring validation of dates and numeric values in DHIS2 tracker and
+event programmes, using program rules.
 
 > **WARNING**
 > This tool is intended to be used by system administrators to perform specific tasks; it is not
@@ -11,8 +11,8 @@ programmes, using program rules.
 
 ## What it does
 
-- Lists all date and numeric variables in a tracker programme (enrollment/incident dates,
-  tracked entity attributes, event/due dates, and stage data elements)
+- Lists all date and numeric variables in a tracker or event programme (enrollment/incident
+  dates, tracked entity attributes, event/due dates, and stage data elements)
 - Shows which variables already have validation program rules — both rules created by this tool
   and other rules referencing the variable
 - Creates validation rules through a guided form: compare a date against another tracked date,
@@ -35,7 +35,30 @@ programmes, using program rules.
 - TanStack Query v4 for caching, React Router (hash router)
 - Vitest for unit tests of the pure rule-expression logic
 
-Requires DHIS2 2.41 or later.
+Requires DHIS2 2.41 or later. Verified end-to-end on 2.41, 2.42 and 2.43 against the Sierra
+Leone and Laos HMIS demo databases — see `docs/review-2026-08-24-multiversion/`.
+
+## Documentation
+
+- [User manual](docs/MANUAL.md) — walkthrough with screenshots, including how the rules appear
+  in the Metadata Management app and when entering data in Capture
+- [Changelog](CHANGELOG.md)
+
+## Known limitations
+
+- **Android: on-complete actions on tracked entity attributes do nothing.** The DHIS2 Android
+  Capture app does not support `ERRORONCOMPLETE` / `WARNINGONCOMPLETE` for tracked entity
+  attributes (they are supported for data elements). A rule of that shape shows nothing on
+  Android — use `SHOWERROR` / `SHOWWARNING` for attribute rules where Android is in use. The tool
+  does not yet warn about this combination.
+- **`WARNINGONCOMPLETE` repeats the field name.** DHIS2 itself prefixes on-complete warnings with
+  the data element name, and the tool's default message also includes it, so the name appears
+  twice. Kept deliberately for consistency with `ERRORONCOMPLETE`, which is not prefixed.
+- **Relative date bounds are in days only.** DHIS2 accepts `d2:addMonths` / `d2:addYears` in a
+  rule condition but does not evaluate them, so such rules would silently never fire.
+- **Fields that already reject future dates** (`allowFutureDate = false`) are validated by DHIS2
+  before any rule runs; the tool warns when a rule contradicts the field's own setting.
+- Numeric fields bound to an option set are not offered — the option set already constrains them.
 
 ## Development
 
@@ -47,5 +70,6 @@ pnpm run lint                                    # eslint + prettier
 pnpm run build                                   # production build + zip bundle
 ```
 
-The deployable app bundle is written to `build/bundle/tracker-validation-tool-<version>.zip` and
-can be installed through the DHIS2 App Management app.
+The deployable app bundle is written to `build/bundle/tool-tracker-validation-<version>.zip` and
+can be installed through the DHIS2 App Management app. Tagged releases (`v*.*.*`) also attach
+it to a GitHub release via `.github/workflows/release.yml`.
