@@ -8,26 +8,34 @@ on:
 permissions:
     contents: write
 
+# Tags in this repo are protected: they cannot be deleted or moved. Any step
+# that fails AFTER the tag is pushed therefore burns that version number for
+# good (v1.0.0 and v1.0.1 were lost this way). So: only fail on things that
+# make the build itself impossible; for everything else, warn and degrade —
+# a wrong GitHub *release* can always be deleted and recreated, a tag cannot.
 jobs:
     release:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
             - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
 
-            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+            - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
               with:
                   node-version: 22
                   cache: pnpm
 
-            - name: Verify tag matches package.json version
+            - name: Check tag against package.json version
+              # Mismatch is a real mistake, but exiting here would waste the tag.
+              # Warn, and publish the release as a DRAFT so nothing wrong goes
+              # public without a human looking at it first.
               run: |
                   VERSION=$(node -p "require('./package.json').version")
                   TAG="${GITHUB_REF_NAME#v}"
                   if [ "$VERSION" != "$TAG" ]; then
-                    echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION" >&2
-                    exit 1
+                    echo "::warning::Tag $GITHUB_REF_NAME does not match package.json version $VERSION; the bundle will carry $VERSION and the release is created as a draft"
+                    echo "RELEASE_DRAFT=1" >> "$GITHUB_ENV"
                   fi
 
             - name: Install dependencies
@@ -39,10 +47,8 @@ jobs:
               run: pnpm run build
 
             - name: Extract changelog section
-              # Tags in this repo are protected: they cannot be deleted or
-              # moved. So a missing changelog section must NOT fail the job —
-              # that would burn the version number with no way to retry it.
-              # Warn and fall back to a generic note instead.
+              # Cosmetic: a missing section must not fail the job. Warn and fall
+              # back to a generic note.
               run: |
                   VERSION="${GITHUB_REF_NAME#v}"
                   awk -v ver="$VERSION" '
@@ -57,11 +63,20 @@ jobs:
                     echo "Release $GITHUB_REF_NAME" > release-notes.md
                   fi
 
-            - name: Create GitHub release
+            - name: Create or update GitHub release
+              # Idempotent: a re-run of this workflow (e.g. after a transient
+              # failure) must not die on "release already exists".
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  gh release create "$GITHUB_REF_NAME" \
-                    --title "$GITHUB_REF_NAME" \
-                    --notes-file release-notes.md \
-                    build/bundle/*.zip
+                  if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+                    echo "Release $GITHUB_REF_NAME exists; updating notes and re-uploading the bundle"
+                    gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md
+                    gh release upload "$GITHUB_REF_NAME" build/bundle/*.zip --clobber
+                  else
+                    gh release create "$GITHUB_REF_NAME" \
+                      --title "$GITHUB_REF_NAME" \
+                      --notes-file release-notes.md \
+                      ${RELEASE_DRAFT:+--draft} \
+                      build/bundle/*.zip
+                  fi
