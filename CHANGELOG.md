@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 - README documents the Android limitation (on-complete actions on tracked entity attributes),
   event-programme support, and the post-rename bundle name.
 
+### Fixed
+
+- The standard DHIS2 tools **toolbox icon** is back in the app menu and App Management. The App
+  Platform migration dropped the icon the vanilla tool shipped, so the app fell back to the
+  platform's generic DHIS2 logo. It is now shipped as `public/dhis2-app-icon.png`, the filename
+  the platform's generated `manifest.webapp` hard-codes.
+
 ## [1.0.2] - 2026-08-25
 
 First published release. No functional changes since 1.0.0 — see that section
