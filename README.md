@@ -1,8 +1,9 @@
 # Tracker Validation Tool
 
-DHIS2 admin tool for configuring validation of dates and numeric values in DHIS2 tracker and
-event programmes, using program rules.
-
+> ![Maturity: Experimental](https://img.shields.io/badge/maturity-Experimental-orange)  
+> Intended use: quickly monitoring and configuring validation of dates and numeric values in DHIS2 tracker using program rules.  
+> Maintainers: HISP Centre implementation team.
+>
 > **WARNING**
 > This tool is intended to be used by system administrators to perform specific tasks; it is not
 > intended for end users. It is available as a DHIS2 app, but has not been through the same
