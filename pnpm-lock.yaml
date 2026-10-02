@@ -41,6 +41,9 @@ importers:
       '@dhis2/config-prettier':
         specifier: ^0.2.2
         version: 0.2.2(prettier@3.7.4)
+      '@dhis2/rule-engine':
+        specifier: ^3.8.3
+        version: 3.8.3
       '@eslint/compat':
         specifier: ^2.1.1
         version: 2.1.1(eslint@9.39.5)
@@ -1182,6 +1185,9 @@ packages:
   '@dhis2/pwa@12.11.5':
     resolution: {integrity: sha512-lrbEQ9Sr1H/JQjFYvO7GSRclCrt5ZUXIAs81kSnWQ2RHRe22POzi+M9g+VtN1PaZFYOkdftm9KH5SFQYWUrlZQ==}
 
+  '@dhis2/rule-engine@3.8.3':
+    resolution: {integrity: sha512-lQKgcFjde+ohI3bUF3CgKsfNi2mDEDSeJmclu3wQF5YzWTxgz+/6E+b/SttE7vrnM1LloxdFynHs4QDEUo3YPg==}
+
   '@dhis2/ui-constants@10.19.0':
     resolution: {integrity: sha512-NtLpN0Qf+4gbgO8cNBysMZNf+Ep74EpwWZbnK7x+pV4stFqL88rlXlyOz10W54t1DN1RCKxnIESntBGrxVmK8w==}
 
@@ -1708,6 +1714,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@js-joda/core@3.2.0':
+    resolution: {integrity: sha512-PMqgJ0sw5B7FKb2d5bWYIoxjri+QlW/Pys7+Rw82jSH0QN3rB05jZ/VrrsUdh1w4+i2kw9JOejXGq/KhDOX7Kg==}
 
   '@js-temporal/polyfill@0.4.3':
     resolution: {integrity: sha512-6Fmjo/HlkyVCmJzAPnvtEWlcbQUSRhi8qlN9EtJA/wP7FqXsevLLrlojR44kzNzrRkpf7eDJ+z7b4xQD/Ycypw==}
@@ -8034,6 +8043,10 @@ snapshots:
       workbox-routing: 7.4.1
       workbox-strategies: 7.4.1
 
+  '@dhis2/rule-engine@3.8.3':
+    dependencies:
+      '@js-joda/core': 3.2.0
+
   '@dhis2/ui-constants@10.19.0':
     dependencies:
       prop-types: 15.8.1
@@ -8594,6 +8607,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@js-joda/core@3.2.0': {}
 
   '@js-temporal/polyfill@0.4.3':
     dependencies:

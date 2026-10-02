@@ -9,6 +9,7 @@ import {
     TextAreaField,
 } from '@dhis2/ui'
 import { useState } from 'react'
+import { configErrorMessage } from './configErrorMessages'
 import { DateComparisonPicker } from './DateComparisonPicker'
 import styles from './ValidationForm.module.css'
 import type {
@@ -18,6 +19,7 @@ import type {
     Variable,
 } from '@/lib/types'
 import {
+    getConfigErrors,
     getDateComparisonOptions,
     getMissingFieldLabels,
     getNumericFieldOptions,
@@ -164,11 +166,11 @@ export const ValidationForm = ({
         comparisonDate,
         fixedComparisonDate,
         relativeComparisonAmount: relativeAmount
-            ? parseInt(relativeAmount, 10)
+            ? Number(relativeAmount)
             : null,
         relativeComparisonUnit: relativeUnit,
         relativeComparisonDirection: relativeDirection,
-        intervalAmount: intervalAmount ? parseInt(intervalAmount, 10) : null,
+        intervalAmount: intervalAmount ? Number(intervalAmount) : null,
         intervalUnit,
         numericOperator,
         numericComparisonType,
@@ -180,7 +182,7 @@ export const ValidationForm = ({
         upperComparisonDate,
         upperFixedComparisonDate,
         upperRelativeComparisonAmount: upperRelativeAmount
-            ? parseInt(upperRelativeAmount, 10)
+            ? Number(upperRelativeAmount)
             : null,
         upperRelativeComparisonUnit: upperRelativeUnit,
         upperRelativeComparisonDirection: upperRelativeDirection,
@@ -199,7 +201,7 @@ export const ValidationForm = ({
             comparisonDateMode === 'fixed' ? fixedComparisonDate : '',
         relativeComparisonAmount:
             comparisonDateMode === 'relative' && relativeAmount
-                ? parseInt(relativeAmount, 10)
+                ? Number(relativeAmount)
                 : null,
         ruleName: effectiveRuleName,
         ruleDescription: effectiveDescription,
@@ -211,7 +213,11 @@ export const ValidationForm = ({
         programConfig?.programRuleVariablePrefix?.trim()
     )
     const missingFields = getMissingFieldLabels(variable, finalConfig)
-    const isValid = settingsConfigured && missingFields.length === 0
+    const configErrors = getConfigErrors(variable, finalConfig)
+    const isValid =
+        settingsConfigured &&
+        missingFields.length === 0 &&
+        configErrors.length === 0
     // Warn (don't block) when the rule rejects future dates on a field that is
     // explicitly configured to allow them.
     const futureDatesContradiction =
@@ -606,6 +612,14 @@ export const ValidationForm = ({
                         '“{{name}}” is configured to allow future dates, but this rule rejects dates after the current date — the rule contradicts the field’s configuration.',
                         { name: variable.name, nsSeparator: undefined }
                     )}
+                </NoticeBox>
+            )}
+
+            {configErrors.length > 0 && (
+                <NoticeBox error title={i18n.t('This rule cannot be saved')}>
+                    {configErrors.map((error) => (
+                        <p key={error}>{configErrorMessage(error)}</p>
+                    ))}
                 </NoticeBox>
             )}
 

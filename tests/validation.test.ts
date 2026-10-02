@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { makeMeta, makeRule, makeVariable } from './helpers'
-import { parseRuleCondition } from '@/lib/signature'
+import { parseRuleCondition } from '@/lib/parser'
 import type { BatchTemplate, ProgramRuleAction, Variable } from '@/lib/types'
 import {
     buildEditConfig,
     buildRelativeDateTarget,
+    getConfigErrors,
     createBatchTemplateKey,
     getBatchTemplateSummary,
     getDateComparisonOptions,
@@ -127,11 +128,13 @@ describe('getUnvalidatedVariables', () => {
                 name: 'PRV_VACC',
                 dataElement: { id: 'deDate01AAAA' },
                 programStage: { id: 'stg01' },
+                programRuleVariableSourceType: 'DATAELEMENT_CURRENT_EVENT',
             },
         ],
         programRules: [
             makeRule({
                 id: 'rule01AAAAA',
+                programStage: { id: 'stg01' },
                 condition:
                     'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) < 0',
             }),
@@ -186,6 +189,31 @@ describe('getUnvalidatedVariables', () => {
             dateDEOtherStage
         )
         expect(result).not.toContain(dateDEOtherStage)
+    })
+
+    it('never offers due dates: they are expected to be in the future', () => {
+        const due = makeVariable({
+            type: 'due_date',
+            id: 'due_date_stg01',
+            category: 'date',
+            stageId: 'stg01',
+        })
+        expect(
+            getUnvalidatedVariables(
+                makeMeta(),
+                [...allVariables, due],
+                'date',
+                null
+            )
+        ).not.toContain(due)
+        expect(
+            getUnvalidatedVariables(
+                makeMeta(),
+                [...allVariables, due],
+                'date',
+                'stg01'
+            )
+        ).not.toContain(due)
     })
 })
 
@@ -358,6 +386,7 @@ describe('buildEditConfig', () => {
                 name: 'PRV_VACC',
                 dataElement: { id: 'deDate01AAAA' },
                 programStage: { id: 'stg01' },
+                programRuleVariableSourceType: 'DATAELEMENT_CURRENT_EVENT',
             },
         ],
     })
@@ -373,9 +402,9 @@ describe('buildEditConfig', () => {
             name: 'EIR - Vaccination rule',
             description: '[DVT] Some description',
             condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') >= 0",
         })
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -398,7 +427,7 @@ describe('buildEditConfig', () => {
             condition:
                 'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, d2:addDays(V{current_date}, -100)) >= 0',
         })
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -415,9 +444,9 @@ describe('buildEditConfig', () => {
     it('maps a variable comparison back to a comparison key', () => {
         const rule = makeRule({
             condition:
-                'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) < 0',
+                'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) <= 0',
         })
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -438,6 +467,7 @@ describe('buildEditConfig', () => {
                     name: 'PRV_AGE',
                     dataElement: { id: 'deAge01AAAAA' },
                     programStage: { id: 'stg01' },
+                    programRuleVariableSourceType: 'DATAELEMENT_CURRENT_EVENT',
                 },
             ],
         })
@@ -446,11 +476,7 @@ describe('buildEditConfig', () => {
         const rule = makeRule({
             condition: 'd2:hasValue(#{PRV_AGE}) && #{PRV_AGE} <= 120',
         })
-        const parsed = parseRuleCondition(
-            rule.condition,
-            numericMeta,
-            numericDE
-        )
+        const parsed = parseRuleCondition(rule.condition, numericMeta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -471,6 +497,7 @@ describe('buildEditConfig', () => {
                     name: 'PRV_AGE',
                     dataElement: { id: 'deAge01AAAAA' },
                     programStage: { id: 'stg01' },
+                    programRuleVariableSourceType: 'DATAELEMENT_CURRENT_EVENT',
                 },
             ],
         })
@@ -478,11 +505,7 @@ describe('buildEditConfig', () => {
             condition:
                 'd2:hasValue(#{PRV_AGE}) && (#{PRV_AGE} < 0 || #{PRV_AGE} > 115)',
         })
-        const parsed = parseRuleCondition(
-            rule.condition,
-            numericMeta,
-            numericDE
-        )
+        const parsed = parseRuleCondition(rule.condition, numericMeta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -501,7 +524,7 @@ describe('buildEditConfig', () => {
                 "d2:hasValue(#{PRV_VACC}) && (d2:daysBetween(#{PRV_VACC}, '2000-01-01') > 0 || " +
                 'd2:daysBetween(#{PRV_VACC}, V{current_date}) < 0)',
         })
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -523,13 +546,13 @@ describe('buildEditConfig', () => {
             description:
                 '[DVT] Validates that Vaccination date is after 1900-01-01',
             condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') >= 0",
         })
         const defaultAction: ProgramRuleAction = {
             ...action,
             content: 'Must be after 1900-01-01',
         }
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -551,13 +574,13 @@ describe('buildEditConfig', () => {
             description:
                 '[DVT] [DVT-BATCH] Validates that Vaccination date is after 1900-01-01',
             condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') >= 0",
         })
         const defaultAction: ProgramRuleAction = {
             ...action,
             content: 'Must be after 1900-01-01',
         }
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -580,14 +603,14 @@ describe('buildEditConfig', () => {
             description:
                 '[DVT] Validates that Vaccination date is after 1900-01-01',
             condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') >= 0",
         })
         const onCompleteAction: ProgramRuleAction = {
             ...action,
             programRuleActionType: 'ERRORONCOMPLETE',
             content: 'Vaccination date must be after 1900-01-01',
         }
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -606,14 +629,14 @@ describe('buildEditConfig', () => {
         const rule = makeRule({
             name: 'Vaccination date must be after 1900-01-01',
             condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') >= 0",
         })
         const onCompleteAction: ProgramRuleAction = {
             ...action,
             programRuleActionType: 'WARNINGONCOMPLETE',
             content: 'Must be after 1900-01-01',
         }
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -629,13 +652,13 @@ describe('buildEditConfig', () => {
             name: 'Vaccination date must be after 1900-01-01',
             description: '[DVT] A custom description',
             condition:
-                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') > 0",
+                "d2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, '1900-01-01') >= 0",
         })
         const mixedAction: ProgramRuleAction = {
             ...action,
             content: 'A custom message',
         }
-        const parsed = parseRuleCondition(rule.condition, meta, dateDE)
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
             parsed!,
             rule,
@@ -680,7 +703,7 @@ describe('between — preview and completeness', () => {
             allVariables
         )
         expect(preview.preview).toBe(
-            'Enrollment date should be between 1 years before current date and Current date (inclusive)'
+            'Enrollment date should be between 1 year before current date and Current date (inclusive)'
         )
     })
 
@@ -1192,5 +1215,294 @@ describe('default-text templates', () => {
                 'Must be between 2000-01-01 and 2020-01-01 (inclusive)'
             )
         })
+    })
+})
+
+describe('getConfigErrors — configs that would block every value', () => {
+    const d = new Date()
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+    it('rejects a numeric between whose minimum is above its maximum', () => {
+        expect(
+            getConfigErrors(numericDE, {
+                numericOperator: 'between',
+                numericValue: 10,
+                numericValueMax: 5,
+            })
+        ).toEqual(['MIN_GREATER_THAN_MAX'])
+        expect(
+            getConfigErrors(numericDE, {
+                numericOperator: 'between',
+                numericValue: 5,
+                numericValueMax: 5,
+            })
+        ).toEqual([])
+    })
+
+    it.each([
+        [
+            'fixed after fixed',
+            {
+                comparisonDateMode: 'fixed',
+                fixedComparisonDate: '2027-12-31',
+                upperComparisonDateMode: 'fixed',
+                upperFixedComparisonDate: '2027-01-01',
+            },
+        ],
+        [
+            'relative after relative',
+            {
+                comparisonDateMode: 'relative',
+                relativeComparisonAmount: 5,
+                relativeComparisonDirection: 'future',
+                upperComparisonDateMode: 'relative',
+                upperRelativeComparisonAmount: 5,
+                upperRelativeComparisonDirection: 'past',
+            },
+        ],
+        [
+            'current after a past offset',
+            {
+                comparisonDateMode: 'current',
+                upperComparisonDateMode: 'relative',
+                upperRelativeComparisonAmount: 1,
+                upperRelativeComparisonDirection: 'past',
+            },
+        ],
+        [
+            'a future fixed date after the current date',
+            {
+                comparisonDateMode: 'fixed',
+                fixedComparisonDate: '2999-01-01',
+                upperComparisonDateMode: 'current',
+            },
+        ],
+    ] as const)(
+        'rejects a date between whose lower bound is after the upper (%s)',
+        (_label, bounds) => {
+            expect(
+                getConfigErrors(dateDE, { operator: 'between', ...bounds })
+            ).toEqual(['EMPTY_DATE_RANGE'])
+        }
+    )
+
+    it.each([
+        [
+            'same fixed date',
+            {
+                comparisonDateMode: 'fixed',
+                fixedComparisonDate: '2027-01-01',
+                upperComparisonDateMode: 'fixed',
+                upperFixedComparisonDate: '2027-01-01',
+            },
+        ],
+        [
+            'current .. current',
+            {
+                comparisonDateMode: 'current',
+                upperComparisonDateMode: 'current',
+            },
+        ],
+        [
+            'today .. current',
+            {
+                comparisonDateMode: 'fixed',
+                fixedComparisonDate: today,
+                upperComparisonDateMode: 'current',
+            },
+        ],
+        [
+            'field bound (unknown order)',
+            {
+                comparisonDateMode: 'variable',
+                comparisonDate: 'enrollment:enrollment_date',
+                upperComparisonDateMode: 'fixed',
+                upperFixedComparisonDate: '1900-01-01',
+            },
+        ],
+    ] as const)(
+        'accepts a date between that can hold a value (%s)',
+        (_label, bounds) => {
+            expect(
+                getConfigErrors(dateDE, { operator: 'between', ...bounds })
+            ).toEqual([])
+        }
+    )
+
+    it.each([0, -5, 1.5])('rejects a "within" interval of %s', (amount) => {
+        expect(
+            getConfigErrors(dateDE, {
+                operator: 'within_before',
+                intervalAmount: amount,
+                intervalUnit: 'days',
+                comparisonDateMode: 'current',
+            })
+        ).toEqual(['INTERVAL_TOO_SMALL'])
+    })
+
+    it.each([0, -3, 2.5])('rejects a relative offset of %s', (amount) => {
+        expect(
+            getConfigErrors(dateDE, {
+                operator: 'before',
+                comparisonDateMode: 'relative',
+                relativeComparisonAmount: amount,
+            })
+        ).toEqual(['OFFSET_TOO_SMALL'])
+        expect(
+            getConfigErrors(dateDE, {
+                operator: 'between',
+                comparisonDateMode: 'current',
+                upperComparisonDateMode: 'relative',
+                upperRelativeComparisonAmount: amount,
+                upperRelativeComparisonDirection: 'future',
+            })
+        ).toEqual(['OFFSET_TOO_SMALL'])
+    })
+
+    it('accepts ordinary configs', () => {
+        expect(
+            getConfigErrors(dateDE, {
+                operator: 'within_after',
+                intervalAmount: 7,
+                intervalUnit: 'days',
+                comparisonDateMode: 'current',
+            })
+        ).toEqual([])
+        expect(
+            getConfigErrors(numericDE, {
+                numericOperator: 'less_than',
+                numericValue: -4,
+            })
+        ).toEqual([])
+    })
+
+    it('works for bulk templates (category instead of a variable)', () => {
+        expect(
+            getConfigErrors(
+                { category: 'numeric' },
+                {
+                    numericOperator: 'between',
+                    numericValue: 3,
+                    numericValueMax: 1,
+                }
+            )
+        ).toEqual(['MIN_GREATER_THAN_MAX'])
+    })
+})
+
+describe('buildEditConfig — defaults', () => {
+    const meta = makeMeta({
+        programRuleVariables: [
+            {
+                id: 'prv01AAAAAA',
+                name: 'PRV_VACC',
+                dataElement: { id: 'deDate01AAAA' },
+                programRuleVariableSourceType: 'DATAELEMENT_CURRENT_EVENT',
+            },
+        ],
+    })
+    const action: ProgramRuleAction = {
+        id: 'act01AAAAAA',
+        programRule: { id: 'rule01AAAAA' },
+        programRuleActionType: 'SHOWERROR',
+        content: 'Must be on or after Enrollment date',
+    }
+    const rule = makeRule({
+        name: 'OLD - Vaccination date must be on or after Enrollment date',
+        description:
+            '[DVT] Validates that Vaccination date is on the same date or after Enrollment date',
+        condition:
+            'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) > 0',
+    })
+
+    it('defaults the relative unit to days (the only unit the engine supports)', () => {
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            action,
+            dateDE,
+            allVariables,
+            'NEW'
+        )
+        expect(config.relativeComparisonUnit).toBe('days')
+    })
+
+    it('treats a generated name under a since-changed prefix as the default', () => {
+        const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
+        const config = buildEditConfig(
+            parsed!,
+            rule,
+            action,
+            dateDE,
+            allVariables,
+            'NEW'
+        )
+        expect(config.ruleName).toBeUndefined()
+    })
+})
+
+describe('interval wording', () => {
+    it.each([
+        [1, 'months', 'within 1 month before'],
+        [2, 'months', 'within 2 months before'],
+        [1, 'days', 'within 1 day before'],
+        [1, 'weeks', 'within 1 week before'],
+        [1, 'years', 'within 1 year before'],
+    ])('%s %s → "%s"', (amount, unit, phrase) => {
+        const preview = getValidationPreview(
+            dateDE,
+            {
+                operator: 'within_before',
+                intervalAmount: amount,
+                intervalUnit: unit,
+                comparisonDateMode: 'current',
+            },
+            allVariables
+        )
+        expect(preview.suggestedRuleName).toContain(phrase)
+        expect(
+            getBatchTemplateSummary({
+                category: 'date',
+                scope: 'programme',
+                operator: 'within_before',
+                intervalAmount: amount,
+                intervalUnit: unit,
+                comparisonDateMode: 'current',
+            })
+        ).toContain(phrase)
+    })
+})
+
+describe('relative bound wording', () => {
+    it('says "1 day", not "1 days"', () => {
+        const preview = getValidationPreview(
+            dateDE,
+            {
+                operator: 'before',
+                comparisonDateMode: 'relative',
+                relativeComparisonAmount: 1,
+                relativeComparisonUnit: 'days',
+                relativeComparisonDirection: 'future',
+            },
+            allVariables
+        )
+        expect(preview.suggestedRuleName).toContain(
+            'before 1 day after current date'
+        )
+        expect(buildRelativeDateTarget(1, 'days', 'past')?.name).toBe(
+            '1 day before current date'
+        )
+        expect(
+            getBatchTemplateSummary({
+                category: 'date',
+                scope: 'programme',
+                operator: 'before',
+                comparisonDateMode: 'relative',
+                relativeComparisonAmount: 1,
+                relativeComparisonUnit: 'days',
+                relativeComparisonDirection: 'past',
+            })
+        ).toContain('1 day before current date')
     })
 })

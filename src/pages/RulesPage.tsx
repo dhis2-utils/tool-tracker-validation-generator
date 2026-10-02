@@ -18,11 +18,8 @@ import { ValidationForm } from '@/components/ValidationForm'
 import { useProgramData } from '@/hooks/useProgramData'
 import { useValidationActions } from '@/hooks/useValidationActions'
 import { FEEDBACK_ACTION_TYPES, prGetExisting } from '@/lib/detector'
-import {
-    isAppGenerated,
-    isBatchGenerated,
-    parseRuleCondition,
-} from '@/lib/signature'
+import { parseRuleCondition } from '@/lib/parser'
+import { isAppGenerated, isBatchGenerated } from '@/lib/signature'
 import type {
     ExistingValidation,
     ValidationConfig,
@@ -48,13 +45,17 @@ export const RulesPage = () => {
     const navigate = useNavigate()
     const { programMetadata, config, variables, isLoading, error } =
         useProgramData(programId)
-    const { deleteValidation, isDeleting, updateValidationRule, isUpdating } =
-        useValidationActions({
-            programId: programId as string,
-            programMetadata,
-            config,
-            variables,
-        })
+    const {
+        deleteValidations,
+        isDeleting,
+        updateValidationRules,
+        isUpdatingMany: isUpdating,
+    } = useValidationActions({
+        programId: programId as string,
+        programMetadata,
+        config,
+        variables,
+    })
     const [deleteRows, setDeleteRows] = useState<RuleRow[] | null>(null)
     // Groups are collapsed by default; this holds the keys that are expanded.
     const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -79,7 +80,7 @@ export const RulesPage = () => {
                     const parsed = parseRuleCondition(
                         validation.rule.condition,
                         programMetadata,
-                        variable
+                        validation.rule.programStage?.id
                     )
                     let summary = validation.rule.condition
                     if (parsed && action) {
@@ -159,11 +160,11 @@ export const RulesPage = () => {
 
     const deleteAll = async () => {
         try {
-            for (const row of deleteRows ?? []) {
-                await deleteValidation(row.validation)
-            }
+            await deleteValidations(
+                (deleteRows ?? []).map((row) => row.validation)
+            )
         } catch {
-            // error alert already shown by useValidationActions
+            // summary alert already shown by useValidationActions
         } finally {
             setDeleteRows(null)
         }
@@ -194,7 +195,7 @@ export const RulesPage = () => {
         const parsed = parseRuleCondition(
             row.validation.rule.condition,
             programMetadata,
-            row.variable
+            row.validation.rule.programStage?.id
         )
         if (!parsed || !action) {
             return undefined
@@ -221,32 +222,35 @@ export const RulesPage = () => {
         rows: RuleRow[],
         templateConfig: ValidationConfig
     ) => {
-        for (const row of rows) {
-            // Leave name/description unset so updateValidation regenerates a
-            // stage-aware, unique name per variable and preserves the batch
-            // tag (passing one shared name collides across same-named
-            // variables in different stages). Only the message is supplied.
-            const preview = getValidationPreview(
-                row.variable,
-                templateConfig,
-                variables
-            )
-            try {
-                await updateValidationRule({
-                    ruleId: row.validation.rule.id,
-                    config: {
-                        ...templateConfig,
-                        ruleName: undefined,
-                        ruleDescription: undefined,
-                        ruleMessage: preview.suggestedMessage,
-                    },
-                    variable: row.variable,
-                })
-            } catch {
-                // per-rule error alert already shown; continue with the rest
+        // Leave name/description unset so updateValidation regenerates a
+        // stage-aware, unique name per variable and preserves the batch tag
+        // (one shared name would collide across same-named variables in
+        // different stages). Only the message is supplied.
+        const items = rows.map((row) => ({
+            ruleId: row.validation.rule.id,
+            name: row.validation.rule.name,
+            variable: row.variable,
+            config: {
+                ...templateConfig,
+                ruleName: undefined,
+                ruleDescription: undefined,
+                ruleMessage: getValidationPreview(
+                    row.variable,
+                    templateConfig,
+                    variables
+                ).suggestedMessage,
+            },
+        }))
+        try {
+            const { failures } = await updateValidationRules({ items })
+            // keep the panel open when some rules failed, so the summary
+            // alert can be acted on
+            if (failures.length === 0) {
+                setEditGroupKey(null)
             }
+        } catch {
+            // summary alert already shown by useValidationActions
         }
-        setEditGroupKey(null)
     }
 
     const busy = isDeleting || isUpdating

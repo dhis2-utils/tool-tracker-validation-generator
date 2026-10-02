@@ -5,8 +5,8 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"POT-Creation-Date: 2026-08-24T12:34:07.338Z\n"
-"PO-Revision-Date: 2026-08-24T12:34:07.339Z\n"
+"POT-Creation-Date: 2026-10-02T07:08:20.058Z\n"
+"PO-Revision-Date: 2026-10-02T07:08:20.058Z\n"
 
 msgid "Tracker Validation Tool"
 msgstr "Tracker Validation Tool"
@@ -189,6 +189,9 @@ msgstr "Template preview"
 msgid "Configure a bulk rule template to preview it here."
 msgstr "Configure a bulk rule template to preview it here."
 
+msgid "This bulk rule cannot be queued"
+msgstr "This bulk rule cannot be queued"
+
 msgid "Add to bulk queue"
 msgstr "Add to bulk queue"
 
@@ -235,6 +238,13 @@ msgstr "another tracked date"
 msgid "Choose date..."
 msgstr "Choose date..."
 
+msgid ""
+"This rule has more than one message, so it can only be edited in the "
+"Maintenance app."
+msgstr ""
+"This rule has more than one message, so it can only be edited in the "
+"Maintenance app."
+
 msgid "Rule ID"
 msgstr "Rule ID"
 
@@ -262,8 +272,8 @@ msgstr "Added to all program rule names created by this tool"
 msgid "Program rule variable prefix"
 msgstr "Program rule variable prefix"
 
-msgid "Added to all program rule variable names (use underscores only)"
-msgstr "Added to all program rule variable names (use underscores only)"
+msgid "Added to all program rule variable names (letters, digits and underscores)"
+msgstr "Added to all program rule variable names (letters, digits and underscores)"
 
 msgid "Save settings"
 msgstr "Save settings"
@@ -326,6 +336,9 @@ msgstr "How DHIS2 should respond when validation fails"
 msgid "This field allows future dates"
 msgstr "This field allows future dates"
 
+msgid "This rule cannot be saved"
+msgstr "This rule cannot be saved"
+
 msgid "Complete these fields before saving"
 msgstr "Complete these fields before saving"
 
@@ -349,6 +362,22 @@ msgstr "Enrollment & programme dates"
 
 msgid "No date or numeric variables at enrollment level."
 msgstr "No date or numeric variables at enrollment level."
+
+msgid "The minimum is greater than the maximum, so every value would be rejected."
+msgstr "The minimum is greater than the maximum, so every value would be rejected."
+
+msgid ""
+"The lower date bound is after the upper bound, so every date would be "
+"rejected."
+msgstr ""
+"The lower date bound is after the upper bound, so every date would be "
+"rejected."
+
+msgid "The interval must be a whole number of at least 1."
+msgstr "The interval must be a whole number of at least 1."
+
+msgid "The number of days must be a whole number of at least 1."
+msgstr "The number of days must be a whole number of at least 1."
 
 msgid "Settings saved successfully"
 msgstr "Settings saved successfully"
@@ -406,6 +435,9 @@ msgstr "Add new validation"
 
 msgid "Delete validation rule"
 msgstr "Delete validation rule"
+
+msgid "Not created by this tool"
+msgstr "Not created by this tool"
 
 msgid "Remove batch rules?"
 msgstr "Remove batch rules?"

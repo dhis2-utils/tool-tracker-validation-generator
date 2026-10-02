@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 import styles from './BatchWorkspace.module.css'
 import { BatchDateBoundPicker } from '@/components/BatchDateBoundPicker'
 import { useBatchQueue } from '@/components/BatchQueueContext'
+import { configErrorMessage } from '@/components/configErrorMessages'
 import { useFeedback } from '@/hooks/useFeedback'
 import type {
     BatchScope,
@@ -25,6 +26,7 @@ import type {
 import {
     createBatchTemplateKey,
     getBatchTemplateSummary,
+    getConfigErrors,
     getUnvalidatedVariables,
     ruleRejectsFutureDates,
 } from '@/lib/validation'
@@ -160,7 +162,7 @@ export const BatchWorkspace = ({
                 comparisonDateMode === 'fixed' ? fixedDate : '',
             relativeComparisonAmount:
                 comparisonDateMode === 'relative'
-                    ? parseInt(relativeAmount, 10)
+                    ? Number(relativeAmount)
                     : null,
             relativeComparisonUnit: relativeUnit,
             relativeComparisonDirection: relativeDirection,
@@ -182,7 +184,7 @@ export const BatchWorkspace = ({
                     upperMode === 'fixed' ? upperFixedDate : '',
                 upperRelativeComparisonAmount:
                     upperMode === 'relative'
-                        ? parseInt(upperRelativeAmount, 10)
+                        ? Number(upperRelativeAmount)
                         : null,
                 upperRelativeComparisonUnit: 'days',
                 upperRelativeComparisonDirection: upperRelativeDirection,
@@ -192,14 +194,15 @@ export const BatchWorkspace = ({
             ...common,
             operator,
             ...lowerBound,
-            intervalAmount: intervalAmount
-                ? parseInt(intervalAmount, 10)
-                : null,
+            intervalAmount: intervalAmount ? Number(intervalAmount) : null,
             intervalUnit,
         }
     }
 
     const draftTemplate = collectTemplate()
+    const draftErrors = draftTemplate
+        ? getConfigErrors({ category: draftTemplate.category }, draftTemplate)
+        : []
 
     const addTemplate = () => {
         if (!config?.programRuleVariablePrefix?.trim()) {
@@ -217,6 +220,14 @@ export const BatchWorkspace = ({
             showError(
                 i18n.t('Complete the bulk rule before adding it to the queue.')
             )
+            return
+        }
+        const errors = getConfigErrors(
+            { category: template.category },
+            template
+        )
+        if (errors.length > 0) {
+            showError(configErrorMessage(errors[0]))
             return
         }
         const signature = createBatchTemplateKey(template)
@@ -291,6 +302,9 @@ export const BatchWorkspace = ({
                 <p className={styles.helperText}>
                     {i18n.t(
                         'Queue reusable baseline rules here, then apply all queued rules in one go to variables that currently have no validations.'
+                    )}{' '}
+                    {i18n.t(
+                        'Due dates are never included: they are usually meant to be in the future, so validate them individually.'
                     )}
                 </p>
 
@@ -609,8 +623,24 @@ export const BatchWorkspace = ({
                     </span>
                 </div>
 
+                {draftErrors.length > 0 && (
+                    <NoticeBox
+                        error
+                        title={i18n.t('This bulk rule cannot be queued')}
+                    >
+                        {draftErrors.map((error) => (
+                            <p key={error}>{configErrorMessage(error)}</p>
+                        ))}
+                    </NoticeBox>
+                )}
+
                 <ButtonStrip>
-                    <Button secondary small onClick={addTemplate}>
+                    <Button
+                        secondary
+                        small
+                        onClick={addTemplate}
+                        disabled={draftErrors.length > 0}
+                    >
                         {i18n.t('Add to bulk queue')}
                     </Button>
                 </ButtonStrip>

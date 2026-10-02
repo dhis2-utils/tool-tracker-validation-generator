@@ -15,7 +15,7 @@ below are the corrected ones and the violate/valid values in this suite are chos
 by SEMANTICS (see "SEMANTIC / regression-guard note" below), so the old inverted
 forms would now FAIL.
 ------------------------------------------------------------------
-* date "before current date":  d2:daysBetween(<ref>, V{current_date}) < 0
+* date "on or before current date":  d2:daysBetween(<ref>, V{current_date}) < 0
                                  (fires when the date is in the FUTURE -> violation)
 * date "between" L..U (incl.):  d2:hasValue(<ref>) &&
                                  (d2:daysBetween(<ref>, <L>) > 0 || d2:daysBetween(<ref>, <U>) < 0)
@@ -433,9 +433,9 @@ def build_rules(prog):
 
     rules = {}
 
-    # 1. date "before current date" (guard prepended for a DE/attr ref)
+    # 1. date "on or before current date" (guard prepended for a DE/attr ref)
     cond = f"d2:hasValue({date_ref}) && d2:daysBetween({date_ref}, V{{current_date}}) < 0"
-    rid = make_rule(prog, f"RBT {LABEL} date before current",
+    rid = make_rule(prog, f"RBT {LABEL} date on or before current",
                     cond, "RBT date must not be in the future")
     rules["date_before_current"] = {
         "ruleId": rid, "condition": cond,

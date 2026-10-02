@@ -41,6 +41,25 @@ pick a relationship ("before", "after", "on or before", "between", "within"),
 then what to compare against — another tracked date, a fixed date, the current
 date, or an offset in days from the current date.
 
+What each relationship accepts, for a field X compared with a date D (every
+other value shows the rule's message):
+
+| Relationship          | Accepted values                       |
+| --------------------- | ------------------------------------- |
+| X before D            | dates earlier than D                  |
+| X on or before D      | D and earlier                         |
+| X after D             | dates later than D                    |
+| X on or after D       | D and later                           |
+| X between L and U     | L to U, both included                 |
+| X within N … before D | D minus N days/weeks/months/years … D |
+| X within N … after D  | D … D plus N days/weeks/months/years  |
+
+"Within" includes both ends and rejects dates on the other side of D: "within 7
+days before 30 October" accepts 23 to 30 October only. Months and years are
+calendar months (31 January plus one month is 28 February).
+
+A rule never fires while one of the fields it compares is still empty.
+
 Everything below the sentence is filled in for you and updates as you change
 the rule:
 
@@ -89,6 +108,9 @@ Two things to know:
 
 - Bulk rules only ever touch fields with **no** rules, so they never overwrite
   something you configured deliberately.
+- **Due dates are never included.** They are usually meant to be in the
+  future (but not always), so no single template fits them; validate them
+  one by one.
 - Rules created this way are tagged, and when you later add a specific rule to
   one of those fields the tool offers to remove the now-redundant bulk rule.
 
@@ -136,7 +158,9 @@ hold the message back until the user completes the form.
 - **Relative bounds are in days.** Months and years are not offered: DHIS2
   accepts `d2:addMonths`/`d2:addYears` in a rule condition but does not
   evaluate them, so such a rule would silently never fire.
-- **"Between" bounds are inclusive** — a value equal to either bound passes.
+- **"Between" and "within" are inclusive** — a value equal to either end
+  passes. A range that would reject every value (minimum above maximum, or a
+  lower date bound after the upper one) cannot be saved.
 - **Fields that already reject future dates.** If a field is configured with
   `allowFutureDate = false`, DHIS2 rejects a future value before any rule runs,
   so a "must be on or before today" rule adds nothing there. The tool warns

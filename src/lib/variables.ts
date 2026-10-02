@@ -202,3 +202,12 @@ export function findVariableByKey(
         ) ?? null
     )
 }
+
+/** Program rule variable prefix: PRV names are referenced as #{NAME}, so keep
+ * them to upper-case letters, digits and single underscores. */
+export function sanitizePrvPrefix(prefix: string): string {
+    return prefix
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+}

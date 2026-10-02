@@ -138,7 +138,9 @@ describe('generateNumericCondition — fires on the violation (negated op)', () 
 describe('generateNumericFieldCondition — fires on the violation', () => {
     it('greater_than → error when value <= other field', () => {
         const c = generateNumericFieldCondition(numDE, 'greater_than', numDE2)
-        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} <= #{EIR_WEIGHT}')
+        expect(c).toBe(
+            'd2:hasValue(#{EIR_AGE}) && d2:hasValue(#{EIR_WEIGHT}) && #{EIR_AGE} <= #{EIR_WEIGHT}'
+        )
     })
 })
 
@@ -173,7 +175,7 @@ describe('date literal and relative references', () => {
             operator: 'after',
         })
         expect(condition).toBe(
-            "d2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, '1900-01-01') > 0"
+            "d2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, '1900-01-01') >= 0"
         )
     })
 
@@ -186,7 +188,7 @@ describe('date literal and relative references', () => {
             }
         )
         expect(condition).toBe(
-            'd2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, d2:addDays(V{current_date}, -100)) >= 0'
+            'd2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, d2:addDays(V{current_date}, -100)) > 0'
         )
     })
 })

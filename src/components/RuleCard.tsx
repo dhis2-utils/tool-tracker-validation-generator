@@ -1,8 +1,18 @@
 import i18n from '@dhis2/d2-i18n'
 import { Button, ButtonStrip, Tag } from '@dhis2/ui'
 import styles from './RuleCard.module.css'
-import { FEEDBACK_ACTION_TYPES } from '@/lib/detector'
 import type { ExistingValidation } from '@/lib/types'
+
+/** Why the app won't edit this rule, or null when it can. The app edits one
+ * message per rule; a rule with several is left to the Maintenance app. */
+export const editBlockedReason = (
+    validation: ExistingValidation
+): string | null =>
+    validation.actions.length > 1
+        ? i18n.t(
+              'This rule has more than one message, so it can only be edited in the Maintenance app.'
+          )
+        : null
 
 export const RuleCard = ({
     validation,
@@ -17,11 +27,10 @@ export const RuleCard = ({
     onDelete: () => void
     busy: boolean
 }) => {
-    const action = validation.actions.find((a) =>
-        FEEDBACK_ACTION_TYPES.includes(a.programRuleActionType)
-    )
-    const actionType = action ? action.programRuleActionType : 'UNKNOWN'
+    const [first] = validation.actions
+    const actionType = first ? first.programRuleActionType : 'UNKNOWN'
     const isError = actionType.includes('ERROR')
+    const blocked = isEditable ? editBlockedReason(validation) : null
 
     return (
         <div
@@ -42,16 +51,28 @@ export const RuleCard = ({
                 <dd>
                     <code>{validation.rule.condition}</code>
                 </dd>
-                {action?.content && (
-                    <>
-                        <dt>{i18n.t('Message')}</dt>
-                        <dd>{action.content}</dd>
-                    </>
-                )}
+                {validation.actions
+                    .filter((action) => action.content)
+                    .map((action) => (
+                        <div key={action.id} className={styles.metaRow}>
+                            <dt>
+                                {validation.actions.length > 1
+                                    ? `${i18n.t('Message')} (${action.programRuleActionType})`
+                                    : i18n.t('Message')}
+                            </dt>
+                            <dd>{action.content}</dd>
+                        </div>
+                    ))}
             </dl>
+            {blocked && <p className={styles.blockedNote}>{blocked}</p>}
             <ButtonStrip>
                 {isEditable && onEdit && (
-                    <Button small secondary onClick={onEdit} disabled={busy}>
+                    <Button
+                        small
+                        secondary
+                        onClick={onEdit}
+                        disabled={busy || Boolean(blocked)}
+                    >
                         {i18n.t('Edit')}
                     </Button>
                 )}

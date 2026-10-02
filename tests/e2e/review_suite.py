@@ -139,8 +139,7 @@ def expected_unvalidated_dates():
         total += 1
     for stage in p.get("programStages") or []:
         total += 1                                    # event date
-        if not stage.get("hideDueDate"):
-            total += 1                                # due date
+        # due dates are never bulk-validated (usually meant to be in the future)
         for psde in stage.get("programStageDataElements") or []:
             if (psde.get("dataElement") or {}).get("valueType") == "DATE":
                 total += 1
@@ -287,7 +286,7 @@ def main():
             match = [r for r in rules
                      if "on or before" in r["name"] and "enrollment" in r["condition"]]
             cond_ok = match and match[0]["condition"] == \
-                "d2:daysBetween(V{enrollment_date}, V{current_date}) <= 0"
+                "d2:daysBetween(V{enrollment_date}, V{current_date}) < 0"
             record("create date rule (UI + API condition)", bool(cond_ok),
                    match[0]["condition"] if match else "rule not found")
         except Exception as e:
@@ -397,7 +396,8 @@ def main():
             modal.wait_for(timeout=30000)
             shot(page, "09-cleanup-offer")
             modal.get_by_role("button", name="Remove batch rules").click()
-            wait_alert(root, page, "deleted successfully")
+            # multi-rule deletes report one summary ("Deleted 1 rule(s).")
+            wait_alert(root, page, "Deleted 1 rule")
             batch_incident = [r for r in app_rules()
                               if "[DVT-BATCH]" in (r["description"] or "")
                               and PROFILE["cleanup_condition_fragment"]

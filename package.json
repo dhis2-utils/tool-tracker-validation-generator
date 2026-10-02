@@ -25,6 +25,7 @@
         "@dhis2/cli-app-scripts": "12.11.5",
         "@dhis2/config-eslint": "^0.2.2",
         "@dhis2/config-prettier": "^0.2.2",
+        "@dhis2/rule-engine": "^3.8.3",
         "@eslint/compat": "^2.1.1",
         "@types/jest": "^30.0.0",
         "@types/react": "^18.3.31",

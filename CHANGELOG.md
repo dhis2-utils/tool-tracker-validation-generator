@@ -4,7 +4,67 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+Rule logic review (`docs/review-2026-10-02-rule-logic/`): the generated conditions are now
+verified against the DHIS2 rule engine itself (`@dhis2/rule-engine`, as used by Capture, Android
+and the server) on the boundary days and with empty fields. **Rules created by 1.0.2 or earlier
+with "before / after / on or before / on or after" or "within" do not behave as their names say;
+delete and recreate them.**
+
+### Fixed
+
+- **"On or before" / "on or after" rejected the date itself, while "before" / "after" accepted
+  it** — "must be on or before current date" blocked entering today's date. The four comparisons
+  now mean exactly what they say.
+- **"Within N … before/after" checked the opposite direction** and only one side. "Within 7 days
+  before D" now accepts D minus 7 days up to D, both included, and rejects everything else.
+  Weeks, months and years are exact (calendar months, clamped at month end) instead of counting
+  only completed units.
+- **Comparing two fields blocked entry while the second was empty** (an empty number counts as 0
+  in the rule engine). Every field a rule reads is now guarded with `d2:hasValue`.
+- **A range with minimum above maximum** (or a date range that is empty today), a zero or negative
+  interval, and fractional offsets can no longer be saved — they would reject every value.
+- **Editing a "within N days before" rule could silently disable it** (it re-saved comparing the
+  field with itself). Conditions are now read back by a strict parser that only accepts the exact
+  shapes the tool writes: re-saving can never change what a rule does, and rules written by hand
+  are never mistaken for the tool's own.
+- **The same data element in several stages** got the other stage's rules attributed to it, so
+  removing redundant bulk rules could delete another stage's rule, and group edits renamed rules
+  after the wrong stage.
+- **A rule comparing a field with another date** was also listed (and editable) under that other
+  date, where editing dropped the empty-field guard.
+- **Event-date and due-date rules** could not be edited or duplicate-checked.
+- **Saving a rule from a page loaded earlier deleted actions** other admins had added to it since.
+  Updates now re-read the rule and refuse if it changed in the meantime.
+- **Rules and their messages are saved in one atomic metadata import**, so a failure can no longer
+  leave a rule without a message (invisible to the tool) or a new condition with an old message.
+  Program rule variables created for a rule that is then refused are removed again. Deleting a
+  rule deletes only the rule (DHIS2 removes its actions with it).
+- Duplicate checks compare the exact condition (a different "within" interval is no longer a
+  duplicate) and the full prefixed rule name, for numeric rules too.
+- Group edits, "delete all" and the bulk-rule cleanup report one summary naming every rule that
+  failed, instead of alerts that hide each other.
+- Errors loading the programme settings are shown instead of being taken for "not configured".
+- Editing a rule with a relative bound labelled it in years while the condition used days.
+- Rule texts say "1 day", "1 month" instead of "1 days", "1 months".
+- Editing a rule whose message is not tied to a field (e.g. an enrollment-date rule) failed with a
+  server error on DHIS2 2.42: once a rule has been read, DHIS2 cannot update it and such a message
+  in one metadata import (NullPointerException). The tool now falls back to patching the rule and
+  then its message, restoring the rule if the second step fails.
+- A rule name generated under a since-changed rule prefix is regenerated, not kept as
+  "OLD - name".
+
 ### Changed
+
+- Bulk rules never target due dates (they are usually meant to be in the future).
+- A warning is shown when DHIS2 could not be asked to validate a saved rule's condition (it used
+  to pass silently).
+- Rules created outside this tool are shown read-only, and deleting one warns that the whole rule
+  goes, with every action it has. Rules with more than one message can only be edited in the
+  Maintenance app.
+- The program rule variable prefix is normalised to letters, digits and underscores.
+- Dependencies updated for the open Dependabot advisories (`react-router-dom`, `@dhis2/ui`,
+  `@dhis2/app-runtime`, `@dhis2/cli-app-scripts`, `vite`, `vitest`, and same-major overrides for
+  `loader-utils`, `form-data` and `qs`); the production dependencies now audit clean.
 
 - Release workflow hardened for this repo's protected tags: a tag / `package.json` version
   mismatch now publishes the release as a **draft** instead of failing (a failed job would burn

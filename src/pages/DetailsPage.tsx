@@ -10,17 +10,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import styles from './DetailsPage.module.css'
 import { ConfirmModal } from '@/components/ConfirmModal'
-import { RuleCard } from '@/components/RuleCard'
+import { editBlockedReason, RuleCard } from '@/components/RuleCard'
 import { ValidationForm } from '@/components/ValidationForm'
 import { useFeedback } from '@/hooks/useFeedback'
 import { useProgramData } from '@/hooks/useProgramData'
 import { useValidationActions } from '@/hooks/useValidationActions'
-import { FEEDBACK_ACTION_TYPES, prGetExisting } from '@/lib/detector'
-import {
-    isAppGenerated,
-    isBatchGenerated,
-    parseRuleCondition,
-} from '@/lib/signature'
+import { prGetExisting, prGetReferencing } from '@/lib/detector'
+import { parseRuleCondition } from '@/lib/parser'
+import { isAppGenerated, isBatchGenerated } from '@/lib/signature'
 import type { ExistingValidation, ValidationConfig } from '@/lib/types'
 import { buildEditConfig } from '@/lib/validation'
 import { findVariableByComponents } from '@/lib/variables'
@@ -64,6 +61,7 @@ export const DetailsPage = () => {
         updateValidationRule,
         isUpdating,
         deleteValidation,
+        deleteValidations,
         isDeleting,
     } = useValidationActions({
         programId: programId as string,
@@ -74,6 +72,10 @@ export const DetailsPage = () => {
 
     const validations = useMemo(
         () => prGetExisting(programMetadata, variable),
+        [programMetadata, variable]
+    )
+    const referencing = useMemo(
+        () => prGetReferencing(programMetadata, variable),
         [programMetadata, variable]
     )
 
@@ -107,12 +109,20 @@ export const DetailsPage = () => {
     }
 
     const appValidations = validations.filter((v) => isAppGenerated(v.rule))
-    const otherValidations = validations.filter((v) => !isAppGenerated(v.rule))
+    // Rules this tool didn't create: same-shape validations from elsewhere,
+    // plus any other rule that reads the field. Shown read-only.
+    const otherValidations = [
+        ...validations.filter((v) => !isAppGenerated(v.rule)),
+        ...referencing,
+    ]
 
     const startEditing = (validation: ExistingValidation) => {
-        const action = validation.actions.find((a) =>
-            FEEDBACK_ACTION_TYPES.includes(a.programRuleActionType)
-        )
+        const blocked = editBlockedReason(validation)
+        if (blocked) {
+            showError(blocked)
+            return
+        }
+        const [action] = validation.actions
         if (!action) {
             showError(i18n.t('No editable action found for this rule'))
             return
@@ -120,7 +130,7 @@ export const DetailsPage = () => {
         const parsed = parseRuleCondition(
             validation.rule.condition,
             programMetadata,
-            variable
+            validation.rule.programStage?.id
         )
         if (!parsed) {
             showError(i18n.t('Cannot parse rule condition for editing'))
@@ -171,11 +181,9 @@ export const DetailsPage = () => {
 
     const handleCleanupConfirm = async () => {
         try {
-            for (const validation of cleanupCandidates ?? []) {
-                await deleteValidation(validation)
-            }
+            await deleteValidations(cleanupCandidates ?? [])
         } catch {
-            // error alert already shown by useValidationActions
+            // summary alert already shown by useValidationActions
         } finally {
             setCleanupCandidates(null)
         }
@@ -287,10 +295,29 @@ export const DetailsPage = () => {
                         setDeleteCandidate(null)
                     }}
                 >
-                    {i18n.t('Are you sure you want to delete "{{name}}"?', {
-                        name: deleteCandidate.rule.name,
-                        nsSeparator: undefined,
-                    })}
+                    <p>
+                        {i18n.t('Are you sure you want to delete "{{name}}"?', {
+                            name: deleteCandidate.rule.name,
+                            nsSeparator: undefined,
+                        })}
+                    </p>
+                    {!isAppGenerated(deleteCandidate.rule) && (
+                        <NoticeBox
+                            warning
+                            title={i18n.t('Not created by this tool')}
+                        >
+                            {i18n.t(
+                                'This rule was created outside this tool. Deleting it removes the whole rule, including all {{count}} of its actions: {{types}}.',
+                                {
+                                    count: deleteCandidate.allActions.length,
+                                    types: deleteCandidate.allActions
+                                        .map((a) => a.programRuleActionType)
+                                        .join(', '),
+                                    nsSeparator: undefined,
+                                }
+                            )}
+                        </NoticeBox>
+                    )}
                 </ConfirmModal>
             )}
 

@@ -22,7 +22,7 @@
 - Supports all feedback action types (`SHOWERROR`, `SHOWWARNING`, `ERRORONCOMPLETE`,
   `WARNINGONCOMPLETE`)
 - Bulk rules: queue reusable baseline templates and apply them in one pass to every variable that
-  has no validation yet; bulk rules are tagged so the tool can offer to remove them once a
+  has no validation yet (due dates excepted); bulk rules are tagged so the tool can offer to remove them once a
   specific rule is created
 - Edits and deletes rules created by the tool (tagged `[DVT]` in the rule description)
 - Per-programme settings for program rule and program rule variable name prefixes (stored in the

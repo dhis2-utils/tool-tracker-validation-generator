@@ -50,7 +50,7 @@ export function buildRelativeDateTarget(
     return {
         type: 'relative_current_date',
         id: `current_date_${normalizedDirection}_${normalizedAmount}_${normalizedUnit}`,
-        name: `${normalizedAmount} ${normalizedUnit} ${
+        name: `${formatInterval(normalizedAmount, normalizedUnit)} ${
             normalizedDirection === 'past' ? 'before' : 'after'
         } current date`,
         relativeAmount: normalizedAmount,
@@ -254,6 +254,11 @@ export function getUnvalidatedVariables(
         if (v.type === 'current_date') {
             return false
         }
+        // Due dates are generally expected to be in the future (but not
+        // always), so no bulk template fits them; validate them individually.
+        if (v.type === 'due_date') {
+            return false
+        }
         if (
             excludeVariable &&
             v.id === excludeVariable.id &&
@@ -300,7 +305,7 @@ function dateTargetLabel(
         const unit = fields.relativeUnit || 'days'
         const direction = fields.relativeDirection || 'past'
         return amount
-            ? `${amount} ${unit} ${direction === 'past' ? 'before' : 'after'} current date`
+            ? `${formatInterval(amount, unit)} ${direction === 'past' ? 'before' : 'after'} current date`
             : ''
     }
     if (!fields.comparisonDate) {
@@ -414,6 +419,12 @@ function messageLead(variable: Variable, config: ValidationConfig): string {
     return ON_COMPLETE_ACTION_TYPES.includes(actionType)
         ? `${variable.name} must be`
         : 'Must be'
+}
+
+/** "1 month", "2 months" — units are stored plural (days/weeks/...). */
+function formatInterval(amount: number | null | undefined, unit?: string) {
+    const plural = unit || 'days'
+    return `${amount} ${amount === 1 ? plural.replace(/s$/, '') : plural}`
 }
 
 export function getValidationPreview(
@@ -533,12 +544,18 @@ export function getValidationPreview(
                 return EMPTY_PREVIEW
             }
             const dir = operator === 'within_before' ? 'before' : 'after'
-            const interval = `${config.intervalAmount} ${config.intervalUnit}`
+            const interval = formatInterval(
+                config.intervalAmount,
+                config.intervalUnit
+            )
             return {
                 preview: `${variableName} should be within ${interval} ${dir} ${comparisonName}`,
                 suggestedRuleName: `${variableDisplayName} must be within ${interval} ${dir} ${comparisonName}`,
                 suggestedMessage: `${lead} within ${interval} ${dir} ${comparisonName}`,
-                suggestedDescription: `Validates that ${variableName}${clause} is no more than ${interval} ${dir} ${comparisonName}`,
+                suggestedDescription:
+                    operator === 'within_before'
+                        ? `Validates that ${variableName}${clause} is on ${comparisonName} or up to ${interval} before it (inclusive)`
+                        : `Validates that ${variableName}${clause} is on ${comparisonName} or up to ${interval} after it (inclusive)`,
             }
         }
         default:
@@ -628,6 +645,118 @@ export function getMissingFieldLabels(
         missing.push('Validation message')
     }
     return missing
+}
+
+export type ConfigError =
+    | 'MIN_GREATER_THAN_MAX'
+    | 'EMPTY_DATE_RANGE'
+    | 'INTERVAL_TOO_SMALL'
+    | 'OFFSET_TOO_SMALL'
+
+const isWholeAtLeastOne = (value: number | null | undefined) =>
+    value === null ||
+    value === undefined ||
+    (Number.isInteger(value) && value >= 1)
+
+/** Local calendar date as YYYY-MM-DD (V{current_date} is the device's date). */
+function localToday(): string {
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function addDaysIso(iso: string, days: number): string {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
+}
+
+/** A date bound as of today: an absolute date for fixed / current / relative
+ * bounds (null for a field, whose value is unknown until data entry), plus
+ * whether it moves with the current date. */
+function boundAsOfToday(
+    mode: ComparisonDateMode | undefined,
+    fixed: string | undefined,
+    amount: number | null | undefined,
+    direction: RelativeDirection | undefined
+): { date: string; moving: boolean } | null {
+    if (mode === 'fixed') {
+        return fixed ? { date: fixed, moving: false } : null
+    }
+    if (mode === 'current') {
+        return { date: localToday(), moving: true }
+    }
+    if (mode === 'relative' && amount) {
+        const offset = Math.abs(amount) * (direction === 'future' ? 1 : -1)
+        return { date: addDaysIso(localToday(), offset), moving: true }
+    }
+    return null
+}
+
+/**
+ * Configurations that are complete but would make a rule reject every value
+ * (or never evaluate): a numeric range with min > max, a date range that is
+ * empty today, an interval or offset that is not a whole number of at least
+ * one. Saving is blocked while any are present. Accepts a variable or just a
+ * category (bulk templates).
+ */
+export function getConfigErrors(
+    currentVariable: Pick<Variable, 'category'>,
+    config: ValidationConfig
+): ConfigError[] {
+    const errors: ConfigError[] = []
+    if (currentVariable.category === 'numeric') {
+        if (
+            config.numericOperator === 'between' &&
+            config.numericValue !== null &&
+            config.numericValue !== undefined &&
+            config.numericValueMax !== null &&
+            config.numericValueMax !== undefined &&
+            config.numericValue > config.numericValueMax
+        ) {
+            errors.push('MIN_GREATER_THAN_MAX')
+        }
+        return errors
+    }
+    if (
+        (config.operator === 'within_before' ||
+            config.operator === 'within_after') &&
+        !isWholeAtLeastOne(config.intervalAmount)
+    ) {
+        errors.push('INTERVAL_TOO_SMALL')
+    }
+    const offsets = [
+        config.comparisonDateMode === 'relative'
+            ? config.relativeComparisonAmount
+            : null,
+        config.operator === 'between' &&
+        config.upperComparisonDateMode === 'relative'
+            ? config.upperRelativeComparisonAmount
+            : null,
+    ]
+    if (offsets.some((amount) => amount === 0 || !isWholeAtLeastOne(amount))) {
+        errors.push('OFFSET_TOO_SMALL')
+    }
+    if (config.operator === 'between') {
+        const lower = boundAsOfToday(
+            config.comparisonDateMode,
+            config.fixedComparisonDate,
+            config.relativeComparisonAmount,
+            config.relativeComparisonDirection
+        )
+        const upper = boundAsOfToday(
+            config.upperComparisonDateMode,
+            config.upperFixedComparisonDate,
+            config.upperRelativeComparisonAmount,
+            config.upperRelativeComparisonDirection
+        )
+        // Moving bounds keep their distance, so comparing them today decides
+        // it for good; a fixed vs moving pair is judged as of today (the rule
+        // would reject everything now).
+        if (lower && upper && lower.date > upper.date) {
+            errors.push('EMPTY_DATE_RANGE')
+        }
+    }
+    return errors
 }
 
 export function isConfigComplete(
@@ -738,9 +867,15 @@ export function buildEditConfig(
         { ...structural, actionType },
         variables
     )
+    // A generated name stays "default" under any prefix (the configured one
+    // may have changed since the rule was created), so it is regenerated
+    // with the current prefix instead of being kept as "OLD - name".
+    const nameIsDefault =
+        strippedName === suggested.name ||
+        rule.name.endsWith(` - ${suggested.name}`)
     return {
         ...structural,
-        ruleName: strippedName === suggested.name ? undefined : strippedName,
+        ruleName: nameIsDefault ? undefined : strippedName,
         ruleDescription:
             strippedDesc === suggested.description ? undefined : strippedDesc,
         ruleMessage:
@@ -763,7 +898,7 @@ function mapDateVariableToFields(variable: Variable | null): {
         comparisonDate: '',
         fixedComparisonDate: '',
         relativeAmount: null as number | null,
-        relativeUnit: 'years',
+        relativeUnit: 'days',
         relativeDirection: 'past' as RelativeDirection,
     }
     if (variable?.type === 'fixed_date') {
@@ -774,7 +909,7 @@ function mapDateVariableToFields(variable: Variable | null): {
     } else if (variable?.type === 'relative_current_date') {
         fields.mode = 'relative'
         fields.relativeAmount = variable.relativeAmount ?? null
-        fields.relativeUnit = variable.relativeUnit || 'years'
+        fields.relativeUnit = variable.relativeUnit || 'days'
         fields.relativeDirection = variable.relativeDirection || 'past'
     } else if (variable) {
         fields.comparisonDate = getVariableKey(variable)
@@ -819,7 +954,7 @@ function batchBoundLabel(
         return 'current date'
     }
     if (mode === 'relative') {
-        return `${amount} ${unit} ${
+        return `${formatInterval(amount, unit)} ${
             direction === 'past' ? 'before' : 'after'
         } current date`
     }
@@ -858,9 +993,10 @@ export function getBatchTemplateSummary(template: BatchTemplate): string {
         template.operator === 'within_before' ||
         template.operator === 'within_after'
     ) {
-        return `Any unvalidated date should be within ${template.intervalAmount} ${
+        return `Any unvalidated date should be within ${formatInterval(
+            template.intervalAmount,
             template.intervalUnit
-        } ${template.operator === 'within_before' ? 'before' : 'after'} ${comparisonLabel}`
+        )} ${template.operator === 'within_before' ? 'before' : 'after'} ${comparisonLabel}`
     }
     return `Any unvalidated date should be ${
         DATE_OPERATOR_LABELS[template.operator ?? ''] || template.operator

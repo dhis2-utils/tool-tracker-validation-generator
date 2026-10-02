@@ -218,7 +218,8 @@ def step_create_rule(root, page):
         root.get_by_role("button", name="Create validation rule").click()
         wait_alert(root, "created successfully")
         rules = app_rules()
-        ok = len(rules) == 1 and " > 0" in rules[0]["condition"]
+        # "after" is violated on or before the date: daysBetween(X, D) >= 0
+        ok = len(rules) == 1 and " >= 0" in rules[0]["condition"]
         note = rules[0]["condition"] if rules else "no rule created"
         record("create date rule on an event programme", ok, note)
     except Exception as e:

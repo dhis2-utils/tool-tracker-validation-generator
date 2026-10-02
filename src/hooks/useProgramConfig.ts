@@ -1,6 +1,7 @@
 import { useAlert, useDataEngine } from '@dhis2/app-runtime'
 import i18n from '@dhis2/d2-i18n'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isNotFoundError } from '@/lib/errors'
 import type { ProgramConfig } from '@/services/rules'
 
 // Same namespace as the original (pre-App Platform) version of this tool so
@@ -29,9 +30,14 @@ export const useProgramConfig = (programId: string | undefined) => {
                     config: { resource: configResource(programId as string) },
                 })
                 return response.config as ProgramConfig
-            } catch {
-                // Key does not exist yet
-                return DEFAULT_CONFIG
+            } catch (error) {
+                // Only a missing key means "not configured yet"; anything else
+                // (no access, server error, offline) must not look like an
+                // empty configuration.
+                if (isNotFoundError(error)) {
+                    return DEFAULT_CONFIG
+                }
+                throw error
             }
         },
     })
@@ -71,7 +77,10 @@ export const useSaveProgramConfig = (programId: string | undefined) => {
                     type: 'update',
                     data: config,
                 } as Parameters<typeof engine.mutate>[0])
-            } catch {
+            } catch (error) {
+                if (!isNotFoundError(error)) {
+                    throw error
+                }
                 // Key does not exist yet — create with POST
                 await engine.mutate({
                     resource: configResource(programId as string),

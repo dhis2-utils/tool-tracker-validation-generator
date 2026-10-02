@@ -9,13 +9,10 @@ import {
     generateNumericCondition,
     generateNumericFieldCondition,
 } from '@/lib/builder'
-import { prGetExisting } from '@/lib/detector'
 import {
     addAppSignature,
     addBatchSignature,
-    findDuplicateRule,
     isBatchGenerated,
-    parseRuleCondition,
 } from '@/lib/signature'
 import type {
     BatchTemplate,
@@ -28,6 +25,8 @@ import type {
     Variable,
 } from '@/lib/types'
 import {
+    ConfigError,
+    getConfigErrors,
     getSuggestedRuleTexts,
     resolveDateComparisonTarget,
     resolveUpperDateComparisonTarget,
@@ -63,9 +62,7 @@ export interface RuleServiceContext {
      * (needs baseUrl + a text/plain body the data engine can't send). When
      * absent (e.g. in unit tests) validation is skipped.
      */
-    validateCondition?: (
-        condition: string
-    ) => Promise<{ valid: boolean; message?: string }>
+    validateCondition?: (condition: string) => Promise<ConditionCheck>
 }
 
 type SignatureFn = (
@@ -203,13 +200,15 @@ function cacheProgramRuleVariable(
     }
 }
 
+/** `created` is false when an existing PRV was reused after a name conflict:
+ * such a PRV belongs to others and must never be rolled back. */
 async function createProgramRuleVariableWithConflictHandling(
     ctx: RuleServiceContext,
     prv: ProgramRuleVariable,
     type: 'dataElement' | 'trackedEntityAttribute',
     variable: Variable,
     allowSuffixRetry = true
-): Promise<ProgramRuleVariable> {
+): Promise<{ prv: ProgramRuleVariable; created: boolean }> {
     const { engine, metadata, programId } = ctx
     if (!prv.id) {
         prv.id = await getUid(engine)
@@ -221,7 +220,7 @@ async function createProgramRuleVariableWithConflictHandling(
             data: prv,
         })
         cacheProgramRuleVariable(metadata, prv)
-        return prv
+        return { prv, created: true }
     } catch (error) {
         const hasNameConflict = getConflictErrorReports(error).some(
             (report) => report.errorCode === 'E4051'
@@ -247,7 +246,7 @@ async function createProgramRuleVariableWithConflictHandling(
         )
         if (existing) {
             cacheProgramRuleVariable(metadata, existing)
-            return existing
+            return { prv: existing, created: false }
         }
         if (!allowSuffixRetry) {
             throw error
@@ -266,10 +265,10 @@ async function createProgramRuleVariableWithConflictHandling(
     }
 }
 
-export async function ensureProgramRuleVariable(
+async function ensurePrv(
     ctx: RuleServiceContext,
     variable: Variable
-): Promise<ProgramRuleVariable | { name: string }> {
+): Promise<{ prv: ProgramRuleVariable | { name: string }; created: boolean }> {
     if (
         [
             'enrollment',
@@ -279,25 +278,16 @@ export async function ensureProgramRuleVariable(
             'current_date',
         ].includes(variable.type)
     ) {
-        return { name: variable.prvName || variable.type }
+        return {
+            prv: { name: variable.prvName || variable.type },
+            created: false,
+        }
     }
     const type =
         variable.type === 'dataElement'
             ? 'dataElement'
             : ('trackedEntityAttribute' as const)
-    const nameFallback =
-        type === 'dataElement' && variable.stageName
-            ? `${variable.stageName} ${variable.name || variable.id}`
-            : variable.name || variable.id
-    const prv = prvGetSet(
-        ctx.metadata,
-        ctx.programId,
-        ctx.config?.programRuleVariablePrefix,
-        type,
-        variable.id,
-        nameFallback,
-        variable.valueType
-    )
+    const prv = plannedPrv(ctx, variable)
     if (!prv.id) {
         return createProgramRuleVariableWithConflictHandling(
             ctx,
@@ -306,299 +296,574 @@ export async function ensureProgramRuleVariable(
             variable
         )
     }
-    return prv
+    return { prv, created: false }
 }
 
-async function createRuleWithActions(
-    ctx: RuleServiceContext,
-    programRule: Omit<ProgramRule, 'id'>,
-    programRuleActions: Omit<ProgramRuleAction, 'id' | 'programRule'>[]
-): Promise<ProgramRule> {
-    const { engine, metadata } = ctx
-    const rule: ProgramRule = { ...programRule, id: await getUid(engine) }
-    await engine.mutate({
-        resource: 'programRules',
-        type: 'create',
-        data: rule,
-    })
-    metadata.programRules = metadata.programRules || []
-    metadata.programRules.push(rule)
-
-    for (const pra of programRuleActions) {
-        const action: ProgramRuleAction = {
-            ...pra,
-            id: await getUid(engine),
-            programRule: { id: rule.id },
-        }
-        await engine.mutate({
-            resource: 'programRuleActions',
-            type: 'create',
-            data: action,
-        })
-        metadata.programRuleActions = metadata.programRuleActions || []
-        metadata.programRuleActions.push(action)
-    }
-    return rule
-}
-
-/** Validate a condition against DHIS2 (if the context provides a validator)
- * and throw before posting if the engine would reject it — e.g. an unknown
- * function slipping through. No-op when no validator is injected. */
-async function assertConditionValid(
-    ctx: RuleServiceContext,
-    condition: string
-): Promise<void> {
-    if (!ctx.validateCondition) {
-        return
-    }
-    const { valid, message } = await ctx.validateCondition(condition)
-    if (!valid) {
-        throw new Error(
-            `DHIS2 rejected the rule condition${
-                message ? `: ${message}` : ''
-            }. The rule was not created (its condition would never evaluate).`
-        )
-    }
-}
-
-/** Ensure a comparison date variable has a PRV when it needs one (data
- * elements / attributes); system dates and literals are referenced directly. */
-async function ensureDateRefPrv(
+export async function ensureProgramRuleVariable(
     ctx: RuleServiceContext,
     variable: Variable
-): Promise<Variable> {
-    if (['dataElement', 'trackedEntityAttribute'].includes(variable.type)) {
-        const prv = await ensureProgramRuleVariable(ctx, variable)
-        return { ...variable, prvName: prv.name }
-    }
-    return variable
+): Promise<ProgramRuleVariable | { name: string }> {
+    return (await ensurePrv(ctx, variable)).prv
 }
 
-export async function createDateValidationForVariable(
+export type ConditionCheck = {
+    status: 'valid' | 'invalid' | 'unchecked'
+    message?: string
+}
+
+/** Readable messages from a failed /api/metadata import (thrown 409 or a
+ * 200 whose report is not OK). */
+function importErrorMessages(report: unknown): string[] {
+    const body = (report ?? {}) as Record<string, unknown>
+    const response = (body.response ?? body) as Record<string, unknown>
+    const typeReports = (response.typeReports ?? []) as {
+        objectReports?: { errorReports?: { message?: string }[] }[]
+    }[]
+    const messages = typeReports.flatMap((t) =>
+        (t.objectReports ?? []).flatMap((o) =>
+            (o.errorReports ?? []).map((e) => e.message ?? '')
+        )
+    )
+    const direct = (
+        (response.errorReports ?? []) as { message?: string }[]
+    ).map((e) => e.message ?? '')
+    return [...new Set([...messages, ...direct].filter(Boolean))]
+}
+
+/**
+ * Write rules and actions in ONE atomic metadata import: DHIS2 stores all of
+ * it or none of it (verified on 2.42), so a failure can never leave a rule
+ * without its message, or a new condition with an old message.
+ */
+async function importRuleAndAction(
+    engine: DataEngine,
+    importStrategy: 'CREATE' | 'UPDATE',
+    rule: ProgramRule & { programRuleActions: { id: string }[] },
+    action: ProgramRuleAction
+): Promise<void> {
+    let report: unknown
+    try {
+        report = await engine.mutate({
+            resource: 'metadata',
+            type: 'create',
+            params: { atomicMode: 'ALL', importStrategy },
+            data: { programRules: [rule], programRuleActions: [action] },
+        })
+    } catch (error) {
+        const details = (error as { details?: { httpStatusCode?: number } })
+            .details
+        const messages = importErrorMessages(details)
+        throw Object.assign(
+            new Error(
+                messages.length
+                    ? `Could not save the rule: ${messages.join('; ')}`
+                    : (error as Error).message
+            ),
+            { httpStatusCode: details?.httpStatusCode }
+        )
+    }
+    const body = (report ?? {}) as Record<string, unknown>
+    const response = (body.response ?? body) as {
+        status?: string
+        stats?: { ignored?: number }
+    }
+    if (response.status === 'ERROR' || (response.stats?.ignored ?? 0) > 0) {
+        const messages = importErrorMessages(report)
+        throw new Error(
+            `Could not save the rule${messages.length ? `: ${messages.join('; ')}` : ''}`
+        )
+    }
+}
+
+const CONFIG_ERROR_MESSAGES: Record<ConfigError, string> = {
+    MIN_GREATER_THAN_MAX:
+        'The minimum is greater than the maximum, so the rule would reject every value',
+    EMPTY_DATE_RANGE:
+        'The lower date bound is after the upper bound, so the rule would reject every date',
+    INTERVAL_TOO_SMALL: 'The interval must be a whole number of at least 1',
+    OFFSET_TOO_SMALL: 'The offset must be a whole number of at least 1 day',
+}
+
+const STAGE_BOUND_TYPES = ['dataElement', 'event_date', 'due_date']
+
+const normaliseCondition = (condition: string) =>
+    condition.replace(/\s+/g, ' ').trim()
+
+/** The fields a rule reads, with their (planned or created) PRV names. */
+interface RuleRefs {
+    target: Variable
+    lower: Variable | null
+    upper: Variable | null
+    field: Variable | null
+}
+
+function resolveRefs(
     ctx: RuleServiceContext,
     config: ValidationConfig,
-    targetVariable: Variable,
-    signatureFn: SignatureFn = addAppSignature,
-    validate = true
-): Promise<ProgramRule> {
-    const { metadata, programId, config: programConfig, variables } = ctx
-    const compareDate = resolveDateComparisonTarget(config, variables)
-    if (!compareDate) {
+    target: Variable
+): RuleRefs {
+    const { variables } = ctx
+    if (target.category === 'numeric') {
+        let field: Variable | null = null
+        if (
+            config.numericOperator !== 'between' &&
+            config.numericComparisonType === 'field'
+        ) {
+            field = findVariableByKey(
+                variables,
+                config.numericComparisonField ?? ''
+            )
+            if (!field) {
+                throw new Error('Comparison field not found')
+            }
+        }
+        return { target, lower: null, upper: null, field }
+    }
+    const lower = resolveDateComparisonTarget(config, variables)
+    if (!lower) {
         throw new Error('Target date not found')
     }
-    const suggested = getSuggestedRuleTexts(targetVariable, config, variables)
-
-    const duplicateRule = findDuplicateRule(metadata, targetVariable, config)
-    if (duplicateRule) {
-        throw new Error(
-            `Duplicate rule already exists: "${duplicateRule.name}"`
-        )
-    }
-
-    const finalRuleName = config.ruleName || suggested.name
-    const existingRule = metadata.programRules.find(
-        (rule) => rule.name === finalRuleName
-    )
-    if (existingRule) {
-        throw new Error(`Rule "${finalRuleName}" already exists`)
-    }
-
-    const variable1Prv = await ensureProgramRuleVariable(ctx, targetVariable)
-    const targetRef = { ...targetVariable, prvName: variable1Prv.name }
-
-    const prefix = programConfig?.programRulePrefix || ''
-    let ruleCondition: string
+    let upper: Variable | null = null
     if (config.operator === 'between') {
-        const upperDate = resolveUpperDateComparisonTarget(config, variables)
-        if (!upperDate) {
+        upper = resolveUpperDateComparisonTarget(config, variables)
+        if (!upper) {
             throw new Error('Upper bound date not found')
         }
-        ruleCondition = generateBetweenDateCondition(
-            targetRef,
-            await ensureDateRefPrv(ctx, compareDate),
-            await ensureDateRefPrv(ctx, upperDate)
-        )
-    } else {
-        ruleCondition = generateNewRuleCondition(
-            targetRef,
-            await ensureDateRefPrv(ctx, compareDate),
-            config
-        )
     }
-    if (validate) {
-        await assertConditionValid(ctx, ruleCondition)
-    }
-
-    const ruleName = prefix ? `${prefix} - ${finalRuleName}` : finalRuleName
-    const { description } = signatureFn(
-        ruleName,
-        config.ruleDescription || suggested.description
-    )
-
-    const programRule: Omit<ProgramRule, 'id'> = {
-        name: ruleName,
-        description,
-        condition: ruleCondition,
-        program: { id: programId },
-        priority: 1,
-    }
-    if (
-        (targetVariable.type === 'dataElement' ||
-            targetVariable.type === 'event_date' ||
-            targetVariable.type === 'due_date') &&
-        targetVariable.stageId
-    ) {
-        programRule.programStage = { id: targetVariable.stageId }
-    }
-
-    const programRuleAction: Omit<ProgramRuleAction, 'id' | 'programRule'> = {
-        programRuleActionType: config.actionType || 'SHOWERROR',
-        content: config.ruleMessage || suggested.message,
-        program: { id: programId },
-    }
-    if (targetVariable.type === 'dataElement') {
-        programRuleAction.dataElement = { id: targetVariable.id }
-    } else if (targetVariable.type === 'trackedEntityAttribute') {
-        programRuleAction.trackedEntityAttribute = { id: targetVariable.id }
-    }
-
-    return createRuleWithActions(ctx, programRule, [programRuleAction])
+    return { target, lower, upper, field: null }
 }
 
-export async function createNumericValidationForVariable(
-    ctx: RuleServiceContext,
-    config: ValidationConfig,
-    targetVariable: Variable,
-    signatureFn: SignatureFn = addAppSignature,
-    validate = true
-): Promise<ProgramRule> {
-    const { metadata, programId, config: programConfig, variables } = ctx
-    let compareField: Variable | null = null
-    if (config.numericComparisonType === 'field') {
-        compareField = findVariableByKey(
-            variables,
-            config.numericComparisonField ?? ''
-        )
-        if (!compareField) {
-            throw new Error('Comparison field not found')
-        }
-    }
-    const suggested = getSuggestedRuleTexts(targetVariable, config, variables)
+const needsPrv = (variable: Variable | null): variable is Variable =>
+    Boolean(
+        variable &&
+        (variable.type === 'dataElement' ||
+            variable.type === 'trackedEntityAttribute')
+    )
 
-    // Duplicate pre-check (mirrors the date path): same variable, operator
-    // and comparison target already covered by an existing rule.
-    for (const existing of prGetExisting(metadata, targetVariable)) {
-        const parsed = parseRuleCondition(
-            existing.rule.condition,
-            metadata,
-            targetVariable
-        )
-        if (!parsed || parsed.config.operator !== config.numericOperator) {
-            continue
-        }
-        const sameComparison =
-            config.numericComparisonType === 'field'
-                ? parsed.config.comparisonType === 'field' &&
-                  parsed.variable2?.id === compareField?.id
-                : config.numericOperator === 'between'
-                  ? parsed.config.value === config.numericValue &&
-                    parsed.config.valueMax === config.numericValueMax
-                  : parsed.config.comparisonType === 'value' &&
-                    parsed.config.value === config.numericValue
-        if (sameComparison) {
-            throw new Error(
-                `Duplicate rule already exists: "${existing.rule.name}"`
+function prvNameFallback(variable: Variable): string {
+    return variable.type === 'dataElement' && variable.stageName
+        ? `${variable.stageName} ${variable.name || variable.id}`
+        : variable.name || variable.id
+}
+
+/** Existing PRV for a field, or the one that would be created (id null). */
+function plannedPrv(ctx: RuleServiceContext, variable: Variable) {
+    return prvGetSet(
+        ctx.metadata,
+        ctx.programId,
+        ctx.config?.programRuleVariablePrefix,
+        variable.type === 'dataElement'
+            ? 'dataElement'
+            : 'trackedEntityAttribute',
+        variable.id,
+        prvNameFallback(variable),
+        variable.valueType
+    )
+}
+
+function withPrvNames(
+    refs: RuleRefs,
+    nameFor: (variable: Variable) => string
+): RuleRefs {
+    const named = (variable: Variable | null) =>
+        needsPrv(variable)
+            ? { ...variable, prvName: nameFor(variable) }
+            : variable
+    return {
+        target: named(refs.target)!,
+        lower: named(refs.lower),
+        upper: named(refs.upper),
+        field: named(refs.field),
+    }
+}
+
+function buildCondition(config: ValidationConfig, refs: RuleRefs): string {
+    const { target, lower, upper, field } = refs
+    if (target.category === 'numeric') {
+        if (config.numericOperator === 'between') {
+            return generateNumericBetweenCondition(
+                target,
+                config.numericValue,
+                config.numericValueMax
             )
         }
+        return field
+            ? generateNumericFieldCondition(
+                  target,
+                  config.numericOperator,
+                  field
+              )
+            : generateNumericCondition(
+                  target,
+                  config.numericOperator,
+                  config.numericValue
+              )
     }
-
-    const variable1Prv = await ensureProgramRuleVariable(ctx, targetVariable)
-    const variable1WithPrv = { ...targetVariable, prvName: variable1Prv.name }
-    let ruleCondition: string
-    if (config.numericOperator === 'between') {
-        ruleCondition = generateNumericBetweenCondition(
-            variable1WithPrv,
-            config.numericValue,
-            config.numericValueMax
-        )
-    } else if (config.numericComparisonType === 'field' && compareField) {
-        const variable2Prv = await ensureProgramRuleVariable(ctx, compareField)
-        ruleCondition = generateNumericFieldCondition(
-            variable1WithPrv,
-            config.numericOperator,
-            {
-                ...compareField,
-                prvName: variable2Prv.name,
-            }
-        )
-    } else {
-        ruleCondition = generateNumericCondition(
-            variable1WithPrv,
-            config.numericOperator,
-            config.numericValue
-        )
-    }
-    if (validate) {
-        await assertConditionValid(ctx, ruleCondition)
-    }
-    const prefix = programConfig?.programRulePrefix || ''
-    const ruleNameBase = config.ruleName || suggested.name
-    const ruleName = prefix ? `${prefix} - ${ruleNameBase}` : ruleNameBase
-    const { description } = signatureFn(
-        ruleName,
-        config.ruleDescription || suggested.description
-    )
-    const programRule: Omit<ProgramRule, 'id'> = {
-        name: ruleName,
-        description,
-        condition: ruleCondition,
-        program: { id: programId },
-        priority: 1,
-    }
-    if (targetVariable.type === 'dataElement' && targetVariable.stageId) {
-        programRule.programStage = { id: targetVariable.stageId }
-    }
-    const programRuleAction: Omit<ProgramRuleAction, 'id' | 'programRule'> = {
-        programRuleActionType: config.actionType || 'SHOWERROR',
-        content: config.ruleMessage || suggested.message,
-        program: { id: programId },
-    }
-    if (targetVariable.type === 'dataElement') {
-        programRuleAction.dataElement = { id: targetVariable.id }
-    } else if (targetVariable.type === 'trackedEntityAttribute') {
-        programRuleAction.trackedEntityAttribute = { id: targetVariable.id }
-    }
-    return createRuleWithActions(ctx, programRule, [programRuleAction])
+    return config.operator === 'between'
+        ? generateBetweenDateCondition(target, lower!, upper!)
+        : generateNewRuleCondition(target, lower!, config)
 }
 
-export function createValidationForVariable(
+function stageOf(target: Variable): string | undefined {
+    return STAGE_BOUND_TYPES.includes(target.type) ? target.stageId : undefined
+}
+
+interface PreparedRule {
+    name: string
+    description: string
+    condition: string
+    programStage?: { id: string }
+    message: string
+    actionType: string
+    conditionChecked: boolean
+}
+
+/**
+ * Everything both create and update need, in a safe order: plan the PRVs and
+ * the condition, refuse duplicates / name clashes / impossible configs before
+ * writing anything, then create missing PRVs and validate the condition with
+ * DHIS2. PRVs created here are removed again if a later step fails
+ * (`rollback`), so a refused rule leaves no trace.
+ */
+async function prepareRule(
+    ctx: RuleServiceContext,
+    config: ValidationConfig,
+    target: Variable,
+    signatureFn: SignatureFn,
+    validate: boolean,
+    excludeRuleId?: string
+): Promise<{ prepared: PreparedRule; rollback: () => Promise<void> }> {
+    const { metadata, config: programConfig, variables } = ctx
+    const errors = getConfigErrors(target, config)
+    if (errors.length > 0) {
+        throw new Error(CONFIG_ERROR_MESSAGES[errors[0]])
+    }
+    const refs = resolveRefs(ctx, config, target)
+    const stageId = stageOf(target)
+    const sameScope = (rule: ProgramRule) =>
+        (rule.programStage?.id ?? undefined) === stageId
+
+    const planned = buildCondition(
+        config,
+        withPrvNames(refs, (v) => plannedPrv(ctx, v).name)
+    )
+    const duplicate = metadata.programRules.find(
+        (rule) =>
+            rule.id !== excludeRuleId &&
+            sameScope(rule) &&
+            normaliseCondition(rule.condition ?? '') ===
+                normaliseCondition(planned)
+    )
+    if (duplicate) {
+        throw new Error(`Duplicate rule already exists: "${duplicate.name}"`)
+    }
+
+    const suggested = getSuggestedRuleTexts(target, config, variables)
+    const prefix = programConfig?.programRulePrefix || ''
+    const baseName = config.ruleName || suggested.name
+    const name = prefix ? `${prefix} - ${baseName}` : baseName
+    const nameClash = metadata.programRules.find(
+        (rule) => rule.id !== excludeRuleId && rule.name === name
+    )
+    if (nameClash) {
+        throw new Error(`A program rule named "${name}" already exists`)
+    }
+
+    const created: ProgramRuleVariable[] = []
+    const rollback = async () => {
+        for (const prv of created) {
+            try {
+                await ctx.engine.mutate({
+                    resource: 'programRuleVariables',
+                    id: prv.id,
+                    type: 'delete',
+                })
+            } catch {
+                // best effort: an unused PRV is harmless and reused next time
+            }
+            // forget it either way, so later saves in this run recreate it
+            // rather than reference a PRV that may be gone
+            metadata.programRuleVariables =
+                metadata.programRuleVariables.filter((p) => p.id !== prv.id)
+        }
+        created.length = 0
+    }
+    try {
+        const names = new Map<string, string>()
+        for (const variable of [
+            refs.target,
+            refs.lower,
+            refs.upper,
+            refs.field,
+        ]) {
+            if (!needsPrv(variable) || names.has(variable.id)) {
+                continue
+            }
+            const result = await ensurePrv(ctx, variable)
+            const prv = result.prv as ProgramRuleVariable
+            if (result.created) {
+                created.push(prv)
+            }
+            names.set(variable.id, prv.name)
+        }
+        const condition = buildCondition(
+            config,
+            withPrvNames(refs, (v) => names.get(v.id)!)
+        )
+        let conditionChecked = true
+        if (validate && ctx.validateCondition) {
+            const check = await ctx.validateCondition(condition)
+            if (check.status === 'invalid') {
+                throw new Error(
+                    `DHIS2 rejected the rule condition${
+                        check.message ? `: ${check.message}` : ''
+                    }. The rule was not saved (its condition would never evaluate).`
+                )
+            }
+            conditionChecked = check.status === 'valid'
+        }
+        const { description } = signatureFn(
+            name,
+            config.ruleDescription || suggested.description
+        )
+        return {
+            prepared: {
+                name,
+                description,
+                condition,
+                ...(stageId ? { programStage: { id: stageId } } : {}),
+                message: config.ruleMessage || suggested.message,
+                actionType: config.actionType || 'SHOWERROR',
+                conditionChecked,
+            },
+            rollback,
+        }
+    } catch (error) {
+        await rollback()
+        throw error
+    }
+}
+
+export interface SaveResult {
+    ruleId: string
+    /** False when DHIS2 could not be asked to validate the condition. */
+    conditionChecked: boolean
+}
+
+export async function createValidationForVariable(
     ctx: RuleServiceContext,
     config: ValidationConfig,
     targetVariable: Variable,
     signatureFn: SignatureFn = addAppSignature,
     validate = true
-): Promise<ProgramRule> {
-    return targetVariable.category === 'numeric'
-        ? createNumericValidationForVariable(
-              ctx,
-              config,
-              targetVariable,
-              signatureFn,
-              validate
-          )
-        : createDateValidationForVariable(
-              ctx,
-              config,
-              targetVariable,
-              signatureFn,
-              validate
-          )
+): Promise<SaveResult> {
+    const { engine, metadata, programId } = ctx
+    const { prepared, rollback } = await prepareRule(
+        ctx,
+        config,
+        targetVariable,
+        signatureFn,
+        validate
+    )
+    const [ruleId, actionId] = [await getUid(engine), await getUid(engine)]
+    const action: ProgramRuleAction = {
+        id: actionId,
+        programRule: { id: ruleId },
+        programRuleActionType: prepared.actionType,
+        content: prepared.message,
+        program: { id: programId },
+        ...(targetVariable.type === 'dataElement'
+            ? { dataElement: { id: targetVariable.id } }
+            : targetVariable.type === 'trackedEntityAttribute'
+              ? { trackedEntityAttribute: { id: targetVariable.id } }
+              : {}),
+    }
+    const rule = {
+        id: ruleId,
+        name: prepared.name,
+        description: prepared.description,
+        condition: prepared.condition,
+        program: { id: programId },
+        priority: 1,
+        ...(prepared.programStage
+            ? { programStage: prepared.programStage }
+            : {}),
+        programRuleActions: [{ id: actionId }],
+    }
+    try {
+        await importRuleAndAction(engine, 'CREATE', rule, action)
+    } catch (error) {
+        await rollback()
+        throw error
+    }
+    // extend the working copy so later rules in the same run see this one
+    metadata.programRules.push(rule)
+    metadata.programRuleActions.push(action)
+    return { ruleId, conditionChecked: prepared.conditionChecked }
+}
+
+type RuleTexts = Pick<ProgramRule, 'name' | 'description' | 'condition'>
+
+const ruleTextPatch = (rule: RuleTexts) => [
+    { op: 'replace', path: '/name', value: rule.name },
+    { op: 'add', path: '/description', value: rule.description ?? '' },
+    { op: 'replace', path: '/condition', value: rule.condition },
+]
+
+/**
+ * Fallback for a DHIS2 bug (seen on 2.42.6): once a rule has been read, a
+ * metadata import updating it together with an action that has no data
+ * element / attribute (e.g. an enrollment-date rule) fails with a 500
+ * NullPointerException, and so does an action-only import. JSON-patching the
+ * two objects works. They are no longer updated atomically, so if the action
+ * patch fails the rule is patched back to the copy read just before.
+ */
+async function patchRuleAndAction(
+    engine: DataEngine,
+    fresh: RuleTexts,
+    rule: ProgramRule,
+    action: ProgramRuleAction
+): Promise<void> {
+    await engine.mutate({
+        resource: 'programRules',
+        id: rule.id,
+        type: 'json-patch',
+        data: ruleTextPatch(rule),
+    })
+    try {
+        await engine.mutate({
+            resource: 'programRuleActions',
+            id: action.id,
+            type: 'json-patch',
+            data: [
+                {
+                    op: 'replace',
+                    path: '/programRuleActionType',
+                    value: action.programRuleActionType,
+                },
+                { op: 'add', path: '/content', value: action.content ?? '' },
+            ],
+        })
+    } catch (actionError) {
+        try {
+            await engine.mutate({
+                resource: 'programRules',
+                id: rule.id,
+                type: 'json-patch',
+                data: ruleTextPatch(fresh),
+            })
+        } catch {
+            throw new Error(
+                `The rule condition was saved but its message could not be (${
+                    (actionError as Error).message
+                }), and restoring the rule failed. Check "${rule.name}" in the Maintenance app.`
+            )
+        }
+        throw new Error(
+            `Could not update the rule message (${
+                (actionError as Error).message
+            }); the rule was left unchanged.`
+        )
+    }
 }
 
 export interface UpdateValidationInput {
     ruleId: string
     config: ValidationConfig
     currentVariable: Variable
+}
+
+type FreshRule = ProgramRule & { programRuleActions?: ProgramRuleAction[] }
+
+export async function updateValidation(
+    ctx: RuleServiceContext,
+    { ruleId, config, currentVariable }: UpdateValidationInput
+): Promise<SaveResult> {
+    const { engine, metadata } = ctx
+    const cached = metadata.programRules.find((r) => r.id === ruleId)
+    if (!cached) {
+        throw new Error('Rule not found for updating')
+    }
+    // Re-read the rule: the page's copy can be minutes old, and writing it
+    // back would revert (or delete) what others changed in the meantime.
+    const response = (await engine.query({
+        rule: {
+            resource: 'programRules',
+            id: ruleId,
+            params: { fields: ':owner,programRuleActions[:owner]' },
+        },
+    })) as { rule: FreshRule }
+    const fresh = response.rule
+    if (
+        fresh.condition !== cached.condition ||
+        fresh.name !== cached.name ||
+        (fresh.description ?? '') !== (cached.description ?? '')
+    ) {
+        throw new Error(
+            'This rule was changed since the page was loaded. Reload the page and try again.'
+        )
+    }
+    const freshActions = fresh.programRuleActions ?? []
+    const feedback = freshActions.filter((a) =>
+        FEEDBACK_ACTION_TYPES.includes(a.programRuleActionType)
+    )
+    if (feedback.length !== 1) {
+        throw new Error(
+            feedback.length === 0
+                ? 'This rule has no message action to update.'
+                : 'This rule has more than one message action; edit it in the Maintenance app.'
+        )
+    }
+    // Keep the rule's app/batch tagging so an edited bulk rule stays a bulk
+    // rule (keeps its [DVT-BATCH] tag) instead of reclassifying as individual.
+    const signatureFn = isBatchGenerated(fresh)
+        ? addBatchSignature
+        : addAppSignature
+    const { prepared, rollback } = await prepareRule(
+        ctx,
+        config,
+        currentVariable,
+        signatureFn,
+        true,
+        ruleId
+    )
+    // the rule's full action list, as ids, from the fresh copy
+    const rule = {
+        ...fresh,
+        name: prepared.name,
+        description: prepared.description,
+        condition: prepared.condition,
+        programRuleActions: freshActions.map((a) => ({ id: a.id })),
+    }
+    const action: ProgramRuleAction = {
+        ...feedback[0],
+        programRuleActionType:
+            config.actionType || feedback[0].programRuleActionType,
+        content: prepared.message,
+    }
+    try {
+        try {
+            await importRuleAndAction(engine, 'UPDATE', rule, action)
+        } catch (error) {
+            if ((error as { httpStatusCode?: number }).httpStatusCode !== 500) {
+                throw error
+            }
+            // the import is atomic, so nothing was stored; see patchRuleAndAction
+            await patchRuleAndAction(engine, fresh, rule, action)
+        }
+    } catch (error) {
+        await rollback()
+        throw error
+    }
+    // keep the working copy current for later rules in the same run (group
+    // edits): their duplicate and name checks must see this rule as it is now
+    metadata.programRules = metadata.programRules.map((r) =>
+        r.id === ruleId ? rule : r
+    )
+    metadata.programRuleActions = metadata.programRuleActions.map((a) =>
+        a.id === action.id ? action : a
+    )
+    return { ruleId, conditionChecked: prepared.conditionChecked }
 }
 
 const FEEDBACK_ACTION_TYPES = [
@@ -608,196 +873,13 @@ const FEEDBACK_ACTION_TYPES = [
     'ERRORONCOMPLETE',
 ]
 
-export async function updateValidation(
-    ctx: RuleServiceContext,
-    { ruleId, config, currentVariable }: UpdateValidationInput
-): Promise<void> {
-    const { engine, metadata, config: programConfig, variables } = ctx
-    const suggested = getSuggestedRuleTexts(currentVariable, config, variables)
-    const existingRule = metadata.programRules.find((r) => r.id === ruleId)
-    const existingAction = metadata.programRuleActions.find(
-        (a) =>
-            a.programRule.id === ruleId &&
-            FEEDBACK_ACTION_TYPES.includes(a.programRuleActionType)
-    )
-    if (!existingRule || !existingAction) {
-        throw new Error('Rule or action not found for updating')
-    }
-    // Preserve the rule's app/batch tagging so an edited bulk rule stays a bulk
-    // rule (keeps its [DVT-BATCH] tag) instead of reclassifying as individual.
-    const signatureFn = isBatchGenerated(existingRule)
-        ? addBatchSignature
-        : addAppSignature
-
-    let updatedRule: ProgramRule
-    if (currentVariable.category === 'numeric') {
-        let compareField: Variable | null = null
-        if (config.numericComparisonType === 'field') {
-            compareField = findVariableByKey(
-                variables,
-                config.numericComparisonField ?? ''
-            )
-            if (!compareField) {
-                throw new Error('Comparison field not found')
-            }
-        }
-        const variable1Prv = await ensureProgramRuleVariable(
-            ctx,
-            currentVariable
-        )
-        const variable1WithPrv = {
-            ...currentVariable,
-            prvName: variable1Prv.name,
-        }
-        let ruleCondition: string
-        if (config.numericOperator === 'between') {
-            ruleCondition = generateNumericBetweenCondition(
-                variable1WithPrv,
-                config.numericValue,
-                config.numericValueMax
-            )
-        } else if (config.numericComparisonType === 'field' && compareField) {
-            const variable2Prv = await ensureProgramRuleVariable(
-                ctx,
-                compareField
-            )
-            ruleCondition = generateNumericFieldCondition(
-                variable1WithPrv,
-                config.numericOperator,
-                { ...compareField, prvName: variable2Prv.name }
-            )
-        } else {
-            ruleCondition = generateNumericCondition(
-                variable1WithPrv,
-                config.numericOperator,
-                config.numericValue
-            )
-        }
-        const prefix = programConfig?.programRulePrefix || ''
-        // Fall back to a generated name when none is supplied (e.g. group edits
-        // that regenerate per variable), mirroring the create path.
-        const ruleNameBase = config.ruleName || suggested.name
-        const ruleName = prefix ? `${prefix} - ${ruleNameBase}` : ruleNameBase
-        const { description } = signatureFn(
-            ruleName,
-            config.ruleDescription || suggested.description
-        )
-        updatedRule = {
-            ...existingRule,
-            name: ruleName,
-            description,
-            condition: ruleCondition,
-        }
-    } else {
-        const compareDate = resolveDateComparisonTarget(config, variables)
-        if (!compareDate) {
-            throw new Error('Target date not found')
-        }
-
-        // Check for duplicates (excluding the current rule)
-        const duplicateRule = findDuplicateRule(
-            metadata,
-            currentVariable,
-            config
-        )
-        if (duplicateRule && duplicateRule.id !== ruleId) {
-            throw new Error(
-                `A validation rule comparing these same date variables already exists: "${duplicateRule.name}"`
-            )
-        }
-
-        const finalRuleName = config.ruleName || suggested.name
-        const duplicateName = metadata.programRules.find(
-            (rule) => rule.name === finalRuleName && rule.id !== ruleId
-        )
-        if (duplicateName) {
-            throw new Error(
-                `A program rule with the name "${finalRuleName}" already exists`
-            )
-        }
-
-        const variable1Prv = await ensureProgramRuleVariable(
-            ctx,
-            currentVariable
-        )
-        const targetRef = { ...currentVariable, prvName: variable1Prv.name }
-        let ruleCondition: string
-        if (config.operator === 'between') {
-            const upperDate = resolveUpperDateComparisonTarget(
-                config,
-                variables
-            )
-            if (!upperDate) {
-                throw new Error('Upper bound date not found')
-            }
-            ruleCondition = generateBetweenDateCondition(
-                targetRef,
-                await ensureDateRefPrv(ctx, compareDate),
-                await ensureDateRefPrv(ctx, upperDate)
-            )
-        } else {
-            ruleCondition = generateNewRuleCondition(
-                targetRef,
-                await ensureDateRefPrv(ctx, compareDate),
-                config
-            )
-        }
-
-        const ruleName = programConfig?.programRulePrefix
-            ? `${programConfig.programRulePrefix} - ${finalRuleName}`
-            : finalRuleName
-        const { description } = signatureFn(
-            ruleName,
-            config.ruleDescription || suggested.description
-        )
-        updatedRule = {
-            ...existingRule,
-            name: ruleName,
-            description,
-            condition: ruleCondition,
-        }
-    }
-
-    await assertConditionValid(ctx, updatedRule.condition)
-
-    const updatedAction: ProgramRuleAction = {
-        ...existingAction,
-        programRuleActionType:
-            config.actionType || existingAction.programRuleActionType,
-        content: config.ruleMessage || suggested.message,
-    }
-
-    await engine.mutate({
-        resource: 'programRules',
-        id: ruleId,
-        type: 'update',
-        data: updatedRule,
-    })
-    await engine.mutate({
-        resource: 'programRuleActions',
-        id: existingAction.id,
-        type: 'update',
-        data: updatedAction,
-    })
-}
-
+/** Delete a rule. DHIS2 deletes the rule's actions with it (verified on
+ * 2.42); deleting them first would leave a rule stripped of its message if
+ * the rule delete then failed. PRVs are kept: other rules may use them. */
 export async function deleteRule(
     engine: DataEngine,
     validation: ExistingValidation
 ): Promise<void> {
-    for (const action of validation.actions) {
-        try {
-            await engine.mutate({
-                resource: 'programRuleActions',
-                id: action.id,
-                type: 'delete',
-            })
-        } catch (e) {
-            // Action may already be gone or removed via cascade — the rule
-            // delete below is the authoritative step.
-            console.warn('Could not delete action', e)
-        }
-    }
     await engine.mutate({
         resource: 'programRules',
         id: validation.rule.id,
@@ -808,6 +890,8 @@ export async function deleteRule(
 export interface BatchApplyResult {
     createdCount: number
     errors: string[]
+    /** Rules saved without DHIS2 having validated their condition. */
+    uncheckedCount: number
 }
 
 export interface BatchProgress {
@@ -827,28 +911,37 @@ export async function applyBatchTemplates(
     onProgress?: (progress: BatchProgress) => void
 ): Promise<BatchApplyResult> {
     let createdCount = 0
+    let uncheckedCount = 0
     const errors: string[] = []
     const total = templates.length
     const templateTargets = templates.map((template) => ({
         template,
-        targets: getTargets(template),
+        // Due dates are generally expected to be in the future; no bulk
+        // template is created for them.
+        targets: getTargets(template).filter((t) => t.type !== 'due_date'),
     }))
 
     onProgress?.({ completed: 0, total })
 
     for (const [index, { template, targets }] of templateTargets.entries()) {
-        for (const [targetIndex, target] of targets.entries()) {
+        // Validate with DHIS2 until one rule of this template has been
+        // checked; its siblings share the same condition shape.
+        let templateChecked = false
+        for (const target of targets) {
             try {
-                // Validate the condition once per template (its first rule);
-                // sibling rules share the same condition shape.
-                await createValidationForVariable(
+                const result = await createValidationForVariable(
                     ctx,
                     template,
                     target,
                     addBatchSignature,
-                    targetIndex === 0
+                    !templateChecked
                 )
                 createdCount++
+                if (!result.conditionChecked) {
+                    uncheckedCount++
+                } else if (ctx.validateCondition) {
+                    templateChecked = true
+                }
             } catch (error) {
                 errors.push(`${target.name}: ${(error as Error).message}`)
             }
@@ -856,5 +949,5 @@ export async function applyBatchTemplates(
         onProgress?.({ completed: index + 1, total })
     }
 
-    return { createdCount, errors }
+    return { createdCount, errors, uncheckedCount }
 }
