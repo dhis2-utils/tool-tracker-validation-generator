@@ -1015,3 +1015,16 @@ export function getSuggestedRuleTexts(
         message: p.suggestedMessage,
     }
 }
+
+/**
+ * Enrollment, incident, event and due dates are "basic info" fields: a rule
+ * validating one has no data element or attribute to attach its message to.
+ * The DHIS2 Android Capture app (3.4.2, ANDROAPP-7843) shows no message for
+ * such rules and does not block saving; the server then rejects the record
+ * when the device syncs. Capture web shows them.
+ */
+export function isBasicInfoDate(variable: Pick<Variable, 'type'>): boolean {
+    return ['enrollment', 'incident', 'event_date', 'due_date'].includes(
+        variable.type
+    )
+}

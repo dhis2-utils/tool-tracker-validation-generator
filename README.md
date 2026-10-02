@@ -47,6 +47,11 @@ Leone and Laos HMIS demo databases — see `docs/review-2026-08-24-multiversion/
 
 ## Known limitations
 
+- **Android: rules on enrollment, incident, event and due dates show nothing.** These dates have
+  no data element to attach a message to, and the DHIS2 Android Capture app (3.4.2) neither shows
+  such messages nor blocks saving ([ANDROAPP-7843](https://dhis2.atlassian.net/browse/ANDROAPP-7843)).
+  DHIS2 rejects the record when the device syncs, which leaves a sync error on the device. Capture
+  web shows them normally. The tool warns when you create one.
 - **Android: on-complete actions on tracked entity attributes do nothing.** The DHIS2 Android
   Capture app does not support `ERRORONCOMPLETE` / `WARNINGONCOMPLETE` for tracked entity
   attributes (they are supported for data elements). A rule of that shape shows nothing on

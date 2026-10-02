@@ -24,6 +24,7 @@ import {
     getMissingFieldLabels,
     getNumericFieldOptions,
     getValidationPreview,
+    isBasicInfoDate,
     ruleRejectsFutureDates,
 } from '@/lib/validation'
 import { getVariableKey, VALUE_TYPE_LABELS } from '@/lib/variables'
@@ -602,6 +603,17 @@ export const ValidationForm = ({
                     ))}
                 </SingleSelectField>
             </div>
+
+            {isBasicInfoDate(variable) && (
+                <NoticeBox
+                    warning
+                    title={i18n.t('Not shown in the Android app')}
+                >
+                    {i18n.t(
+                        'The DHIS2 Android Capture app does not show messages for rules on enrollment, incident, event or due dates (they have no data element to attach to), and does not block saving. DHIS2 then rejects the record when the device syncs. The Capture web app shows them normally.'
+                    )}
+                </NoticeBox>
+            )}
 
             {futureDatesContradiction && (
                 <NoticeBox

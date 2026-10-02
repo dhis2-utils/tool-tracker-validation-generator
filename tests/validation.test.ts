@@ -6,6 +6,7 @@ import {
     buildEditConfig,
     buildRelativeDateTarget,
     getConfigErrors,
+    isBasicInfoDate,
     createBatchTemplateKey,
     getBatchTemplateSummary,
     getDateComparisonOptions,
@@ -1505,4 +1506,23 @@ describe('relative bound wording', () => {
             })
         ).toContain('1 day before current date')
     })
+})
+
+describe('isBasicInfoDate — rules Android Capture does not show (ANDROAPP-7843)', () => {
+    it.each(['enrollment', 'incident', 'event_date', 'due_date'] as const)(
+        '%s → true',
+        (type) => {
+            expect(
+                isBasicInfoDate(makeVariable({ type, category: 'date' }))
+            ).toBe(true)
+        }
+    )
+    it.each(['dataElement', 'trackedEntityAttribute'] as const)(
+        '%s → false',
+        (type) => {
+            expect(
+                isBasicInfoDate(makeVariable({ type, category: 'date' }))
+            ).toBe(false)
+        }
+    )
 })

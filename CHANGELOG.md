@@ -56,6 +56,8 @@ delete and recreate them.**
 ### Changed
 
 - Bulk rules never target due dates (they are usually meant to be in the future).
+- A warning explains that the Android Capture app does not show rules on enrollment, incident,
+  event or due dates (ANDROAPP-7843); the server rejects such records at sync.
 - A warning is shown when DHIS2 could not be asked to validate a saved rule's condition (it used
   to pass silently).
 - Rules created outside this tool are shown read-only, and deleting one warns that the whole rule

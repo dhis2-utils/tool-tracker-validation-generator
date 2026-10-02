@@ -305,6 +305,9 @@ export const BatchWorkspace = ({
                     )}{' '}
                     {i18n.t(
                         'Due dates are never included: they are usually meant to be in the future, so validate them individually.'
+                    )}{' '}
+                    {i18n.t(
+                        'Rules on enrollment and event dates are not shown by the Android Capture app; the server rejects such records when the device syncs.'
                     )}
                 </p>
 
