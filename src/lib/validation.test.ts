@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { parseRuleCondition } from '@/lib/parser'
-import type { BatchTemplate, ProgramRuleAction, Variable } from '@/lib/types'
+import type {
+    BatchTemplate,
+    ProgramRuleAction,
+    ValidationConfig,
+    Variable,
+} from '@/lib/types'
 import {
     buildEditConfig,
     buildRelativeDateTarget,
@@ -18,6 +23,7 @@ import {
     resolveDateComparisonTarget,
     ruleRejectsFutureDates,
 } from '@/lib/validation'
+import { getVariableKey } from '@/lib/variables'
 import { makeMeta, makeRule, makeVariable } from '@/test-utils/helpers'
 
 const enrollment = makeVariable({
@@ -1118,6 +1124,121 @@ describe('default-text templates', () => {
     })
 
     describe('validation message', () => {
+        describe('names basic-info dates (no field to show the message next to)', () => {
+            const date = (
+                type: Variable['type'],
+                id: string,
+                name: string,
+                typeLabel?: string
+            ) =>
+                makeVariable({
+                    type,
+                    id,
+                    name,
+                    typeLabel,
+                    category: 'date',
+                    ...(type === 'event_date' || type === 'due_date'
+                        ? { stageId: 'stgA', stageName: 'Stage A' }
+                        : {}),
+                })
+            const visitDate = date(
+                'event_date',
+                'event_date_stgA',
+                'Visit date (event date)',
+                'event date'
+            )
+            const eventDate = date(
+                'event_date',
+                'event_date_stgA',
+                'Event date (event date)',
+                'event date'
+            )
+            const enrollmentDate = date(
+                'enrollment',
+                'enrollment_date',
+                'Enrollment date (enrollment date)',
+                'enrollment date'
+            )
+            const registrationDate = date(
+                'enrollment',
+                'enrollment_date',
+                'Registration date (enrollment date)',
+                'enrollment date'
+            )
+            const birthDate = date(
+                'incident',
+                'incident_date',
+                'Date of birth (incident date)',
+                'incident date'
+            )
+            const dueDate = date('due_date', 'due_date_stgA', 'Due date')
+            const message = (
+                variable: Variable,
+                config: ValidationConfig,
+                vars: Variable[]
+            ) => getSuggestedRuleTexts(variable, config, vars).message
+            const vsEnrollment = (key: Variable): ValidationConfig => ({
+                operator: 'on_or_after',
+                comparisonDateMode: 'variable',
+                comparisonDate: getVariableKey(key),
+            })
+
+            it('a custom label says which date it is: "Visit (event) date"', () => {
+                expect(
+                    message(visitDate, vsEnrollment(enrollmentDate), [
+                        visitDate,
+                        enrollmentDate,
+                    ])
+                ).toBe('Visit (event) date must be on or after Enrollment date')
+            })
+
+            it('the same for every action type', () => {
+                for (const actionType of [
+                    'SHOWERROR',
+                    'SHOWWARNING',
+                    'ERRORONCOMPLETE',
+                ]) {
+                    expect(
+                        message(visitDate, { ...before, actionType }, [
+                            visitDate,
+                        ])
+                    ).toBe('Visit (event) date must be before Current date')
+                }
+            })
+
+            it('a default label is not repeated', () => {
+                expect(message(eventDate, before, [eventDate])).toBe(
+                    'Event date must be before Current date'
+                )
+                expect(message(dueDate, before, [dueDate])).toBe(
+                    'Due date must be before Current date'
+                )
+            })
+
+            it('the compared-with date is named the same way', () => {
+                expect(
+                    message(eventDate, vsEnrollment(registrationDate), [
+                        eventDate,
+                        registrationDate,
+                    ])
+                ).toBe(
+                    'Event date must be on or after Registration (enrollment) date'
+                )
+                expect(
+                    message(stageA, vsEnrollment(visitDate), [
+                        stageA,
+                        visitDate,
+                    ])
+                ).toBe('Must be on or after Visit (event) date')
+            })
+
+            it('a label not ending in "date" keeps the type in brackets', () => {
+                expect(message(birthDate, before, [birthDate])).toBe(
+                    'Date of birth (incident date) must be before Current date'
+                )
+            })
+        })
+
         it('omits the field name for SHOWERROR, which renders next to the field', () => {
             const texts = getSuggestedRuleTexts(
                 stageA,

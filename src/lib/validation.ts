@@ -291,7 +291,8 @@ const EMPTY_PREVIEW: PreviewTexts = {
 
 function dateTargetLabel(
     fields: DateTargetFields,
-    variables: Variable[] | null
+    variables: Variable[] | null,
+    nameOf: (variable: Variable) => string = (variable) => variable.name
 ): string {
     const mode = fields.mode || 'variable'
     if (mode === 'fixed') {
@@ -311,12 +312,14 @@ function dateTargetLabel(
     if (!fields.comparisonDate) {
         return ''
     }
-    return findVariableByKey(variables, fields.comparisonDate)?.name ?? ''
+    const target = findVariableByKey(variables, fields.comparisonDate)
+    return target ? nameOf(target) : ''
 }
 
 export function getDateComparisonLabel(
     config: ValidationConfig,
-    variables: Variable[] | null
+    variables: Variable[] | null,
+    nameOf?: (variable: Variable) => string
 ): string {
     return dateTargetLabel(
         {
@@ -327,13 +330,15 @@ export function getDateComparisonLabel(
             relativeUnit: config.relativeComparisonUnit,
             relativeDirection: config.relativeComparisonDirection,
         },
-        variables
+        variables,
+        nameOf
     )
 }
 
 export function getUpperDateComparisonLabel(
     config: ValidationConfig,
-    variables: Variable[] | null
+    variables: Variable[] | null,
+    nameOf?: (variable: Variable) => string
 ): string {
     return dateTargetLabel(
         {
@@ -344,7 +349,8 @@ export function getUpperDateComparisonLabel(
             relativeUnit: config.upperRelativeComparisonUnit,
             relativeDirection: config.upperRelativeComparisonDirection,
         },
-        variables
+        variables,
+        nameOf
     )
 }
 
@@ -412,9 +418,36 @@ function stageClause(variable: Variable, stageCount?: number): string {
         : ''
 }
 
+/**
+ * How a message names a date: a basic-info date by its label, saying which
+ * date it is only when the label doesn't ("Visit (event) date", but
+ * "Enrollment date", not "Enrollment date (enrollment date)"). Data elements
+ * and attributes keep their name.
+ */
+export function messageName(variable: Variable): string {
+    const marker = variable.typeLabel ? ` (${variable.typeLabel})` : ''
+    if (!marker || !variable.name.endsWith(marker)) {
+        return variable.name
+    }
+    const label = variable.name.slice(0, -marker.length)
+    const type = variable.typeLabel as string
+    if (label.toLowerCase() === type.toLowerCase()) {
+        return label
+    }
+    const dateWord = / date$/i
+    return dateWord.test(label) && dateWord.test(type)
+        ? `${label.replace(dateWord, '')} (${type.replace(dateWord, '')}) ${label.slice(-4)}`
+        : `${label} (${type})`
+}
+
 /** Opening of the validation message: on-complete messages render in a dialog
- * away from the field, so they name it; inline ones are already anchored to it. */
+ * away from the field, so they name it; inline ones are already anchored to it.
+ * Basic-info dates have no field to anchor to (Capture lists them in its Error
+ * box), so their messages name the date by its label. */
 function messageLead(variable: Variable, config: ValidationConfig): string {
+    if (isBasicInfoDate(variable)) {
+        return `${messageName(variable)} must be`
+    }
     const actionType = config.actionType || 'SHOWERROR'
     return ON_COMPLETE_ACTION_TYPES.includes(actionType)
         ? `${variable.name} must be`
@@ -501,10 +534,20 @@ export function getValidationPreview(
         if (!lower || !upper) {
             return EMPTY_PREVIEW
         }
+        const lowerInMessage = getDateComparisonLabel(
+            config,
+            variables,
+            messageName
+        )
+        const upperInMessage = getUpperDateComparisonLabel(
+            config,
+            variables,
+            messageName
+        )
         return {
             preview: `${variableName} should be between ${lower} and ${upper} (inclusive)`,
             suggestedRuleName: `${variableDisplayName} must be between ${lower} and ${upper} (inclusive)`,
-            suggestedMessage: `${lead} between ${lower} and ${upper} (inclusive)`,
+            suggestedMessage: `${lead} between ${lowerInMessage} and ${upperInMessage} (inclusive)`,
             suggestedDescription: `Validates that ${variableName}${clause} is between ${lower} and ${upper} (inclusive)`,
         }
     }
@@ -512,6 +555,11 @@ export function getValidationPreview(
     if (!operator || !comparisonName) {
         return EMPTY_PREVIEW
     }
+    const comparisonInMessage = getDateComparisonLabel(
+        config,
+        variables,
+        messageName
+    )
     switch (operator) {
         case 'before':
         case 'after':
@@ -534,7 +582,7 @@ export function getValidationPreview(
             return {
                 preview: `${variableName} should be ${phrase} ${comparisonName}`,
                 suggestedRuleName: `${variableDisplayName} must be ${phrase} ${comparisonName}`,
-                suggestedMessage: `${lead} ${phrase} ${comparisonName}`,
+                suggestedMessage: `${lead} ${phrase} ${comparisonInMessage}`,
                 suggestedDescription: `Validates that ${variableName}${clause} ${descPhrase}`,
             }
         }
@@ -551,7 +599,7 @@ export function getValidationPreview(
             return {
                 preview: `${variableName} should be within ${interval} ${dir} ${comparisonName}`,
                 suggestedRuleName: `${variableDisplayName} must be within ${interval} ${dir} ${comparisonName}`,
-                suggestedMessage: `${lead} within ${interval} ${dir} ${comparisonName}`,
+                suggestedMessage: `${lead} within ${interval} ${dir} ${comparisonInMessage}`,
                 suggestedDescription:
                     operator === 'within_before'
                         ? `Validates that ${variableName}${clause} is on ${comparisonName} or up to ${interval} before it (inclusive)`
