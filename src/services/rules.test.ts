@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { makeMeta, makeVariable } from './helpers'
 import type { ProgramRuleVariable } from '@/lib/types'
 import {
     DataEngine,
     ensureProgramRuleVariable,
     RuleServiceContext,
 } from '@/services/rules'
+import { makeMeta, makeVariable } from '@/test-utils/helpers'
 
 const uidEngine = (overrides: Partial<DataEngine> = {}): DataEngine => {
     let uidCounter = 0

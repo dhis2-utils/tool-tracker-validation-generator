@@ -3,7 +3,6 @@
 // opening and re-saving a rule can never change what it does. Anything that
 // is not exactly an app shape must parse to null (and so never be edited).
 import { describe, expect, it } from 'vitest'
-import { makeMeta, makeRule, makeVariable } from './helpers'
 import {
     generateBetweenDateCondition,
     generateNewRuleCondition,
@@ -23,6 +22,7 @@ import {
     resolveUpperDateComparisonTarget,
 } from '@/lib/validation'
 import { findVariableByKey } from '@/lib/variables'
+import { makeMeta, makeRule, makeVariable } from '@/test-utils/helpers'
 
 const STAGE = 'stage00001A'
 const OTHER_STAGE = 'stage00002B'

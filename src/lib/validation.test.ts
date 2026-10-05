@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { makeMeta, makeRule, makeVariable } from './helpers'
 import { parseRuleCondition } from '@/lib/parser'
 import type { BatchTemplate, ProgramRuleAction, Variable } from '@/lib/types'
 import {
@@ -19,6 +18,7 @@ import {
     resolveDateComparisonTarget,
     ruleRejectsFutureDates,
 } from '@/lib/validation'
+import { makeMeta, makeRule, makeVariable } from '@/test-utils/helpers'
 
 const enrollment = makeVariable({
     type: 'enrollment',

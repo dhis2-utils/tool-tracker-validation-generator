@@ -1,7 +1,5 @@
 // Metadata writes, asserted on the resulting (fake) server state.
 import { describe, expect, it } from 'vitest'
-import { fakeServer, FakeServer } from './fakeServer'
-import { makeMeta, makeVariable } from './helpers'
 import { prGetExisting } from '@/lib/detector'
 import type {
     BatchTemplate,
@@ -16,6 +14,8 @@ import {
     RuleServiceContext,
     updateValidation,
 } from '@/services/rules'
+import { fakeServer, FakeServer } from '@/test-utils/fakeServer'
+import { makeMeta, makeVariable } from '@/test-utils/helpers'
 
 const PROGRAM = 'prog1234567'
 const STAGE = 'stage00001A'

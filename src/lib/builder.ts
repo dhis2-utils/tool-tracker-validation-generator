@@ -64,7 +64,7 @@ const BETWEEN_FN: Record<string, string> = {
  * years clamp at month end (31 Jan + 1 month = 28 Feb), which needs both
  * one-day shifts for the after-window; for days and weeks the two are
  * equivalent. Verified exhaustively against the rule engine in
- * tests/builder-semantics.test.ts.
+ * builder-semantics.test.ts.
  */
 export function generateIntervalCondition(
     operator: 'within_before' | 'within_after',

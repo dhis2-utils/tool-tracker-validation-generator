@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { makeVariable } from './helpers'
 import {
     generateBetweenDateCondition,
     generateNewRuleCondition,
@@ -9,6 +8,7 @@ import {
     getVariableReference,
     isSystemVariable,
 } from '@/lib/builder'
+import { makeVariable } from '@/test-utils/helpers'
 
 const enrollment = makeVariable({ type: 'enrollment', id: 'enrollment_date' })
 const eventDate = makeVariable({

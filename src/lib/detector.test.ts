@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { makeMeta, makeVariable } from './helpers'
 import { prGetExisting, prGetReferencing } from '@/lib/detector'
 import type { ProgramMetadata, ProgramRule } from '@/lib/types'
+import { makeMeta, makeVariable } from '@/test-utils/helpers'
 
 const ANC = 'stageANC0001'
 const PNC = 'stagePNC0001'

@@ -29,7 +29,7 @@ anymore.
 - All DHIS2 API access goes through the app-runtime data engine (`useDataEngine`), wrapped in
   TanStack Query v4 hooks (`src/hooks/`) — never use raw `fetch` for DHIS2 endpoints
 - Business logic (condition building/parsing, rule detection, signatures, variable derivation,
-  form/preview/batch helpers) lives in `src/lib/` as pure functions with unit tests in `tests/` —
+  form/preview/batch helpers) lives in `src/lib/` as pure functions with unit tests next to them (`*.test.ts`) —
   keep it free of React and engine imports
 - Date validations use `operator` + comparison fields; numeric validations use `numericOperator`
     - `numericComparisonType` ('value' | 'field'). Keep both paths in sync when adding features
@@ -64,7 +64,8 @@ src/
                           useProgramData) and mutation actions (useValidationActions)
   services/rules.ts     - Engine-based persistence: PRV conflict handling, rule create/update/
                           delete (date + numeric), batch apply
-  lib/                  - Pure domain logic: builder, detector, signature (condition parser),
-                          variables, validation (form/preview/batch helpers), types
-tests/                  - Vitest unit tests for src/lib and src/services
+  test-utils/           - Unit-test helpers: fixtures, a fake DHIS2 server, the real rule engine
+  lib/                  - Pure domain logic: builder, parser (strict condition reader), detector,
+                          signature (app tags), variables, validation (form/preview/batch
+                          helpers), types
 ```

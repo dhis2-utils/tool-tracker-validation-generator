@@ -2,8 +2,6 @@
 // engine (the one Capture, Android and the server use). A SHOWERROR rule
 // fires when its condition is true, so "fires" = the value is rejected.
 import { describe, expect, it } from 'vitest'
-import { makeVariable } from './helpers'
-import { daysFromToday, EngineVariable, fires } from './ruleEngine'
 import {
     generateBetweenDateCondition,
     generateNewRuleCondition,
@@ -12,6 +10,8 @@ import {
     generateNumericFieldCondition,
 } from '@/lib/builder'
 import type { Variable } from '@/lib/types'
+import { makeVariable } from '@/test-utils/helpers'
+import { daysFromToday, EngineVariable, fires } from '@/test-utils/ruleEngine'
 
 const dateDE = (name: string): Variable =>
     makeVariable({

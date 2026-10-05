@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { makeMeta } from './helpers'
-import { buildVariablesArray } from '@/lib/variables'
+import { buildVariablesArray, sanitizePrvPrefix } from '@/lib/variables'
+import { makeMeta } from '@/test-utils/helpers'
 
 const mockMeta = makeMeta({
     enrollmentDateLabel: 'Registration date',
@@ -332,5 +332,19 @@ describe('buildVariablesArray — numeric variables', () => {
         const vars = buildVariablesArray(meta)
         expect(vars.find((x) => x.id === 'deOptNum01AA')).toBeUndefined()
         expect(vars.find((x) => x.id === 'teaOptNum01A')).toBeUndefined()
+    })
+})
+
+describe('sanitizePrvPrefix', () => {
+    it.each([
+        ['eir', 'EIR'],
+        ['My prog', 'MY_PROG'],
+        ['a-b.c', 'A_B_C'],
+        ['  x  ', 'X'],
+        ['__EIR__', 'EIR'],
+        ['æøå 1', '1'],
+        ['', ''],
+    ])('%j → %j', (input, expected) => {
+        expect(sanitizePrvPrefix(input)).toBe(expected)
     })
 })

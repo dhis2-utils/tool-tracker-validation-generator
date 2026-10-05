@@ -1,20 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { isNotFoundError } from '@/lib/errors'
-import { sanitizePrvPrefix } from '@/lib/variables'
-
-describe('sanitizePrvPrefix', () => {
-    it.each([
-        ['eir', 'EIR'],
-        ['My prog', 'MY_PROG'],
-        ['a-b.c', 'A_B_C'],
-        ['  x  ', 'X'],
-        ['__EIR__', 'EIR'],
-        ['æøå 1', '1'],
-        ['', ''],
-    ])('%j → %j', (input, expected) => {
-        expect(sanitizePrvPrefix(input)).toBe(expected)
-    })
-})
 
 describe('isNotFoundError', () => {
     it('recognises an app-runtime 404', () => {

@@ -17,5 +17,5 @@
             ]
         }
     },
-    "include": ["src", "types", "tests"]
+    "include": ["src", "types"]
 }

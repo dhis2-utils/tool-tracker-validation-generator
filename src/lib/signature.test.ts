@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { makeRule } from './helpers'
 import {
     addBatchSignature,
     BATCH_TAG,
     isBatchGenerated,
     removeAllSignatures,
 } from '@/lib/signature'
+import { makeRule } from '@/test-utils/helpers'
 
 describe('batch signature', () => {
     it('BATCH_TAG is the string DVT-BATCH', () => {
