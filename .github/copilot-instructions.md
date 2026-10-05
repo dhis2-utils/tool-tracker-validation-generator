@@ -68,4 +68,6 @@ src/
   lib/                  - Pure domain logic: builder, parser (strict condition reader), detector,
                           signature (app tags), variables, validation (form/preview/batch
                           helpers), types
+e2e/                    - Live-instance suite (Python + Playwright); entry point e2e/run.sh,
+                          disposable instances only (see e2e/README.md)
 ```

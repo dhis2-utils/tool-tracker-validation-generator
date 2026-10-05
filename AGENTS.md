@@ -29,6 +29,7 @@ the pre-migration code lives in git history before the `feat/app-platform-migrat
 - `pnpm test` — vitest unit tests (`src/**/*.test.ts`, helpers in `src/test-utils/`)
 - `pnpm run lint` — eslint + prettier check
 - `pnpm exec tsc --noEmit` — type check
+- `e2e/run.sh` — end-to-end suite on a disposable instance (inputs in `e2e/README.md`)
 
 ## Project Structure
 
@@ -46,6 +47,8 @@ src/
   lib/                  - Pure domain logic: builder, parser (strict condition reader), detector,
                           signature (app tags), variables, validation (form/preview/batch
                           helpers), types
+e2e/                    - Live-instance suite (Python + Playwright); entry point e2e/run.sh,
+                          disposable instances only (see e2e/README.md)
 ```
 
 ## Architecture notes
