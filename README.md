@@ -3,8 +3,8 @@
 > ![Maturity: Experimental](https://img.shields.io/badge/maturity-Experimental-orange)  
 > Intended use: quickly monitoring and configuring validation of dates and numeric values in DHIS2 tracker using program rules.  
 > Maintainers: HISP Centre implementation team.
->
-> **WARNING**
+
+> [!WARNING]
 > This tool is intended to be used by system administrators to perform specific tasks; it is not
 > intended for end users. It is available as a DHIS2 app, but has not been through the same
 > rigorous testing as normal core apps. It should be used with care, and always tested in a
