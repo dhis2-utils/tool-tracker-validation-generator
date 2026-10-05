@@ -4,11 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-Rule logic review (`docs/review-2026-10-02-rule-logic/`): the generated conditions are now
-verified against the DHIS2 rule engine itself (`@dhis2/rule-engine`, as used by Capture, Android
-and the server) on the boundary days and with empty fields. **Rules created by 1.0.2 or earlier
-with "before / after / on or before / on or after" or "within" do not behave as their names say;
-delete and recreate them.**
+## [1.1.0] - 2026-10-05
+
+### Upgrading
+
+- **The app key changes** from `tool-tracker-validation` to `tool-tracker-validation-generator`,
+  the name of the repository. DHIS2 treats this as a different app:
+    - Install the new version, then uninstall the old app in App Management, or two entries
+      remain in the menu.
+    - Add the new app to every user role that gave access to the old one. Until then, users
+      without the ALL authority cannot open it.
+    - Bookmarks to the old app URL stop working.
+
+    The programme settings (rule and variable prefixes) are kept.
+
+- **Delete and recreate the rules created by 1.0.2 or earlier.** Most of them do not behave as
+  their names say (see Fixed), and the tool now lists them as "Not set up by this tool", read
+  only. The rule logic review is in `docs/review-2026-10-02-rule-logic/`.
+
+### Added
+
+- A warning explains that the Android Capture app does not show rules on enrollment, incident,
+  event or due dates (ANDROAPP-7843); the server rejects such records at sync.
+- A warning is shown when DHIS2 could not be asked to validate a saved rule's condition (it used
+  to pass silently).
+- Rules listed under "Other program rules using this variable" are tagged "Set up by this tool"
+  or "Not set up by this tool"; the tool's own rules link to the field they validate.
+- An end-to-end suite, `e2e/run.sh`, for disposable instances: it creates a rule matrix through
+  the installed app and checks every rule on its boundary days in the Capture web app.
+
+### Changed
+
+- Messages of rules on an enrollment, incident, event or due date name the date ("Visit (event)
+  date must be on or after Enrollment date"), saying which date it is only when the programme
+  gives it its own label: Capture lists these messages in its Error box, not next to a field.
+- Bulk rules never target due dates (they are usually meant to be in the future).
+- Rules created outside this tool are shown read-only, and deleting one warns that the whole rule
+  goes, with every action it has. Rules with more than one message can only be edited in the
+  Maintenance app.
+- The program rule variable prefix is normalised to letters, digits and underscores.
+- The generated conditions are verified in the unit tests against the DHIS2 rule engine itself
+  (`@dhis2/rule-engine`, as used by Capture, Android and the server) on the boundary days and with
+  empty fields. Unit tests sit next to the code they test.
+- CI and release workflows follow the shared tool conventions: a tag that does not match
+  `package.json` warns and still releases, a re-run uploads to the existing release, and the
+  GitHub Actions are pinned to their current majors (`actions/checkout` v7.0.1,
+  `pnpm/action-setup` v6.1.0, `actions/setup-node` v7.0.0, `actions/upload-artifact` v7.0.1).
+- Tested on DHIS2 2.41.10, 2.42.6 and 2.43.1 with `e2e/run.sh`, and the rule matrix on the
+  Android Capture app 3.4.2.
+- README documents the Android limitations (on-complete actions on tracked entity attributes,
+  rules on basic-info dates), event-programme support, and the post-rename bundle name.
 
 ### Fixed
 
@@ -19,6 +64,9 @@ delete and recreate them.**
   before D" now accepts D minus 7 days up to D, both included, and rejects everything else.
   Weeks, months and years are exact (calendar months, clamped at month end) instead of counting
   only completed units.
+- **Rules reading an enrollment, incident, event or due date** now check that it has a value.
+  With the date empty (a scheduled event has no event date yet), Capture logged an engine error
+  in the browser console on every evaluation.
 - **Comparing two fields blocked entry while the second was empty** (an empty number counts as 0
   in the rule engine). Every field a rule reads is now guarded with `d2:hasValue`.
 - **A range with minimum above maximum** (or a date range that is empty today), a zero or negative
@@ -52,37 +100,16 @@ delete and recreate them.**
   then its message, restoring the rule if the second step fails.
 - A rule name generated under a since-changed rule prefix is regenerated, not kept as
   "OLD - name".
-
-### Changed
-
-- Bulk rules never target due dates (they are usually meant to be in the future).
-- A warning explains that the Android Capture app does not show rules on enrollment, incident,
-  event or due dates (ANDROAPP-7843); the server rejects such records at sync.
-- A warning is shown when DHIS2 could not be asked to validate a saved rule's condition (it used
-  to pass silently).
-- Rules created outside this tool are shown read-only, and deleting one warns that the whole rule
-  goes, with every action it has. Rules with more than one message can only be edited in the
-  Maintenance app.
-- The program rule variable prefix is normalised to letters, digits and underscores.
-- Dependencies updated for the open Dependabot advisories (`react-router-dom`, `@dhis2/ui`,
-  `@dhis2/app-runtime`, `@dhis2/cli-app-scripts`, `vite`, `vitest`, and same-major overrides for
-  `loader-utils`, `form-data` and `qs`); the production dependencies now audit clean.
-
-- Release workflow hardened for this repo's protected tags: a tag / `package.json` version
-  mismatch now publishes the release as a **draft** instead of failing (a failed job would burn
-  the version number for good), and publishing is idempotent so a re-run does not die on "release
-  already exists". GitHub Actions pinned to Node 24 releases (`actions/checkout` v5.1.0,
-  `actions/setup-node` v5.0.0, `actions/upload-artifact` v6.0.0); the CI job token is read-only.
-- Test files are now type-checked (`tsconfig.json` includes `tests/`).
-- README documents the Android limitation (on-complete actions on tracked entity attributes),
-  event-programme support, and the post-rename bundle name.
-
-### Fixed
-
 - The standard DHIS2 tools **toolbox icon** is back in the app menu and App Management. The App
   Platform migration dropped the icon the vanilla tool shipped, so the app fell back to the
   platform's generic DHIS2 logo. It is now shipped as `public/dhis2-app-icon.png`, the filename
   the platform's generated `manifest.webapp` hard-codes.
+
+### Security
+
+- Dependencies updated for the open Dependabot advisories (`react-router-dom`, `@dhis2/ui`,
+  `@dhis2/app-runtime`, `@dhis2/cli-app-scripts`, `vite`, `vitest`, and same-major overrides for
+  `loader-utils`, `form-data` and `qs`); the production dependencies now audit clean.
 
 ## [1.0.2] - 2026-08-25
 
