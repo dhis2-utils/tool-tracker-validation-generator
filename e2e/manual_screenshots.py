@@ -396,7 +396,7 @@ def main():
             browser.close()
             return
 
-        page.goto(f"{LBASE}/api/apps/tool-tracker-validation/index.html",
+        page.goto(f"{LBASE}/api/apps/tool-tracker-validation-generator/index.html",
                   wait_until="domcontentloaded")
         root = find_root(page)
         root.get_by_text("Select a programme").first.wait_for(timeout=20000)

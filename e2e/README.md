@@ -10,7 +10,7 @@
 
 ```bash
 DHIS2_URL=http://dhis2-x:8080 DHIS2_USER=local_admin DHIS2_PASS=district \
-APP_ZIP=$PWD/build/bundle/tool-tracker-validation-1.0.2.zip RESULTS_DIR=/tmp/out \
+APP_ZIP=$PWD/build/bundle/tool-tracker-validation-generator-1.1.0.zip RESULTS_DIR=/tmp/out \
   e2e/run.sh
 ```
 

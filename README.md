@@ -81,6 +81,6 @@ pnpm run lint                                    # eslint + prettier
 pnpm run build                                   # production build + zip bundle
 ```
 
-The deployable app bundle is written to `build/bundle/tool-tracker-validation-<version>.zip` and
+The deployable app bundle is written to `build/bundle/tool-tracker-validation-generator-<version>.zip` and
 can be installed through the DHIS2 App Management app. Tagged releases (`v*.*.*`) also attach
 it to a GitHub release via `.github/workflows/release.yml`.
