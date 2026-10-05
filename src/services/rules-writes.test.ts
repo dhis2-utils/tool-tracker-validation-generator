@@ -458,7 +458,7 @@ describe('update', () => {
                 }),
             })
             expect(server.rules.get(ruleId)!.condition).toBe(
-                'd2:daysBetween(V{enrollment_date}, V{current_date}) <= 0'
+                'd2:hasValue(V{enrollment_date}) && d2:daysBetween(V{enrollment_date}, V{current_date}) <= 0'
             )
             expect(server.rules.get(ruleId)!.name).toBe(
                 'Enrollment date must be before Current date'

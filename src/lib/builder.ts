@@ -88,13 +88,18 @@ export function generateIntervalCondition(
     )
 }
 
-/** d2:hasValue guards for every data element / attribute the condition reads.
+/** Values that always exist, so need no d2:hasValue guard. */
+const ALWAYS_SET = ['current_date', 'fixed_date', 'relative_current_date']
+
+/** d2:hasValue guards for every field and system date the condition reads.
  * An empty number evaluates as 0 in the rule engine, so a comparison against
- * an empty field would otherwise fire. */
+ * an empty field would otherwise fire. An empty system date (a scheduled
+ * event has no event date yet) makes the engine log an error on every
+ * evaluation, which Capture shows in the browser console. */
 function buildGuards(...variables: (Variable | null | undefined)[]): string[] {
     const refs: string[] = []
     for (const variable of variables) {
-        if (!variable || isSystemVariable(variable)) {
+        if (!variable || ALWAYS_SET.includes(variable.type)) {
             continue
         }
         const guard = `d2:hasValue(${getVariableReference(variable)})`

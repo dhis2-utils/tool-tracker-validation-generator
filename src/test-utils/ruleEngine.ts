@@ -35,7 +35,8 @@ export type EngineVariable = {
 export type EngineInput = {
     /** values keyed by PRV name; missing or '' = field left empty */
     values?: Record<string, string | undefined>
-    eventDate?: string
+    /** null = no event date yet (a scheduled event, or the field cleared) */
+    eventDate?: string | null
     dueDate?: string
     enrollmentDate?: string
     incidentDate?: string
@@ -54,7 +55,8 @@ export const daysFromToday = (offset: number): string => {
 /**
  * True when a SHOWERROR rule with `condition` fires for the target event of an
  * enrollment carrying `input`. Throws if the engine cannot evaluate the
- * condition (the engine reports that as an error effect, not as "false").
+ * condition: it reports that as an error effect, or only logs it and treats
+ * the rule as not firing (Capture shows those in the browser console).
  */
 export function fires(
     condition: string,
@@ -102,7 +104,9 @@ export function fires(
         STAGE,
         'Stage',
         RuleEventStatus.ACTIVE,
-        input.eventDate ? date(input.eventDate) : date(daysFromToday(0)),
+        input.eventDate === null
+            ? (null as unknown as RuleLocalDate)
+            : date(input.eventDate ?? daysFromToday(0)),
         RuleInstant.now(),
         null,
         input.dueDate ? date(input.dueDate) : null,
@@ -121,12 +125,27 @@ export function fires(
         ruleVariables,
         new RuleSupplementaryDataJs([], [], new Map())
     )
-    const effects = new RuleEngineJs().evaluateEvent(
-        event,
-        enrollment,
-        [],
-        context
-    )
+    const logged: string[] = []
+    const original = console.error
+    console.error = (...args: unknown[]) => {
+        logged.push(args.map(String).join(' '))
+    }
+    let effects
+    try {
+        effects = new RuleEngineJs().evaluateEvent(
+            event,
+            enrollment,
+            [],
+            context
+        )
+    } finally {
+        console.error = original
+    }
+    if (logged.length > 0) {
+        throw new Error(
+            `rule engine could not evaluate "${condition}": ${logged.join('; ')}`
+        )
+    }
     const types = effects.map((e) => e.ruleAction.type)
     if (types.some((t) => t !== 'SHOWERROR')) {
         throw new Error(

@@ -136,7 +136,7 @@ describe('prGetExisting — attributes a rule to the variable it validates', () 
                 id: 'rWithinEnr',
                 programStage: { id: ANC },
                 condition:
-                    'd2:hasValue(#{P_VISIT}) && (d2:daysBetween(V{enrollment_date}, #{P_VISIT}) < 0 || d2:daysBetween(V{enrollment_date}, d2:addDays(#{P_VISIT}, -1)) >= 30 || d2:daysBetween(d2:addDays(V{enrollment_date}, 1), #{P_VISIT}) >= 30)',
+                    'd2:hasValue(#{P_VISIT}) && d2:hasValue(V{enrollment_date}) && (d2:daysBetween(V{enrollment_date}, #{P_VISIT}) < 0 || d2:daysBetween(V{enrollment_date}, d2:addDays(#{P_VISIT}, -1)) >= 30 || d2:daysBetween(d2:addDays(V{enrollment_date}, 1), #{P_VISIT}) >= 30)',
             },
         ])
         expect(ids(prGetExisting(meta, visitIn(ANC)))).toEqual(['rWithinEnr'])
@@ -148,13 +148,14 @@ describe('prGetExisting — attributes a rule to the variable it validates', () 
             {
                 id: 'rEv',
                 programStage: { id: ANC },
-                condition: 'd2:daysBetween(V{event_date}, V{current_date}) < 0',
+                condition:
+                    'd2:hasValue(V{event_date}) && d2:daysBetween(V{event_date}, V{current_date}) < 0',
             },
             {
                 id: 'rDue',
                 programStage: { id: ANC },
                 condition:
-                    'd2:daysBetween(V{due_date}, V{enrollment_date}) > 0',
+                    'd2:hasValue(V{due_date}) && d2:hasValue(V{enrollment_date}) && d2:daysBetween(V{due_date}, V{enrollment_date}) > 0',
             },
         ])
         expect(ids(prGetExisting(meta, eventDateIn(ANC)))).toEqual(['rEv'])

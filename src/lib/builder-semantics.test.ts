@@ -33,6 +33,11 @@ const NUMS: EngineVariable[] = [
 ]
 const currentDate = makeVariable({ type: 'current_date', id: 'current_date' })
 const enrollment = makeVariable({ type: 'enrollment', id: 'enrollment_date' })
+const eventDate = makeVariable({
+    type: 'event_date',
+    id: 'event_date_stage000001',
+    stageId: 'stage000001',
+})
 
 describe('before / after / on or before / on or after', () => {
     // [operator, rejects yesterday, rejects today, rejects tomorrow]
@@ -313,5 +318,56 @@ describe('numeric conditions', () => {
         // B empty would evaluate as 0 without a guard on B
         expect(rejectsA(c, '80', undefined)).toBe(false)
         expect(rejectsA(c, undefined, '120')).toBe(false)
+    })
+})
+
+describe('an empty event date (scheduled event, or the field cleared)', () => {
+    // Unguarded, the engine cannot compute d2:daysBetween on it: the rule does
+    // not fire, but Capture logs "Failed to coerce value 'null'" every time.
+    const fixed2000 = makeVariable({ type: 'fixed_date', id: '2000-01-01' })
+    const cases: [string, string][] = [
+        [
+            'event date after a fixed date',
+            generateNewRuleCondition(eventDate, fixed2000, {
+                operator: 'after',
+            }),
+        ],
+        [
+            'event date on or after enrollment',
+            generateNewRuleCondition(eventDate, enrollment, {
+                operator: 'on_or_after',
+            }),
+        ],
+        [
+            'field within 7 days after the event date',
+            generateNewRuleCondition(X, eventDate, {
+                operator: 'within_after',
+                intervalAmount: 7,
+                intervalUnit: 'days',
+            }),
+        ],
+        [
+            'event date between two fields',
+            generateBetweenDateCondition(eventDate, X, E),
+        ],
+    ]
+    it.each(cases)('%s: no engine error, never fires', (_, c) => {
+        const values = { X: '2026-01-01', E: '2026-12-31' }
+        expect(fires(c, DATES, { values, eventDate: null })).toBe(false)
+    })
+
+    it.each(cases)('%s: still evaluated once the date is set', (_, c) => {
+        const values = { X: '2026-01-01', E: '2026-12-31' }
+        expect(() =>
+            fires(c, DATES, { values, eventDate: '1999-06-01' })
+        ).not.toThrow()
+    })
+
+    it('a rule on the event date still rejects a date before 2000', () => {
+        const c = generateNewRuleCondition(eventDate, fixed2000, {
+            operator: 'after',
+        })
+        expect(fires(c, DATES, { eventDate: '1999-12-31' })).toBe(true)
+        expect(fires(c, DATES, { eventDate: '2000-01-02' })).toBe(false)
     })
 })

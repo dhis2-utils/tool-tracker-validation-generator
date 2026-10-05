@@ -137,7 +137,7 @@ describe('getUnvalidatedVariables', () => {
                 id: 'rule01AAAAA',
                 programStage: { id: 'stg01' },
                 condition:
-                    'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) < 0',
+                    'd2:hasValue(#{PRV_VACC}) && d2:hasValue(V{enrollment_date}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) < 0',
             }),
         ],
         programRuleActions: [
@@ -445,7 +445,7 @@ describe('buildEditConfig', () => {
     it('maps a variable comparison back to a comparison key', () => {
         const rule = makeRule({
             condition:
-                'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) <= 0',
+                'd2:hasValue(#{PRV_VACC}) && d2:hasValue(V{enrollment_date}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) <= 0',
         })
         const parsed = parseRuleCondition(rule.condition, meta, 'stg01')
         const config = buildEditConfig(
@@ -1413,7 +1413,7 @@ describe('buildEditConfig — defaults', () => {
         description:
             '[DVT] Validates that Vaccination date is on the same date or after Enrollment date',
         condition:
-            'd2:hasValue(#{PRV_VACC}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) > 0',
+            'd2:hasValue(#{PRV_VACC}) && d2:hasValue(V{enrollment_date}) && d2:daysBetween(#{PRV_VACC}, V{enrollment_date}) > 0',
     })
 
     it('defaults the relative unit to days (the only unit the engine supports)', () => {
