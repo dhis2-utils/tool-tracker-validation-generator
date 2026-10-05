@@ -3,8 +3,8 @@
 > ![Maturity: Experimental](https://img.shields.io/badge/maturity-Experimental-orange)  
 > Intended use: quickly monitoring and configuring validation of dates and numeric values in DHIS2 tracker using program rules.  
 > Maintainers: HISP Centre implementation team.
->
-> **WARNING**
+
+> [!WARNING]
 > This tool is intended to be used by system administrators to perform specific tasks; it is not
 > intended for end users. It is available as a DHIS2 app, but has not been through the same
 > rigorous testing as normal core apps. It should be used with care, and always tested in a
@@ -22,7 +22,7 @@
 - Supports all feedback action types (`SHOWERROR`, `SHOWWARNING`, `ERRORONCOMPLETE`,
   `WARNINGONCOMPLETE`)
 - Bulk rules: queue reusable baseline templates and apply them in one pass to every variable that
-  has no validation yet; bulk rules are tagged so the tool can offer to remove them once a
+  has no validation yet (due dates excepted); bulk rules are tagged so the tool can offer to remove them once a
   specific rule is created
 - Edits and deletes rules created by the tool (tagged `[DVT]` in the rule description)
 - Per-programme settings for program rule and program rule variable name prefixes (stored in the
@@ -47,6 +47,16 @@ Leone and Laos HMIS demo databases — see `docs/review-2026-08-24-multiversion/
 
 ## Known limitations
 
+- **Android: rules on enrollment, incident, event and due dates show nothing.** These dates have
+  no data element to attach a message to, and the DHIS2 Android Capture app (3.4.2) neither shows
+  such messages nor blocks saving ([ANDROAPP-7843](https://dhis2.atlassian.net/browse/ANDROAPP-7843)).
+  DHIS2 rejects the record when the device syncs, which leaves a sync error on the device. Capture
+  web shows them normally. The tool warns when you create one.
+- **Capture web on DHIS2 2.41 and older: month-end edge of "within N months/years".** Before 2.42,
+  Capture web evaluates rules with its legacy JavaScript engine, which counts 31 Aug → 30 Sep as
+  a whole month. A months/years window whose limit falls on a month end then rejects its last
+  valid day there (never the other way round). Android, the server and Capture web on 2.42+ are
+  exact. "Within" in days or weeks is exact everywhere.
 - **Android: on-complete actions on tracked entity attributes do nothing.** The DHIS2 Android
   Capture app does not support `ERRORONCOMPLETE` / `WARNINGONCOMPLETE` for tracked entity
   attributes (they are supported for data elements). A rule of that shape shows nothing on
@@ -71,6 +81,6 @@ pnpm run lint                                    # eslint + prettier
 pnpm run build                                   # production build + zip bundle
 ```
 
-The deployable app bundle is written to `build/bundle/tool-tracker-validation-<version>.zip` and
+The deployable app bundle is written to `build/bundle/tool-tracker-validation-generator-<version>.zip` and
 can be installed through the DHIS2 App Management app. Tagged releases (`v*.*.*`) also attach
 it to a GitHub release via `.github/workflows/release.yml`.

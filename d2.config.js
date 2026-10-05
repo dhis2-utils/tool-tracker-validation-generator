@@ -1,7 +1,7 @@
 /** @type {import('@dhis2/cli-app-scripts').D2Config} */
 const config = {
     type: 'app',
-    name: 'tool-tracker-validation',
+    name: 'tool-tracker-validation-generator',
     title: 'Tracker Validation Tool',
     description:
         'Configure and manage validation program rules (dates and numeric values) in DHIS2 tracker programmes',

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { makeMeta } from './helpers'
-import { buildVariablesArray } from '@/lib/variables'
+import {
+    buildVariablesArray,
+    sanitizePrvPrefix,
+    variablePath,
+} from '@/lib/variables'
+import { makeMeta, makeVariable } from '@/test-utils/helpers'
 
 const mockMeta = makeMeta({
     enrollmentDateLabel: 'Registration date',
@@ -332,5 +336,39 @@ describe('buildVariablesArray — numeric variables', () => {
         const vars = buildVariablesArray(meta)
         expect(vars.find((x) => x.id === 'deOptNum01AA')).toBeUndefined()
         expect(vars.find((x) => x.id === 'teaOptNum01A')).toBeUndefined()
+    })
+})
+
+describe('sanitizePrvPrefix', () => {
+    it.each([
+        ['eir', 'EIR'],
+        ['My prog', 'MY_PROG'],
+        ['a-b.c', 'A_B_C'],
+        ['  x  ', 'X'],
+        ['__EIR__', 'EIR'],
+        ['æøå 1', '1'],
+        ['', ''],
+    ])('%j → %j', (input, expected) => {
+        expect(sanitizePrvPrefix(input)).toBe(expected)
+    })
+})
+
+describe('variablePath', () => {
+    it('includes the stage for stage-bound fields', () => {
+        const v = makeVariable({
+            type: 'dataElement',
+            id: 'de1',
+            stageId: 'st1',
+        })
+        expect(variablePath('prog1', v)).toBe(
+            '/prog1/variable/dataElement/de1/st1'
+        )
+    })
+
+    it('has no stage segment for programme-level fields', () => {
+        const v = makeVariable({ type: 'enrollment', id: 'enrollment_date' })
+        expect(variablePath('prog1', v)).toBe(
+            '/prog1/variable/enrollment/enrollment_date'
+        )
     })
 })

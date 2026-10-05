@@ -11,8 +11,11 @@
         "moduleResolution": "node",
         "baseUrl": ".",
         "paths": {
-            "@/*": ["src/*"]
+            "@/*": ["src/*"],
+            "@dhis2/rule-engine": [
+                "node_modules/@dhis2/rule-engine/rule-engine.d.mts"
+            ]
         }
     },
-    "include": ["src", "types", "tests"]
+    "include": ["src", "types"]
 }

@@ -187,7 +187,10 @@ export interface BatchTemplate extends ValidationConfig {
 
 export interface ExistingValidation {
     rule: ProgramRule
+    /** The rule's feedback actions (error / warning messages) */
     actions: ProgramRuleAction[]
+    /** Every action of the rule, feedback or not (e.g. ASSIGN) */
+    allActions: ProgramRuleAction[]
 }
 
 export interface ParsedRuleCondition {

@@ -8,34 +8,28 @@ on:
 permissions:
     contents: write
 
-# Tags in this repo are protected: they cannot be deleted or moved. Any step
-# that fails AFTER the tag is pushed therefore burns that version number for
-# good (v1.0.0 and v1.0.1 were lost this way). So: only fail on things that
-# make the build itself impossible; for everything else, warn and degrade —
-# a wrong GitHub *release* can always be deleted and recreated, a tag cannot.
 jobs:
     release:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-            - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+            - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-            - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+            # No dependency cache: this job holds a write token, and whatever a
+            # poisoned cache delivers would run with it (RELEASE-WORKFLOW.md).
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
               with:
                   node-version: 22
-                  cache: pnpm
 
+            # Warn, never fail: a wrong release can be deleted and recreated, but a
+            # protected tag cannot be moved, so exiting here would burn the version.
             - name: Check tag against package.json version
-              # Mismatch is a real mistake, but exiting here would waste the tag.
-              # Warn, and publish the release as a DRAFT so nothing wrong goes
-              # public without a human looking at it first.
               run: |
                   VERSION=$(node -p "require('./package.json').version")
                   TAG="${GITHUB_REF_NAME#v}"
                   if [ "$VERSION" != "$TAG" ]; then
-                    echo "::warning::Tag $GITHUB_REF_NAME does not match package.json version $VERSION; the bundle will carry $VERSION and the release is created as a draft"
-                    echo "RELEASE_DRAFT=1" >> "$GITHUB_ENV"
+                    echo "::warning::Tag $GITHUB_REF_NAME does not match package.json version $VERSION; the attached bundle will carry $VERSION"
                   fi
 
             - name: Install dependencies
@@ -47,8 +41,10 @@ jobs:
               run: pnpm run build
 
             - name: Extract changelog section
-              # Cosmetic: a missing section must not fail the job. Warn and fall
-              # back to a generic note.
+              # Tags are protected: they cannot be deleted or moved. So a missing
+              # changelog section must NOT fail the job — that would burn the
+              # version number with no way to retry it. Warn and fall back to a
+              # generic note instead.
               run: |
                   VERSION="${GITHUB_REF_NAME#v}"
                   awk -v ver="$VERSION" '
@@ -63,20 +59,17 @@ jobs:
                     echo "Release $GITHUB_REF_NAME" > release-notes.md
                   fi
 
-            - name: Create or update GitHub release
-              # Idempotent: a re-run of this workflow (e.g. after a transient
-              # failure) must not die on "release already exists".
+            - name: Create GitHub release
+              # A re-run after a transient failure finds the release an earlier
+              # attempt created; upload to it instead of failing on "already exists".
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-                    echo "Release $GITHUB_REF_NAME exists; updating notes and re-uploading the bundle"
-                    gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md
-                    gh release upload "$GITHUB_REF_NAME" build/bundle/*.zip --clobber
+                  if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+                    gh release upload "$GITHUB_REF_NAME" --clobber build/bundle/*.zip
                   else
                     gh release create "$GITHUB_REF_NAME" \
                       --title "$GITHUB_REF_NAME" \
                       --notes-file release-notes.md \
-                      ${RELEASE_DRAFT:+--draft} \
                       build/bundle/*.zip
                   fi

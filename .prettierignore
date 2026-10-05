@@ -8,7 +8,7 @@ compiled
 .vscode
 .DS_Store
 .pnpm-store
-tests/e2e/__pycache__/
+e2e/**/__pycache__/
 
 # Auto-generated package-manager lockfile — never hand-format
 pnpm-lock.yaml

@@ -14,7 +14,7 @@ the pre-migration code lives in git history before the `feat/app-platform-migrat
 - All DHIS2 API access goes through the app-runtime data engine (`useDataEngine`), wrapped in
   TanStack Query v4 hooks (`src/hooks/`) — never use raw `fetch` for DHIS2 endpoints
 - Business logic (condition building/parsing, rule detection, signatures) lives in `src/lib/` as
-  pure functions with unit tests in `tests/` — keep it free of React and engine imports
+  pure functions with unit tests next to them (`*.test.ts`) — keep it free of React and engine imports
 - User-facing strings use `i18n.t()` from `@dhis2/d2-i18n`; strings persisted into DHIS2 metadata
   (rule names, conditions, descriptions) stay locale-independent English
 - Styling: CSS Modules with DHIS2 design tokens (`var(--spacers-dp16)`, `var(--colors-grey900)`)
@@ -26,9 +26,10 @@ the pre-migration code lives in git history before the `feat/app-platform-migrat
 
 - `pnpm start` — dev server (use `--proxy <url>` to proxy a DHIS2 instance)
 - `pnpm run build` — production build + `.zip` bundle under `build/bundle/`
-- `pnpm test` — vitest unit tests (`tests/*.test.ts`)
+- `pnpm test` — vitest unit tests (`src/**/*.test.ts`, helpers in `src/test-utils/`)
 - `pnpm run lint` — eslint + prettier check
 - `pnpm exec tsc --noEmit` — type check
+- `e2e/run.sh` — end-to-end suite on a disposable instance (inputs in `e2e/README.md`)
 
 ## Project Structure
 
@@ -42,9 +43,12 @@ src/
                           useProgramData) and mutation actions (useValidationActions)
   services/rules.ts     - Engine-based persistence: PRV conflict handling, rule create/update/
                           delete, batch apply
-  lib/                  - Pure domain logic: builder, detector, signature (condition parser),
-                          variables, validation (form/preview/batch helpers), types
-tests/                  - Vitest unit tests for src/lib and src/services
+  test-utils/           - Unit-test helpers: fixtures, a fake DHIS2 server, the real rule engine
+  lib/                  - Pure domain logic: builder, parser (strict condition reader), detector,
+                          signature (app tags), variables, validation (form/preview/batch
+                          helpers), types
+e2e/                    - Live-instance suite (Python + Playwright); entry point e2e/run.sh,
+                          disposable instances only (see e2e/README.md)
 ```
 
 ## Architecture notes

@@ -14,6 +14,7 @@ import {
     useProgramConfig,
     useSaveProgramConfig,
 } from '@/hooks/useProgramConfig'
+import { sanitizePrvPrefix } from '@/lib/variables'
 
 export const SettingsModal = ({
     programId,
@@ -38,7 +39,7 @@ export const SettingsModal = ({
         saveConfig(
             {
                 programRulePrefix: rulePrefix,
-                programRuleVariablePrefix: variablePrefix,
+                programRuleVariablePrefix: sanitizePrvPrefix(variablePrefix),
             },
             { onSuccess: onClose }
         )
@@ -66,9 +67,19 @@ export const SettingsModal = ({
                         <InputField
                             label={i18n.t('Program rule variable prefix')}
                             placeholder={i18n.t('e.g. EIR')}
-                            helpText={i18n.t(
-                                'Added to all program rule variable names (use underscores only)'
-                            )}
+                            helpText={
+                                sanitizePrvPrefix(variablePrefix) !==
+                                variablePrefix
+                                    ? i18n.t('Will be saved as "{{prefix}}"', {
+                                          prefix: sanitizePrvPrefix(
+                                              variablePrefix
+                                          ),
+                                          nsSeparator: undefined,
+                                      })
+                                    : i18n.t(
+                                          'Added to all program rule variable names (letters, digits and underscores)'
+                                      )
+                            }
                             value={variablePrefix}
                             onChange={({ value }: { value?: string }) =>
                                 setVariablePrefix(value ?? '')

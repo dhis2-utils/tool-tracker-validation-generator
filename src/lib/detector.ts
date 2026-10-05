@@ -1,14 +1,10 @@
-// Stage- and target-aware rule detection
-import {
-    isIntervalExpression,
-    parseBetweenExpression,
-    stripNullGuard,
-} from './expression'
+// Which program rules belong to a variable
+import { parseRuleCondition } from './parser'
 import type {
     ExistingValidation,
     ProgramMetadata,
     ProgramRule,
-    ProgramRuleVariable,
+    ProgramRuleAction,
     Variable,
 } from './types'
 
@@ -19,173 +15,152 @@ export const FEEDBACK_ACTION_TYPES = [
     'ERRORONCOMPLETE',
 ]
 
+const STAGE_BOUND_TYPES = ['dataElement', 'event_date', 'due_date']
+
+/** A rule without a stage applies in every stage; one with a stage only there. */
+function ruleAppliesToStage(rule: ProgramRule, variable: Variable): boolean {
+    if (!STAGE_BOUND_TYPES.includes(variable.type)) {
+        return true
+    }
+    return !rule.programStage?.id || rule.programStage.id === variable.stageId
+}
+
+function actionsByRule(
+    metadata: ProgramMetadata
+): Map<string, ProgramRuleAction[]> {
+    const map = new Map<string, ProgramRuleAction[]>()
+    for (const action of metadata.programRuleActions || []) {
+        const ruleId = action.programRule?.id
+        if (ruleId) {
+            map.set(ruleId, [...(map.get(ruleId) ?? []), action])
+        }
+    }
+    return map
+}
+
+/** Rules (with at least one feedback action) and their actions. */
+function feedbackRules(metadata: ProgramMetadata): ExistingValidation[] {
+    const byRule = actionsByRule(metadata)
+    const result: ExistingValidation[] = []
+    for (const rule of metadata.programRules || []) {
+        const allActions = byRule.get(rule.id) ?? []
+        const actions = allActions.filter((a) =>
+            FEEDBACK_ACTION_TYPES.includes(a.programRuleActionType)
+        )
+        if (actions.length > 0 && rule.condition) {
+            result.push({ rule, actions, allActions })
+        }
+    }
+    return result
+}
+
+function isValidatedBy(
+    metadata: ProgramMetadata,
+    rule: ProgramRule,
+    variable: Variable
+): boolean {
+    const parsed = parseRuleCondition(
+        rule.condition,
+        metadata,
+        rule.programStage?.id
+    )
+    const target = parsed?.variable1
+    return Boolean(
+        target &&
+        target.type === variable.type &&
+        target.id === variable.id &&
+        ruleAppliesToStage(rule, variable)
+    )
+}
+
+/**
+ * Rules that validate `variable`: their condition is exactly one of the app's
+ * shapes (see parser.ts) with `variable` as the validated field, in a stage
+ * the rule applies to. Rules created by other tools in the same shape count
+ * too (they validate the field); whether the app may edit them is decided by
+ * the [DVT] tag.
+ */
 export function prGetExisting(
+    programMetadata: ProgramMetadata | null,
+    variable: Variable | null
+): ExistingValidation[] {
+    if (!programMetadata || !variable || variable.type === 'current_date') {
+        return []
+    }
+    return feedbackRules(programMetadata).filter(({ rule }) =>
+        isValidatedBy(programMetadata, rule, variable)
+    )
+}
+
+/**
+ * The field `rule` validates, from `variables` (the programme's offered
+ * variables), when its condition is one of the app's shapes; otherwise null.
+ */
+export function validatedVariable(
+    metadata: ProgramMetadata,
+    rule: ProgramRule,
+    variables: Variable[]
+): Variable | null {
+    return (
+        variables.find(
+            (variable) =>
+                variable.type !== 'current_date' &&
+                isValidatedBy(metadata, rule, variable)
+        ) ?? null
+    )
+}
+
+const escapeRegExp = (text: string) =>
+    text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+function referencePatterns(
+    metadata: ProgramMetadata,
+    variable: Variable
+): RegExp[] {
+    switch (variable.type) {
+        case 'enrollment':
+            return [/V\{enrollment_date\}/]
+        case 'incident':
+            return [/V\{incident_date\}/]
+        case 'event_date':
+            return [/V\{event_date\}/]
+        case 'due_date':
+            return [/V\{due_date\}/]
+        case 'dataElement':
+        case 'trackedEntityAttribute':
+            return (metadata.programRuleVariables || [])
+                .filter((prv) =>
+                    variable.type === 'dataElement'
+                        ? prv.dataElement?.id === variable.id
+                        : prv.trackedEntityAttribute?.id === variable.id
+                )
+                .map((prv) => new RegExp(`[#A]\\{${escapeRegExp(prv.name)}\\}`))
+        default:
+            return []
+    }
+}
+
+/**
+ * Other rules with feedback actions that read `variable` (through any of its
+ * program rule variables, whatever the source type) but don't validate it in
+ * one of the app's shapes. Shown read-only, so admins see everything that
+ * already reacts to the field.
+ */
+export function prGetReferencing(
     programMetadata: ProgramMetadata | null,
     variable: Variable | null
 ): ExistingValidation[] {
     if (!programMetadata || !variable) {
         return []
     }
-    const { type, id } = variable
-
-    const relatedPrvs = (programMetadata.programRuleVariables || []).filter(
-        (prv) =>
-            (type === 'dataElement' && prv.dataElement?.id === id) ||
-            (type === 'trackedEntityAttribute' &&
-                prv.trackedEntityAttribute?.id === id)
+    const patterns = referencePatterns(programMetadata, variable)
+    if (patterns.length === 0) {
+        return []
+    }
+    return feedbackRules(programMetadata).filter(
+        ({ rule }) =>
+            ruleAppliesToStage(rule, variable) &&
+            patterns.some((pattern) => pattern.test(rule.condition)) &&
+            !isValidatedBy(programMetadata, rule, variable)
     )
-
-    const result: ExistingValidation[] = []
-    ;(programMetadata.programRules || []).forEach((rule) => {
-        const actions = (programMetadata.programRuleActions || []).filter(
-            (a) =>
-                a.programRule?.id === rule.id &&
-                FEEDBACK_ACTION_TYPES.includes(a.programRuleActionType)
-        )
-        if (!actions.length || !rule.condition) {
-            return
-        }
-
-        const matches = isVariablePrimaryTarget(
-            rule.condition,
-            variable,
-            relatedPrvs,
-            rule
-        )
-
-        if (matches) {
-            result.push({ rule, actions })
-        }
-    })
-
-    return result
-}
-
-/**
- * Does a single d2:*Between argument reference this variable?
- * Stage-bound system dates (event_date/due_date) only match when the rule is
- * scoped to the variable's own programme stage.
- */
-function refMatchesVariable(
-    ref: string,
-    variable: Variable,
-    relatedPrvs: ProgramRuleVariable[],
-    rule: ProgramRule
-): boolean {
-    const { type } = variable
-    const cleanRef = ref.trim()
-
-    if (
-        type === 'enrollment' &&
-        (cleanRef === 'enrollment_date' || cleanRef === 'V{enrollment_date}')
-    ) {
-        return true
-    }
-    if (
-        type === 'incident' &&
-        (cleanRef === 'incident_date' || cleanRef === 'V{incident_date}')
-    ) {
-        return true
-    }
-    if (
-        type === 'event_date' &&
-        (cleanRef === 'event_date' || cleanRef === 'V{event_date}')
-    ) {
-        // Only match if rule is limited to the same programme stage
-        return Boolean(
-            variable.stageId && rule?.programStage?.id === variable.stageId
-        )
-    }
-    if (
-        type === 'due_date' &&
-        (cleanRef === 'due_date' || cleanRef === 'V{due_date}')
-    ) {
-        return Boolean(
-            variable.stageId && rule?.programStage?.id === variable.stageId
-        )
-    }
-    if (
-        type === 'current_date' &&
-        (cleanRef === 'current_date' || cleanRef === 'V{current_date}')
-    ) {
-        return true
-    }
-
-    // For data elements and attributes, check if the PRV name matches
-    // (remove only braces and hash, keep underscores and all other chars)
-    if (type === 'dataElement' || type === 'trackedEntityAttribute') {
-        const prvName = cleanRef.replace(/[{}#]/g, '')
-        return relatedPrvs.some((prv) => prv.name === prvName)
-    }
-
-    return false
-}
-
-function isVariablePrimaryTarget(
-    condition: string,
-    variable: Variable,
-    relatedPrvs: ProgramRuleVariable[],
-    rule: ProgramRule
-): boolean {
-    const stripped = stripNullGuard(condition)
-
-    // "between": the value being outside the range, encoded as two clauses
-    // joined by ||. The validated variable is the first argument of each
-    // d2:daysBetween clause (dates) or the #{} operand (numeric). Checked
-    // before the single-clause forms. Strip an optional wrapping paren.
-    const betweenBody = stripped.replace(/^\((.*)\)$/, '$1')
-    const clauses = betweenBody.split('||').map((clause) => clause.trim())
-    if (clauses.length === 2) {
-        for (const clause of clauses) {
-            const clauseBetween = parseBetweenExpression(clause)
-            if (
-                clauseBetween &&
-                refMatchesVariable(
-                    clauseBetween.ref1,
-                    variable,
-                    relatedPrvs,
-                    rule
-                )
-            ) {
-                return true
-            }
-            const numeric = clause.match(/^#{([^}]+)}\s*(>=|<=|>|<|==|!=)/)
-            if (
-                numeric &&
-                (variable.type === 'dataElement' ||
-                    variable.type === 'trackedEntityAttribute') &&
-                relatedPrvs.some((prv) => prv.name === numeric[1])
-            ) {
-                return true
-            }
-        }
-    }
-
-    const between = parseBetweenExpression(stripped)
-    if (between) {
-        // Comparison conditions (op against 0) put the validated variable
-        // first; interval conditions (within N units before/after) place it
-        // as either argument depending on direction — check both so
-        // within_before rules stay attributed to the variable they validate.
-        const refs = isIntervalExpression(between)
-            ? [between.ref1, between.ref2]
-            : [between.ref1]
-        return refs.some((ref) =>
-            refMatchesVariable(ref, variable, relatedPrvs, rule)
-        )
-    }
-
-    // Parse numeric conditions: #{VAR} OP value  or  #{VAR} OP #{VAR2}
-    const numericMatch = stripped.match(/#{([^}]+)}\s*(>=|<=|>|<|==|!=)\s*.+/)
-    if (numericMatch) {
-        const [, prvName] = numericMatch
-        if (
-            variable.type === 'dataElement' ||
-            variable.type === 'trackedEntityAttribute'
-        ) {
-            return relatedPrvs.some((prv) => prv.name === prvName)
-        }
-    }
-
-    return false
 }

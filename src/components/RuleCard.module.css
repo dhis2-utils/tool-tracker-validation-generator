@@ -25,6 +25,13 @@
     gap: var(--spacers-dp8);
 }
 
+.tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--spacers-dp4);
+}
+
 .ruleHeader h4 {
     margin: 0;
     font-size: 14px;
@@ -55,4 +62,14 @@
     padding: 1px 4px;
     border-radius: 3px;
     font-size: 12px;
+}
+
+.metaRow {
+    display: contents;
+}
+
+.blockedNote {
+    margin: 0;
+    font-size: 13px;
+    color: var(--colors-grey700);
 }

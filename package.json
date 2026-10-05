@@ -1,7 +1,7 @@
 {
-    "name": "tool-tracker-validation",
-    "version": "1.0.2",
-    "description": "Tool to configure and manage validation program rules (dates and numeric values) in DHIS2 tracker programmes",
+    "name": "tool-tracker-validation-generator",
+    "version": "1.1.0",
+    "description": "Configure and manage validation program rules (dates and numeric values) in DHIS2 tracker programmes",
     "license": "BSD-3-Clause",
     "private": true,
     "packageManager": "pnpm@10.13.1",
@@ -14,26 +14,27 @@
         "format": "prettier . -w"
     },
     "dependencies": {
-        "@dhis2/app-runtime": "^3.15.1",
-        "@dhis2/ui": "^10.11.0",
-        "@tanstack/react-query": "^4.42.0",
+        "@dhis2/app-runtime": "^3.17.4",
+        "@dhis2/ui": "^10.19.0",
+        "@tanstack/react-query": "^4.44.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
-        "react-router-dom": "^7.18.1"
+        "react-router-dom": "^7.18.4"
     },
     "devDependencies": {
-        "@dhis2/cli-app-scripts": "12.10.3",
+        "@dhis2/cli-app-scripts": "12.11.5",
         "@dhis2/config-eslint": "^0.2.2",
         "@dhis2/config-prettier": "^0.2.2",
-        "@eslint/compat": "^2.0.0",
+        "@dhis2/rule-engine": "^3.8.3",
+        "@eslint/compat": "^2.1.1",
         "@types/jest": "^30.0.0",
         "@types/react": "^18.3.31",
         "@types/react-dom": "^18.3.7",
-        "eslint": "^9.39.2",
+        "eslint": "^9.39.5",
         "eslint-import-resolver-typescript": "^4.4.5",
         "prettier": "^3.7.4",
         "typescript": "^5.9.3",
-        "vite": "^7.3.0",
-        "vitest": "^4.1.10"
+        "vite": "^7.3.6",
+        "vitest": "^4.1.11"
     }
 }

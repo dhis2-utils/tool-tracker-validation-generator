@@ -10,7 +10,11 @@ export const useProgramData = (programId: string | undefined) => {
         isLoading: isLoadingMetadata,
         error: metadataError,
     } = useProgramMetadata(programId)
-    const { config, isLoading: isLoadingConfig } = useProgramConfig(programId)
+    const {
+        config,
+        isLoading: isLoadingConfig,
+        error: configError,
+    } = useProgramConfig(programId)
 
     const variables = useMemo(
         () => buildVariablesArray(programMetadata),
@@ -22,6 +26,6 @@ export const useProgramData = (programId: string | undefined) => {
         config,
         variables,
         isLoading: isLoadingMetadata || isLoadingConfig,
-        error: metadataError,
+        error: metadataError ?? configError,
     }
 }

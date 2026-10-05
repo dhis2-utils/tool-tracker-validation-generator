@@ -177,6 +177,13 @@ export function findVariableByComponents(
     )
 }
 
+/** Hash-router path of a variable's details page */
+export function variablePath(programId: string, variable: Variable): string {
+    return `/${programId}/variable/${variable.type}/${variable.id}${
+        variable.stageId ? `/${variable.stageId}` : ''
+    }`
+}
+
 /** "type:id[:stageId]" key used in selects and URLs */
 export function getVariableKey(variable: Variable): string {
     return `${variable.type}:${variable.id}${variable.stageId ? ':' + variable.stageId : ''}`
@@ -201,4 +208,13 @@ export function findVariableByKey(
                 (v.stageId || '') === (stageId || '')
         ) ?? null
     )
+}
+
+/** Program rule variable prefix: PRV names are referenced as #{NAME}, so keep
+ * them to upper-case letters, digits and single underscores. */
+export function sanitizePrvPrefix(prefix: string): string {
+    return prefix
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
 }

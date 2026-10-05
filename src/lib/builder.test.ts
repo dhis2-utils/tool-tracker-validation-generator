@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { makeVariable } from './helpers'
 import {
     generateBetweenDateCondition,
     generateNewRuleCondition,
@@ -9,6 +8,7 @@ import {
     getVariableReference,
     isSystemVariable,
 } from '@/lib/builder'
+import { makeVariable } from '@/test-utils/helpers'
 
 const enrollment = makeVariable({ type: 'enrollment', id: 'enrollment_date' })
 const eventDate = makeVariable({
@@ -67,8 +67,9 @@ describe('between conditions', () => {
                 currentDate
             )
         ).toBe(
-            'd2:daysBetween(V{enrollment_date}, d2:addDays(V{current_date}, -100)) > 0 || ' +
-                'd2:daysBetween(V{enrollment_date}, V{current_date}) < 0'
+            'd2:hasValue(V{enrollment_date}) && ' +
+                '(d2:daysBetween(V{enrollment_date}, d2:addDays(V{current_date}, -100)) > 0 || ' +
+                'd2:daysBetween(V{enrollment_date}, V{current_date}) < 0)'
         )
     })
 })
@@ -89,18 +90,31 @@ describe('generateNewRuleCondition — null guards', () => {
         expect(condition).toContain('d2:hasValue(#{EIR_TEA_DATE})')
     })
 
-    it('does NOT add guard for enrollment_date (system variable)', () => {
+    it('guards system dates too (a scheduled event has no event date yet)', () => {
         const condition = generateNewRuleCondition(enrollment, eventDate, {
             operator: 'before',
         })
-        expect(condition).not.toContain('d2:hasValue')
+        expect(condition).toBe(
+            'd2:hasValue(V{enrollment_date}) && d2:hasValue(V{event_date}) && d2:daysBetween(V{enrollment_date}, V{event_date}) <= 0'
+        )
     })
 
-    it('does NOT add guard for event_date (system variable)', () => {
-        const condition = generateNewRuleCondition(eventDate, enrollment, {
-            operator: 'after',
-        })
-        expect(condition).not.toContain('d2:hasValue')
+    it('does not guard the current date or a fixed date (always set)', () => {
+        const fixed = makeVariable({ type: 'fixed_date', id: '2000-01-01' })
+        expect(
+            generateNewRuleCondition(eventDate, fixed, { operator: 'after' })
+        ).toBe(
+            "d2:hasValue(V{event_date}) && d2:daysBetween(V{event_date}, '2000-01-01') >= 0"
+        )
+        expect(
+            generateNewRuleCondition(
+                eventDate,
+                makeVariable({ type: 'current_date', id: 'current_date' }),
+                { operator: 'on_or_before' }
+            )
+        ).toBe(
+            'd2:hasValue(V{event_date}) && d2:daysBetween(V{event_date}, V{current_date}) < 0'
+        )
     })
 })
 
@@ -138,7 +152,9 @@ describe('generateNumericCondition — fires on the violation (negated op)', () 
 describe('generateNumericFieldCondition — fires on the violation', () => {
     it('greater_than → error when value <= other field', () => {
         const c = generateNumericFieldCondition(numDE, 'greater_than', numDE2)
-        expect(c).toBe('d2:hasValue(#{EIR_AGE}) && #{EIR_AGE} <= #{EIR_WEIGHT}')
+        expect(c).toBe(
+            'd2:hasValue(#{EIR_AGE}) && d2:hasValue(#{EIR_WEIGHT}) && #{EIR_AGE} <= #{EIR_WEIGHT}'
+        )
     })
 })
 
@@ -173,7 +189,7 @@ describe('date literal and relative references', () => {
             operator: 'after',
         })
         expect(condition).toBe(
-            "d2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, '1900-01-01') > 0"
+            "d2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, '1900-01-01') >= 0"
         )
     })
 
@@ -186,7 +202,7 @@ describe('date literal and relative references', () => {
             }
         )
         expect(condition).toBe(
-            'd2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, d2:addDays(V{current_date}, -100)) >= 0'
+            'd2:hasValue(#{EIR_DE_DATE}) && d2:daysBetween(#{EIR_DE_DATE}, d2:addDays(V{current_date}, -100)) > 0'
         )
     })
 })

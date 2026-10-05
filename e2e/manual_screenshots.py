@@ -10,7 +10,7 @@ Rules are left in place on the instance so the screenshots stay reproducible;
 pass CLEANUP=1 to delete them afterwards.
 
 Usage:
-    DHIS2_URL=http://dhis2-agent-tv-43:8080 DHIS2_USER=local_admin \
+    DHIS2_URL=http://dhis2-x:8080 DHIS2_USER=local_admin \
     DHIS2_PASS=district OUTDIR=docs/manual-screenshots \
     python3 manual_screenshots.py
 """
@@ -28,9 +28,9 @@ from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("DHIS2_URL", "http://dhis2-agent-tv-43:8080")
-USER = os.environ.get("DHIS2_USER", "local_admin")
-PASS = os.environ.get("DHIS2_PASS", "district")
+BASE = os.environ["DHIS2_URL"]  # a disposable instance; no defaults
+USER = os.environ["DHIS2_USER"]
+PASS = os.environ["DHIS2_PASS"]
 OUTDIR = os.environ.get("OUTDIR", "docs/manual-screenshots")
 CLEANUP = os.environ.get("CLEANUP") == "1"
 
@@ -396,7 +396,7 @@ def main():
             browser.close()
             return
 
-        page.goto(f"{LBASE}/api/apps/tool-tracker-validation/index.html",
+        page.goto(f"{LBASE}/api/apps/tool-tracker-validation-generator/index.html",
                   wait_until="domcontentloaded")
         root = find_root(page)
         root.get_by_text("Select a programme").first.wait_for(timeout=20000)

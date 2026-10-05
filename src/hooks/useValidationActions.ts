@@ -14,10 +14,12 @@ import {
     applyBatchTemplates,
     BatchApplyResult,
     BatchProgress,
+    ConditionCheck,
     createValidationForVariable,
     deleteRule,
     ProgramConfig,
     RuleServiceContext,
+    SaveResult,
     updateValidation,
 } from '@/services/rules'
 
@@ -93,14 +95,25 @@ export const useValidationActions = ({
         null
     )
 
-    // Validate a condition against DHIS2 before a rule is posted. The endpoint
+    const { show: showUnchecked } = useAlert(
+        ({ message }: { message: string }) => message,
+        { warning: true }
+    )
+    const { show: showSummary } = useAlert(
+        ({ message }: { message: string; failed: boolean }) => message,
+        ({ failed }: { message: string; failed: boolean }) =>
+            failed ? { critical: true } : { success: true }
+    )
+
+    // Validate a condition against DHIS2 before a rule is saved. The endpoint
     // consumes a text/plain body, which the app-runtime data engine can't send,
     // so this uses a direct fetch against the configured baseUrl (with session
-    // credentials). Fails open: if validation can't run (network/endpoint
-    // issue), rule creation proceeds rather than being blocked by the check.
+    // credentials). It answers HTTP 200 with status ERROR for an invalid
+    // expression; any other failure (401, proxy error, offline, non-JSON) means
+    // the check could not run: the rule is still saved, with a warning.
     const validateCondition = async (
         condition: string
-    ): Promise<{ valid: boolean; message?: string }> => {
+    ): Promise<ConditionCheck> => {
         try {
             const res = await fetch(
                 `${baseUrl}/api/programRules/condition/description?programId=${programId}`,
@@ -111,13 +124,33 @@ export const useValidationActions = ({
                     body: condition,
                 }
             )
+            if (!res.ok) {
+                return { status: 'unchecked' }
+            }
             const body = await res.json()
-            const message = [body.message, body.description]
-                .filter(Boolean)
-                .join(': ')
-            return { valid: body.status !== 'ERROR', message }
+            if (body.status === 'ERROR') {
+                const message = [body.message, body.description]
+                    .filter(Boolean)
+                    .join(': ')
+                return { status: 'invalid', message }
+            }
+            return body.status === 'OK'
+                ? { status: 'valid' }
+                : { status: 'unchecked' }
         } catch {
-            return { valid: true }
+            return { status: 'unchecked' }
+        }
+    }
+
+    const warnIfUnchecked = (results: SaveResult[]) => {
+        const unchecked = results.filter((r) => !r.conditionChecked).length
+        if (unchecked > 0) {
+            showUnchecked({
+                message: i18n.t(
+                    'DHIS2 could not be asked to validate the condition of {{count}} saved rule(s). Check them in the Maintenance app.',
+                    { count: unchecked }
+                ),
+            })
         }
     }
 
@@ -141,20 +174,16 @@ export const useValidationActions = ({
         })
 
     const createMutation = useMutation<
-        void,
+        SaveResult,
         Error,
         { config: ValidationConfig; variable: Variable }
     >(
-        async ({ config: validationConfig, variable }) => {
-            await createValidationForVariable(
-                buildCtx(),
-                validationConfig,
-                variable
-            )
-        },
+        ({ config: validationConfig, variable }) =>
+            createValidationForVariable(buildCtx(), validationConfig, variable),
         {
-            onSuccess: () => {
+            onSuccess: (result) => {
                 showCreated()
+                warnIfUnchecked([result])
                 invalidateMetadata()
             },
             onError: (error) => {
@@ -164,20 +193,20 @@ export const useValidationActions = ({
     )
 
     const updateMutation = useMutation<
-        void,
+        SaveResult,
         Error,
         { ruleId: string; config: ValidationConfig; variable: Variable }
     >(
-        async ({ ruleId, config: validationConfig, variable }) => {
-            await updateValidation(buildCtx(), {
+        ({ ruleId, config: validationConfig, variable }) =>
+            updateValidation(buildCtx(), {
                 ruleId,
                 config: validationConfig,
                 currentVariable: variable,
-            })
-        },
+            }),
         {
-            onSuccess: () => {
+            onSuccess: (result) => {
                 showUpdated()
+                warnIfUnchecked([result])
                 invalidateMetadata()
             },
             onError: (error) => {
@@ -197,6 +226,108 @@ export const useValidationActions = ({
                 showDeleteError({ message: error.message })
             },
         }
+    )
+
+    // Several rules in one go (group edit, delete all, batch cleanup): every
+    // rule is attempted, then ONE alert sums up what happened and names the
+    // rules that failed, instead of per-rule alerts that hide each other.
+    const describeFailures = (failures: { name: string; message: string }[]) =>
+        failures.map((f) => `"${f.name}" (${f.message})`).join('; ')
+
+    const updateManyMutation = useMutation<
+        { failures: { name: string; message: string }[] },
+        Error,
+        {
+            items: {
+                ruleId: string
+                name: string
+                config: ValidationConfig
+                variable: Variable
+            }[]
+        }
+    >(
+        async ({ items }) => {
+            const ctx = buildCtx()
+            const results: SaveResult[] = []
+            const failures: { name: string; message: string }[] = []
+            for (const item of items) {
+                try {
+                    results.push(
+                        await updateValidation(ctx, {
+                            ruleId: item.ruleId,
+                            config: item.config,
+                            currentVariable: item.variable,
+                        })
+                    )
+                } catch (error) {
+                    failures.push({
+                        name: item.name,
+                        message: (error as Error).message,
+                    })
+                }
+            }
+            showSummary({
+                failed: failures.length > 0,
+                message:
+                    failures.length > 0
+                        ? i18n.t(
+                              'Updated {{count}} rule(s). Could not update {{failedCount}}: {{details}}',
+                              {
+                                  count: results.length,
+                                  failedCount: failures.length,
+                                  details: describeFailures(failures),
+                                  nsSeparator: undefined,
+                              }
+                          )
+                        : i18n.t('Updated {{count}} rule(s).', {
+                              count: results.length,
+                          }),
+            })
+            warnIfUnchecked(results)
+            return { failures }
+        },
+        { onSettled: () => invalidateMetadata() }
+    )
+
+    const deleteManyMutation = useMutation<
+        { failures: { name: string; message: string }[] },
+        Error,
+        ExistingValidation[]
+    >(
+        async (validations) => {
+            let deleted = 0
+            const failures: { name: string; message: string }[] = []
+            for (const validation of validations) {
+                try {
+                    await deleteRule(engine, validation)
+                    deleted++
+                } catch (error) {
+                    failures.push({
+                        name: validation.rule.name,
+                        message: (error as Error).message,
+                    })
+                }
+            }
+            showSummary({
+                failed: failures.length > 0,
+                message:
+                    failures.length > 0
+                        ? i18n.t(
+                              'Deleted {{count}} rule(s). Could not delete {{failedCount}}: {{details}}',
+                              {
+                                  count: deleted,
+                                  failedCount: failures.length,
+                                  details: describeFailures(failures),
+                                  nsSeparator: undefined,
+                              }
+                          )
+                        : i18n.t('Deleted {{count}} rule(s).', {
+                              count: deleted,
+                          }),
+            })
+            return { failures }
+        },
+        { onSettled: () => invalidateMetadata() }
     )
 
     const batchMutation = useMutation<
@@ -220,6 +351,14 @@ export const useValidationActions = ({
                 invalidateMetadata()
             },
             onSuccess: (result) => {
+                if (result.uncheckedCount > 0) {
+                    showUnchecked({
+                        message: i18n.t(
+                            'DHIS2 could not be asked to validate the condition of {{count}} saved rule(s). Check them in the Maintenance app.',
+                            { count: result.uncheckedCount }
+                        ),
+                    })
+                }
                 if (result.errors.length > 0) {
                     showBatchError({
                         message: i18n.t(
@@ -264,7 +403,10 @@ export const useValidationActions = ({
         updateValidationRule: updateMutation.mutateAsync,
         isUpdating: updateMutation.isLoading,
         deleteValidation: deleteMutation.mutateAsync,
-        isDeleting: deleteMutation.isLoading,
+        isDeleting: deleteMutation.isLoading || deleteManyMutation.isLoading,
+        updateValidationRules: updateManyMutation.mutateAsync,
+        isUpdatingMany: updateManyMutation.isLoading,
+        deleteValidations: deleteManyMutation.mutateAsync,
         applyBatch: batchMutation.mutateAsync,
         isApplyingBatch: batchMutation.isLoading,
         batchProgress,
