@@ -171,6 +171,9 @@ hold the message back until the user completes the form.
   Android.** The DHIS2 Android Capture app (3.4.2) shows no message for them and
   lets the record be saved; DHIS2 then rejects it when the device syncs. Capture
   web shows them. Rules on data elements and attributes work on both.
+- **"Within N months/years" in Capture web on DHIS2 2.41 and older** can reject
+  the last day of the window when that day is a month end (Capture's older rule
+  engine counts months differently). Days and weeks are exact everywhere.
 - **On-complete actions on tracked entity attributes** are not supported by the
   DHIS2 Android app — it shows nothing. Prefer error/warning for attribute
   rules if Android is in use.

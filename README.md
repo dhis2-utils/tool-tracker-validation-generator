@@ -52,6 +52,11 @@ Leone and Laos HMIS demo databases — see `docs/review-2026-08-24-multiversion/
   such messages nor blocks saving ([ANDROAPP-7843](https://dhis2.atlassian.net/browse/ANDROAPP-7843)).
   DHIS2 rejects the record when the device syncs, which leaves a sync error on the device. Capture
   web shows them normally. The tool warns when you create one.
+- **Capture web on DHIS2 2.41 and older: month-end edge of "within N months/years".** Before 2.42,
+  Capture web evaluates rules with its legacy JavaScript engine, which counts 31 Aug → 30 Sep as
+  a whole month. A months/years window whose limit falls on a month end then rejects its last
+  valid day there (never the other way round). Android, the server and Capture web on 2.42+ are
+  exact. "Within" in days or weeks is exact everywhere.
 - **Android: on-complete actions on tracked entity attributes do nothing.** The DHIS2 Android
   Capture app does not support `ERRORONCOMPLETE` / `WARNINGONCOMPLETE` for tracked entity
   attributes (they are supported for data elements). A rule of that shape shows nothing on

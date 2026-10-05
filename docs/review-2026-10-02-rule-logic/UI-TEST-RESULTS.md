@@ -7,10 +7,10 @@ release APK, Android 14 emulator). "Today" was 2026-10-02 on every client.
 
 ## 1. Tool UI (Playwright, installed app)
 
-| Suite                                  | Programme                          | Result    |
-| -------------------------------------- | ---------------------------------- | --------- |
-| `tests/e2e/review_suite.py` (11 steps) | Electronic Immunization Registry   | **11/11** |
-| `tests/e2e/event_program_suite.py` (6) | RMS - Rapid Mortality Surveillance | **6/6**   |
+| Suite                            | Programme                          | Result    |
+| -------------------------------- | ---------------------------------- | --------- |
+| `e2e/review_suite.py` (11 steps) | Electronic Immunization Registry   | **11/11** |
+| `e2e/event_program_suite.py` (6) | RMS - Rapid Mortality Surveillance | **6/6**   |
 
 No non-benign console or page errors. The first run of the review suite failed step 6 (editing a
 rule): it uncovered the DHIS2 2.42 metadata-import NullPointerException described in `FIXES.md`.
@@ -84,7 +84,7 @@ created, and the README / manual list the limitation.
 
 ## 3. Engine-level coverage (unit tests)
 
-`tests/builder-semantics.test.ts` runs every condition shape through `@dhis2/rule-engine` 3.8.3,
+`src/lib/builder-semantics.test.ts` runs every condition shape through `@dhis2/rule-engine` 3.8.3,
 the engine Capture web depends on (`^3.8.2`), on the boundary days and with empty fields,
 including an exhaustive calendar check of "within N days/weeks/months/years" for every reference
 date in 2028. 807 unit tests in total.
@@ -97,9 +97,65 @@ enrollment nor as a separate event import, while the Android sync above shows th
 enforcing R3. The cause of the difference was not determined. The rules behave correctly in both
 client apps, which is where data entry is blocked.
 
+## 5. Other DHIS2 versions and databases
+
+Re-run with the committed suite `e2e/rule_matrix/` (rules created by the app's own service code;
+Capture web driven by `capture_web.py`, 31 checks incl. blocking; Android Capture 3.4.2 spot
+check of the key cases). The 2.42 matrix in section 2 was run before the suite existed, with the
+same rules and cases.
+
+| DHIS2   | Database         | Tool UI (11 + 6) | Capture web (bundled)     | Android 3.4.2 spot check |
+| ------- | ---------------- | ---------------- | ------------------------- | ------------------------ |
+| 2.41.10 | Sierra Leone v41 | 17/17            | 31/31 ¹ (Capture 107.0.4) | 10/10                    |
+| 2.42.6  | Laos HMIS v42    | 17/17            | 23/23 (Capture 107.0.2)   | 22/23 ²                  |
+| 2.43.1  | Laos HMIS v43    | 17/17            | 31/31 (Kotlin engine)     | 11/11 ²                  |
+
+¹ **Capture web on DHIS2 < 2.42 uses its legacy JavaScript rule engine** (Capture switches to the
+Kotlin engine only from 2.42: `kotlinRuleEngine: 42` in its `featuresSupport`). The legacy engine
+computes `d2:monthsBetween` / `yearsBetween` with moment.js, which counts 31 Aug → 30 Sep as a
+whole month; the Kotlin engine (Android, the server, Capture on ≥ 2.42, every published
+`@dhis2/rule-engine` from 3.6.1 to 3.8.3) counts it as 0. So on 2.41 Capture web, a "within N
+months/years" window whose limit falls on a month end rejects its last valid day: of 43,860
+boundary probes over 2027–2028, 62 (0.14 %) are rejected wrongly, always that one boundary day,
+never an invalid date let through. Days and weeks are exact on both engines. No condition can be
+exact under both month semantics (searched exhaustively); the app keeps the Kotlin-exact form.
+The suite expects the legacy result on < 2.42 and passes; observed with T = 2026-08-30 against
+enrollment 2026-09-30, which Android accepts on the same 2.41 server.
+
+² R3 and R8 (rules on the event and enrollment dates) show nothing on Android, as in section 2
+(ANDROAPP-7843); every field-bound rule behaves as expected on all three servers.
+
+## 6. `e2e/run.sh` (conventions contract)
+
+The suites above were then folded into `e2e/run.sh`, which follows the e2e contract of
+reference-tool-conventions: it installs the bundle, seeds its own programmes (so it does not
+depend on the demo database), creates the eight matrix rules **through the installed app's
+form**, edits two of them, runs bulk apply, its clean-up offer and a delete, covers an event
+programme, checks every matrix case in Capture web, removes everything and uninstalls the app.
+The earlier `review_suite.py`, `event_program_suite.py` and `rule_matrix/` scripts were replaced
+by it. One run per version, bundle 1.0.2 built from this branch:
+
+| DHIS2   | Database         | Result      | Duration | Capture web engine |
+| ------- | ---------------- | ----------- | -------- | ------------------ |
+| 2.41.10 | Sierra Leone v41 | **55/55**   | ~6 min   | legacy JS ¹        |
+| 2.42.6  | Laos HMIS v42    | **55/55** ² | ~12 min  | Kotlin             |
+| 2.43.1  | Laos HMIS v43    | **55/55**   | ~12 min  | Kotlin             |
+
+55 = 22 tool-UI checks, 31 Capture web checks, no rule-engine errors in the Capture console, and
+1 cleanup check (nothing left behind, app uninstalled). Tracker deletes in DHIS2 are soft, and a
+soft-deleted enrollment blocks deleting its programme (E4030), so the teardown purges
+soft-deleted tracker data through `POST /api/maintenance`.
+
+² Run with the 1.1.0 bundle (app key `tool-tracker-validation-generator`) while 1.0.2 was still
+installed under the old key, and after a deliberately interrupted seeding: the suite first
+removed what the dataStore record `e2e-state/tool-tracker-validation-generator` listed. The 2.41
+and 2.43 runs used the build before the key change. All three include the `d2:hasValue` guard on
+system dates; unguarded, a rule on an empty event date (a scheduled event) made Capture log
+"Failed to coerce value 'null'" on every evaluation, though the rule did not fire.
+
 ## Cleanup
 
-All tracked entities created by the tests were deleted (0 remain in the test programme). The test
-programme, its seven matrix rules plus R8 and R9, the test facility and the `tvtester` user are
-left on the disposable instance for manual testing. The Android app stays installed and logged
+All tracked entities created by the tests were deleted (0 remain in the test programmes). On the
+2.42 instance the test programme, its seven matrix rules plus R8 and R9, the test facility and
+the `tvtester` user are left for manual testing; the 2.41 and 2.43 instances were deleted. The Android app stays installed and logged
 in as `tvtester`.
