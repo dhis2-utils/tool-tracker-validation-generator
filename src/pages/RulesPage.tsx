@@ -26,6 +26,7 @@ import type {
     Variable,
 } from '@/lib/types'
 import { buildEditConfig, getValidationPreview } from '@/lib/validation'
+import { variablePath } from '@/lib/variables'
 
 interface RuleRow {
     validation: ExistingValidation
@@ -154,9 +155,7 @@ export const RulesPage = () => {
     }
 
     const routeFor = (variable: Variable) =>
-        `/${programId}/variable/${variable.type}/${variable.id}${
-            variable.stageId ? `/${variable.stageId}` : ''
-        }`
+        variablePath(programId as string, variable)
 
     const deleteAll = async () => {
         try {

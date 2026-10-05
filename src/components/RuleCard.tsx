@@ -1,7 +1,16 @@
 import i18n from '@dhis2/d2-i18n'
 import { Button, ButtonStrip, Tag } from '@dhis2/ui'
+import { Link } from 'react-router-dom'
 import styles from './RuleCard.module.css'
-import type { ExistingValidation } from '@/lib/types'
+import type { ExistingValidation, Variable } from '@/lib/types'
+
+/** Where a rule listed under another field comes from (read-only cards). */
+export interface RuleOrigin {
+    /** Created by this tool (tagged [DVT]) */
+    managed: boolean
+    /** The field the rule validates, with the path to its page */
+    validates?: { variable: Variable; path: string } | null
+}
 
 /** Why the app won't edit this rule, or null when it can. The app edits one
  * message per rule; a rule with several is left to the Maintenance app. */
@@ -20,9 +29,11 @@ export const RuleCard = ({
     onEdit,
     onDelete,
     busy,
+    origin,
 }: {
     validation: ExistingValidation
     isEditable: boolean
+    origin?: RuleOrigin
     onEdit?: () => void
     onDelete: () => void
     busy: boolean
@@ -38,11 +49,31 @@ export const RuleCard = ({
         >
             <div className={styles.ruleHeader}>
                 <h4>{validation.rule.name}</h4>
-                <Tag negative={isError} neutral={!isError}>
-                    {actionType}
-                </Tag>
+                <span className={styles.tags}>
+                    {origin &&
+                        (origin.managed ? (
+                            <Tag positive>{i18n.t('Set up by this tool')}</Tag>
+                        ) : (
+                            <Tag neutral>
+                                {i18n.t('Not set up by this tool')}
+                            </Tag>
+                        ))}
+                    <Tag negative={isError} neutral={!isError}>
+                        {actionType}
+                    </Tag>
+                </span>
             </div>
             <dl className={styles.ruleMeta}>
+                {origin?.validates && (
+                    <>
+                        <dt>{i18n.t('Validates')}</dt>
+                        <dd>
+                            <Link to={origin.validates.path}>
+                                {origin.validates.variable.name}
+                            </Link>
+                        </dd>
+                    </>
+                )}
                 <dt>{i18n.t('Rule ID')}</dt>
                 <dd>
                     <code>{validation.rule.id}</code>

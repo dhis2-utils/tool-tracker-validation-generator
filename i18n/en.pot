@@ -5,8 +5,8 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
-"POT-Creation-Date: 2026-10-02T08:24:10.779Z\n"
-"PO-Revision-Date: 2026-10-02T08:24:10.779Z\n"
+"POT-Creation-Date: 2026-10-05T04:19:20.134Z\n"
+"PO-Revision-Date: 2026-10-05T04:19:20.135Z\n"
 
 msgid "Tracker Validation Tool"
 msgstr "Tracker Validation Tool"
@@ -251,6 +251,15 @@ msgid ""
 msgstr ""
 "This rule has more than one message, so it can only be edited in the "
 "Maintenance app."
+
+msgid "Set up by this tool"
+msgstr "Set up by this tool"
+
+msgid "Not set up by this tool"
+msgstr "Not set up by this tool"
+
+msgid "Validates"
+msgstr "Validates"
 
 msgid "Rule ID"
 msgstr "Rule ID"

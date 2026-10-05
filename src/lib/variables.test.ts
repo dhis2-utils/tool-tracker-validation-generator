@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildVariablesArray, sanitizePrvPrefix } from '@/lib/variables'
-import { makeMeta } from '@/test-utils/helpers'
+import {
+    buildVariablesArray,
+    sanitizePrvPrefix,
+    variablePath,
+} from '@/lib/variables'
+import { makeMeta, makeVariable } from '@/test-utils/helpers'
 
 const mockMeta = makeMeta({
     enrollmentDateLabel: 'Registration date',
@@ -346,5 +350,25 @@ describe('sanitizePrvPrefix', () => {
         ['', ''],
     ])('%j → %j', (input, expected) => {
         expect(sanitizePrvPrefix(input)).toBe(expected)
+    })
+})
+
+describe('variablePath', () => {
+    it('includes the stage for stage-bound fields', () => {
+        const v = makeVariable({
+            type: 'dataElement',
+            id: 'de1',
+            stageId: 'st1',
+        })
+        expect(variablePath('prog1', v)).toBe(
+            '/prog1/variable/dataElement/de1/st1'
+        )
+    })
+
+    it('has no stage segment for programme-level fields', () => {
+        const v = makeVariable({ type: 'enrollment', id: 'enrollment_date' })
+        expect(variablePath('prog1', v)).toBe(
+            '/prog1/variable/enrollment/enrollment_date'
+        )
     })
 })

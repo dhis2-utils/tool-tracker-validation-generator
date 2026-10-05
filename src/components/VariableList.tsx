@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import styles from './VariableList.module.css'
 import { prGetExisting } from '@/lib/detector'
 import type { ProgramMetadata, Variable } from '@/lib/types'
-import { VALUE_TYPE_LABELS } from '@/lib/variables'
+import { VALUE_TYPE_LABELS, variablePath } from '@/lib/variables'
 
 const TYPE_LABELS: Record<string, string> = {
     enrollment: 'Enrollment date',
@@ -26,11 +26,7 @@ const VariableRow = ({
     const navigate = useNavigate()
     const { programId } = useParams()
     const openDetails = () =>
-        navigate(
-            `/${programId}/variable/${variable.type}/${variable.id}${
-                variable.stageId ? `/${variable.stageId}` : ''
-            }`
-        )
+        navigate(variablePath(programId as string, variable))
 
     return (
         <button

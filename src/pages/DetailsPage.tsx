@@ -10,17 +10,25 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import styles from './DetailsPage.module.css'
 import { ConfirmModal } from '@/components/ConfirmModal'
-import { editBlockedReason, RuleCard } from '@/components/RuleCard'
+import {
+    editBlockedReason,
+    RuleCard,
+    type RuleOrigin,
+} from '@/components/RuleCard'
 import { ValidationForm } from '@/components/ValidationForm'
 import { useFeedback } from '@/hooks/useFeedback'
 import { useProgramData } from '@/hooks/useProgramData'
 import { useValidationActions } from '@/hooks/useValidationActions'
-import { prGetExisting, prGetReferencing } from '@/lib/detector'
+import {
+    prGetExisting,
+    prGetReferencing,
+    validatedVariable,
+} from '@/lib/detector'
 import { parseRuleCondition } from '@/lib/parser'
 import { isAppGenerated, isBatchGenerated } from '@/lib/signature'
 import type { ExistingValidation, ValidationConfig } from '@/lib/types'
 import { buildEditConfig } from '@/lib/validation'
-import { findVariableByComponents } from '@/lib/variables'
+import { findVariableByComponents, variablePath } from '@/lib/variables'
 
 interface EditingState {
     ruleId: string
@@ -115,6 +123,25 @@ export const DetailsPage = () => {
         ...validations.filter((v) => !isAppGenerated(v.rule)),
         ...referencing,
     ]
+
+    // Tells the tool's own rules for another field apart from rules set up elsewhere.
+    const originOf = (validation: ExistingValidation): RuleOrigin => {
+        if (!isAppGenerated(validation.rule)) {
+            return { managed: false }
+        }
+        const owner = validatedVariable(
+            programMetadata,
+            validation.rule,
+            variables ?? []
+        )
+        return {
+            managed: true,
+            validates: owner && {
+                variable: owner,
+                path: variablePath(programId as string, owner),
+            },
+        }
+    }
 
     const startEditing = (validation: ExistingValidation) => {
         const blocked = editBlockedReason(validation)
@@ -245,6 +272,7 @@ export const DetailsPage = () => {
                             <RuleCard
                                 key={validation.rule.id}
                                 validation={validation}
+                                origin={originOf(validation)}
                                 isEditable={false}
                                 busy={busy}
                                 onDelete={() => setDeleteCandidate(validation)}

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { prGetExisting, prGetReferencing } from '@/lib/detector'
+import {
+    prGetExisting,
+    prGetReferencing,
+    validatedVariable,
+} from '@/lib/detector'
 import type { ProgramMetadata, ProgramRule } from '@/lib/types'
 import { makeMeta, makeVariable } from '@/test-utils/helpers'
 
@@ -238,5 +242,35 @@ describe('prGetReferencing — other rules that read the variable', () => {
             },
         ])
         expect(ids(prGetReferencing(meta, enrollment))).toEqual(['rEnr'])
+    })
+})
+
+describe('validatedVariable — the field a rule validates', () => {
+    const variables = [visitIn(ANC), visitIn(PNC), admIn(ANC), enrollment]
+    const within = {
+        id: 'rWithin',
+        programStage: { id: ANC },
+        condition:
+            'd2:hasValue(#{P_VISIT}) && d2:hasValue(#{P_ADM}) && (d2:daysBetween(d2:addDays(#{P_VISIT}, 1), #{P_ADM}) >= 7 || d2:daysBetween(#{P_VISIT}, #{P_ADM}) < 0)',
+    }
+
+    it('is the validated field in the rule stage, not the one compared with', () => {
+        const meta = metaWith([within])
+        const [rule] = meta.programRules
+        expect(validatedVariable(meta, rule, variables)).toBe(variables[0])
+    })
+
+    it('is null for a rule that is not in one of the app shapes', () => {
+        const meta = metaWith([
+            { id: 'rHand', condition: '#{P_ADM} > V{enrollment_date}' },
+        ])
+        const [rule] = meta.programRules
+        expect(validatedVariable(meta, rule, variables)).toBeNull()
+    })
+
+    it('is null when the field is no longer in the programme', () => {
+        const meta = metaWith([within])
+        const [rule] = meta.programRules
+        expect(validatedVariable(meta, rule, [admIn(ANC)])).toBeNull()
     })
 })

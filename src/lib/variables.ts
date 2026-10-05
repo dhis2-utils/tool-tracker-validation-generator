@@ -177,6 +177,13 @@ export function findVariableByComponents(
     )
 }
 
+/** Hash-router path of a variable's details page */
+export function variablePath(programId: string, variable: Variable): string {
+    return `/${programId}/variable/${variable.type}/${variable.id}${
+        variable.stageId ? `/${variable.stageId}` : ''
+    }`
+}
+
 /** "type:id[:stageId]" key used in selects and URLs */
 export function getVariableKey(variable: Variable): string {
     return `${variable.type}:${variable.id}${variable.stageId ? ':' + variable.stageId : ''}`

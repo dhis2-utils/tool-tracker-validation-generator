@@ -92,6 +92,24 @@ export function prGetExisting(
     )
 }
 
+/**
+ * The field `rule` validates, from `variables` (the programme's offered
+ * variables), when its condition is one of the app's shapes; otherwise null.
+ */
+export function validatedVariable(
+    metadata: ProgramMetadata,
+    rule: ProgramRule,
+    variables: Variable[]
+): Variable | null {
+    return (
+        variables.find(
+            (variable) =>
+                variable.type !== 'current_date' &&
+                isValidatedBy(metadata, rule, variable)
+        ) ?? null
+    )
+}
+
 const escapeRegExp = (text: string) =>
     text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
